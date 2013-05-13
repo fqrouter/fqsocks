@@ -10,14 +10,24 @@ import select
 import signal
 import subprocess
 import atexit
+import random
+import re
+import dpkt
 
 import gevent.server
 import gevent.monkey
-from http_connect import HttpConnectProxy
+
+from direct import DirectProxy
 
 
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
+
+DIRECT_PROXY = DirectProxy()
+http_connect_proxies = []
+
+TLS1_1_VERSION = 0x0302
+RE_HTTP_HOST = re.compile('Host: (.+)')
 
 
 class ProxyClient(object):
@@ -52,18 +62,64 @@ def handle(downstream_sock, address):
     upstream_sock.bind(('10.1.2.3', 0))
     client = ProxyClient(downstream_sock, upstream_sock, address[0], address[1], dst_ip, dst_port)
     try:
-        LOGGER.debug('downstream connected %s' % repr(client))
-        if not HttpConnectProxy('175.143.35.140', 8080).connect_upstream(client):
-            LOGGER.debug('upstream connect failed: %s' % repr(client))
+        LOGGER.debug('[%s] downstream connected' % repr(client))
+        proxy, peaked_data = select_proxy(client)
+        if not proxy.connect_upstream(client):
+            LOGGER.debug('[%s] upstream connect failed' % repr(client))
             return
-        LOGGER.debug('upstream connected: %s' % repr(client))
-        try:
-            client.forward()
-            LOGGER.debug('done: %s' % repr(client))
-        except:
-            LOGGER.debug('done with error %s: %s' % (sys.exc_info()[1], repr(client)))
+        LOGGER.debug('[%s] upstream connected' % repr(client))
+        client.upstream_sock.sendall(peaked_data)
+        client.forward()
+        LOGGER.debug('[%s] done' % repr(client))
+    except:
+        LOGGER.exception('[%s] done with error' % repr(client))
     finally:
         client.close()
+
+
+def select_proxy(client):
+    ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
+    if errors:
+        LOGGER.error('[%s] peek data failed' % repr(client))
+        return DIRECT_PROXY, ''
+    if not ins:
+        LOGGER.error('[%s] peek data timed out' % repr(client))
+        return pick_http_connect_proxy() if client.dst_port in (80, 443) else DIRECT_PROXY, ''
+    peeked_data = client.downstream_sock.recv(512)
+    protocol, domain = analyze_protocol(peeked_data)
+    LOGGER.info('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
+    return pick_http_connect_proxy(), peeked_data
+
+
+def analyze_protocol(peeked_data):
+    try:
+        match = RE_HTTP_HOST.search(peeked_data)
+        if match:
+            return 'HTTP', match.group(1)
+        ssl3 = dpkt.ssl.SSL3(peeked_data)
+        if ssl3.version in (dpkt.ssl.SSL3_VERSION, dpkt.ssl.TLS1_VERSION, TLS1_1_VERSION):
+            return 'HTTPS', parse_sni_domain(peeked_data)
+    except:
+        LOGGER.exception('failed to analyze protocol')
+    return 'UNKNOWN', ''
+
+
+def parse_sni_domain(data):
+    domain = ''
+    try:
+        # extrace SNI from ClientHello packet, quick and dirty.
+        domain = (m.group(2) for m in re.finditer('\x00\x00(.)([\\w\\.]{4,255})', data)
+                  if ord(m.group(1)) == len(m.group(2))).next()
+    except StopIteration:
+        pass
+    return domain
+
+
+def pick_http_connect_proxy():
+    if http_connect_proxies:
+        return random.choice(http_connect_proxies)
+    else:
+        return DIRECT_PROXY
 
 
 def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None):
@@ -73,7 +129,7 @@ def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None
             timecount -= tick
             if timecount <= 0:
                 break
-            (ins, _, errors) = select.select([local, remote], [], [local, remote], tick)
+            ins, _, errors = select.select([local, remote], [], [local, remote], tick)
             if errors:
                 break
             if ins:
@@ -94,8 +150,6 @@ def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None
 
 
 def on_exit(signum, frame):
-    if signal.SIG_DFL == signal.signal(signum, signal.SIG_DFL):
-        return
     delete_iptables_rule()
 
 

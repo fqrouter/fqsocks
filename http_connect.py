@@ -14,15 +14,15 @@ class HttpConnectProxy(object):
 
     def connect_upstream(self, client):
         sock = client.upstream_sock
-        LOGGER.info('http connect %s:%s for %s' % (self.proxy_ip, self.proxy_port, repr(client)))
+        LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
         sock.connect((self.proxy_ip, self.proxy_port))
-        sock.send('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))
+        sock.sendall('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))
         response = sock.recv(1)
         while response.find('\r\n\r\n') == -1:
             response += sock.recv(1)
         match = RE_STATUS.search(response)
         if match and '200' == match.group(1):
             return True
-        LOGGER.error('http connect response from %s:%s for %s:\n%s' %
-                     (self.proxy_ip, self.proxy_port, repr(client), response.strip()))
+        LOGGER.error('[%s] http connect response from %s:%s\n%s' %
+                     (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
         return False
