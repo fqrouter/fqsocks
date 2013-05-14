@@ -46,11 +46,12 @@ ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
 
-class UrlFetchProxy(object):
-    def __init__(self, appid, google_ip, password=False, validate=0):
-        super(UrlFetchProxy, self).__init__()
+class GoAgentProxy(object):
+    google_ip = '203.208.46.131'
+
+    def __init__(self, appid, password=False, validate=0):
+        super(GoAgentProxy, self).__init__()
         self.appid = appid
-        self.google_ip = google_ip
         self.password = password
         self.validate = validate
 
@@ -86,7 +87,7 @@ class UrlFetchProxy(object):
         forward(client, self)
 
     def __repr__(self):
-        return 'UrlFetchProxy[%s]' % self.appid
+        return 'GoAgentProxy[%s]' % self.appid
 
 
 def parse_request(request):
@@ -346,6 +347,7 @@ def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry
             if not isinstance(result, socket.error):
                 return result
 
+
 def gae_range_urlfetch(client, proxy, response):
     client.range_urlfetch_stopped = False
     client._last_app_status = {}
@@ -409,6 +411,7 @@ def gae_range_urlfetch(client, proxy, response):
             break
     client.range_urlfetch_stopped = True
 
+
 def gae_range_urlfetch_worker(client, proxy, range_queue, data_queue):
     headers = client.headers.copy()
     headers['Connection'] = 'close'
@@ -437,7 +440,7 @@ def gae_range_urlfetch_worker(client, proxy, range_queue, data_queue):
             client._last_app_status[proxy.appid] = response.app_status
             if response.app_status != 200:
                 LOGGER.warning('Range Fetch "%s %s" %s return %s', client.method, client.url, headers['Range'],
-                                response.app_status)
+                               response.app_status)
                 response.close()
                 range_queue.put((start, end, None))
                 continue
@@ -467,7 +470,7 @@ def gae_range_urlfetch_worker(client, proxy, range_queue, data_queue):
                         start += len(data)
                     except socket.error as e:
                         LOGGER.warning('RangeFetch "%s %s" %s failed: %s', client.method, client.url, headers['Range'],
-                                        e)
+                                       e)
                         break
                 if start < end:
                     LOGGER.warning('RangeFetch "%s %s" retry %s-%s', client.method, client.url, start, end)

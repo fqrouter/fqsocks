@@ -19,10 +19,14 @@ import gevent.server
 import gevent.monkey
 
 from direct import DIRECT_PROXY
-from urlfetch import UrlFetchProxy
+from goagent import GoAgentProxy
 from http_connect import HttpConnectProxy
 
 
+proxy_types = {
+    'http-connect': HttpConnectProxy,
+    'goagent': GoAgentProxy
+}
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
@@ -137,7 +141,7 @@ def pick_proxy(client):
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
-        proxy = pick_urlfetch_proxy()
+        proxy = pick_goagent_proxy()
         if proxy:
             return proxy
     if protocol in ('HTTP', 'HTTPS') or client.dst_port in (80, 443):
@@ -174,10 +178,10 @@ def parse_sni_domain(data):
     return domain
 
 
-def pick_urlfetch_proxy():
-    urlfetch_proxies = [proxy for proxy in proxies if isinstance(proxy, UrlFetchProxy)]
-    if urlfetch_proxies:
-        return random.choice(urlfetch_proxies)
+def pick_goagent_proxy():
+    goagent_proxies = [proxy for proxy in proxies if isinstance(proxy, GoAgentProxy)]
+    if goagent_proxies:
+        return random.choice(goagent_proxies)
     else:
         return None
 
@@ -234,12 +238,16 @@ if '__main__' == __name__:
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
+    argument_parser.add_argument('--proxy', action='append', default=[])
     args = argument_parser.parse_args()
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
     OUTBOUND_IP = args.outbound_ip
+    for proxy in args.proxy:
+        parts = proxy.split(',')
+        proxies.append(proxy_types[parts[0]](**dict(p.split('=') for p in parts[1:])))
     if args.dev:
         signal.signal(signal.SIGTERM, lambda signum, fame: teardown_development_env())
         signal.signal(signal.SIGINT, lambda signum, fame: teardown_development_env())
