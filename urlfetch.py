@@ -12,6 +12,7 @@ import sys
 import errno
 import re
 import functools
+import fnmatch
 
 import ssl
 import gevent.queue
@@ -28,7 +29,6 @@ ABBV_HEADERS = {'Accept': ('A', lambda x: '*/*' in x),
                 'Accept-Language': ('AL', lambda x: x.startswith('zh-CN')),
                 'Accept-Encoding': ('AE', lambda x: x.startswith('gzip,')), }
 GAE_OBFUSCATE = 0
-GAE_VALIDATE = 0
 GAE_PASSWORD = ''
 GAE_PATH = '/2'
 AUTORANGE_MAXSIZE = 1048576
@@ -40,8 +40,6 @@ AUTORANGE_WAITSIZE = 524288
 AUTORANGE_BUFSIZE = 8192
 AUTORANGE_THREADS = 2
 RE_DO_NOT_RANGE = re.compile('^http(?:s)?:\/\/[^\/]+\/[^?]+\.(?:xml|json|html|js|css|jpg|jpeg|png|gif|ico)')
-
-FETCHMAX_LOCAL = 2
 tcp_connection_time = {}
 ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
@@ -69,13 +67,12 @@ class UrlFetchProxy(object):
             DIRECT_PROXY.forward(client, request)
             return
         try:
-            LOGGER.debug('request: %s' % request)
             client.method, path, client.headers = parse_request(request)
-            host = client.headers.pop('Host', '')
-            if not host:
+            client.host = client.headers.pop('Host', '')
+            if not client.host:
                 raise Exception('missing host')
             if path[0] == '/':
-                client.url = 'http://%s%s' % (host, path)
+                client.url = 'http://%s%s' % (client.host, path)
             else:
                 client.url = path
             if LOGGER.isEnabledFor(logging.DEBUG):
@@ -101,21 +98,22 @@ def parse_request(request):
 
 
 def forward(client, proxy):
-    # TODO fix autorange
-    # if 'Range' in client.headers:
-    #     m = re.search('bytes=(\d+)-', client.headers['Range'])
-    #     start = int(m.group(1) if m else 0)
-    #     client.headers['Range'] = 'bytes=%d-%d' % (start, start + AUTORANGE_MAXSIZE - 1)
-    #     LOGGER.info('autorange range=%r match url=%r', client.headers['Range'], client.url)
-    # elif client.endswith(AUTORANGE_HOSTS_TAIL) and not RE_DO_NOT_RANGE.match(client.url):
-    #     try:
-    #         pattern = (p for p in AUTORANGE_HOSTS if client.host.endswith(p) or fnmatch.fnmatch(client.host, p)).next()
-    #         LOGGER.debug('autorange pattern=%r match url=%r', pattern, client.url)
-    #         m = re.search('bytes=(\d+)-', client.headers.get('Range', ''))
-    #         start = int(m.group(1) if m else 0)
-    #         client.headers['Range'] = 'bytes=%d-%d' % (start, start + AUTORANGE_MAXSIZE - 1)
-    #     except StopIteration:
-    #         pass
+    if 'Range' in client.headers:
+        m = re.search('bytes=(\d+)-', client.headers['Range'])
+        start = int(m.group(1) if m else 0)
+        client.headers['Range'] = 'bytes=%d-%d' % (start, start + AUTORANGE_MAXSIZE - 1)
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] range found in headers: %s' % (repr(client), client.headers['Range']))
+    elif client.host.endswith(AUTORANGE_HOSTS_TAIL) and not RE_DO_NOT_RANGE.match(client.url):
+        try:
+            pattern = (p for p in AUTORANGE_HOSTS if client.host.endswith(p) or fnmatch.fnmatch(client.host, p)).next()
+            m = re.search('bytes=(\d+)-', client.headers.get('Range', ''))
+            start = int(m.group(1) if m else 0)
+            client.headers['Range'] = 'bytes=%d-%d' % (start, start + AUTORANGE_MAXSIZE - 1)
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] auto range pattern=%s: %s' % (repr(client), pattern, client.headers['Range']))
+        except StopIteration:
+            pass
     try:
         client.payload = None
         if 'Content-Length' in client.headers:
@@ -143,13 +141,7 @@ def forward(client, proxy):
             response.close()
             return
         if response.status == 206:
-            raise Exception('range fetch not implemented yet')
-            # fetchservers = [fetchserver]
-            # rangefetch = RangeFetch(sock, response, method, path, headers, payload, fetchservers,
-            #                         GAE_PASSWORD, maxsize=AUTORANGE_MAXSIZE,
-            #                         bufsize=AUTORANGE_BUFSIZE, waitsize=AUTORANGE_WAITSIZE,
-            #                         threads=AUTORANGE_THREADS)
-            # return rangefetch.fetch()
+            return gae_range_urlfetch(client, proxy, response)
 
         if 'Set-Cookie' in response.msg:
             response.msg['Set-Cookie'] = normcookie(response.msg['Set-Cookie'])
@@ -202,22 +194,24 @@ def message_html(title, banner, detail=''):
     return template
 
 
-def gae_urlfetch(client, proxy, **kwargs):
+def gae_urlfetch(client, proxy, headers=None, **kwargs):
+    headers = headers or client.headers.copy()
+    payload = client.payload
     # deflate = lambda x:zlib.compress(x)[2:-4]
-    if client.payload:
-        if len(client.payload) < 10 * 1024 * 1024 and b'Content-Encoding' not in client.headers:
-            zpayload = zlib.compress(client.payload)[2:-4]
-            if len(zpayload) < len(client.payload):
-                client.payload = zpayload
-                client.headers[b'Content-Encoding'] = b'deflate'
-        client.headers[b'Content-Length'] = str(len(client.payload))
+    if payload:
+        if len(payload) < 10 * 1024 * 1024 and b'Content-Encoding' not in headers:
+            zpayload = zlib.compress(payload)[2:-4]
+            if len(zpayload) < len(payload):
+                payload = zpayload
+                headers[b'Content-Encoding'] = b'deflate'
+        headers[b'Content-Length'] = str(len(payload))
     metadata = 'G-Method:%s\nG-Url:%s\n%s' % (
         client.method, client.url, ''.join('G-%s:%s\n' % (k, v) for k, v in kwargs.items() if v))
-    if GAE_OBFUSCATE and 'X-Requested-With' not in client.headers:
+    if GAE_OBFUSCATE and 'X-Requested-With' not in headers:
         # not a ajax request, we could abbv the headers
         g_abbv = []
-        for keyword in [x for x in client.headers if x not in SKIP_HEADERS]:
-            value = client.headers[keyword]
+        for keyword in [x for x in headers if x not in SKIP_HEADERS]:
+            value = headers[keyword]
             if keyword in ABBV_HEADERS and ABBV_HEADERS[keyword][1](value):
                 g_abbv.append(ABBV_HEADERS[keyword][0])
             else:
@@ -225,20 +219,18 @@ def gae_urlfetch(client, proxy, **kwargs):
         if g_abbv:
             metadata += 'G-Abbv:%s\n' % ','.join(g_abbv)
     else:
-        metadata += ''.join('%s:%s\n' % (k, v) for k, v in client.headers.items() if k not in SKIP_HEADERS)
-    if LOGGER.isEnabledFor(logging.DEBUG):
-        LOGGER.debug('[%s] metadata:\n%s' % (repr(client), metadata))
+        metadata += ''.join('%s:%s\n' % (k, v) for k, v in headers.items() if k not in SKIP_HEADERS)
     metadata = zlib.compress(metadata)[2:-4]
     if GAE_OBFUSCATE:
         cookie = base64.b64encode(metadata).strip()
-        if not client.payload:
+        if not payload:
             response = http_request(
-                client, proxy, 'GET', client.payload, {b'Cookie': cookie})
+                client, proxy, 'GET', payload, {b'Cookie': cookie})
         else:
             response = http_request(
-                client, proxy, 'POST', client.payload, {b'Cookie': cookie, b'Content-Length': len(client.payload)})
+                client, proxy, 'POST', payload, {b'Cookie': cookie, b'Content-Length': len(payload)})
     else:
-        payload = '%s%s%s' % (struct.pack('!h', len(metadata)), metadata, client.payload)
+        payload = '%s%s%s' % (struct.pack('!h', len(metadata)), metadata, payload)
         response = http_request(
             client, proxy, b'POST', payload, {b'Content-Length': len(payload)})
     response.app_status = response.status
@@ -343,169 +335,139 @@ def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry
             if not isinstance(result, socket.error):
                 return result
 
+def gae_range_urlfetch(client, proxy, response):
+    client.range_urlfetch_stopped = False
+    client._last_app_status = {}
+    response_status = response.status
+    response_headers = dict((k.title(), v) for k, v in response.getheaders())
+    content_range = response_headers['Content-Range']
+    #content_length = response_headers['Content-Length']
+    start, end, length = map(int, re.search(r'bytes (\d+)-(\d+)/(\d+)', content_range).group(1, 2, 3))
+    if start == 0:
+        response_status = 200
+        response_headers['Content-Length'] = str(length)
+    else:
+        response_headers['Content-Range'] = 'bytes %s-%s/%s' % (start, end, length)
+        response_headers['Content-Length'] = str(length - start)
 
-class RangeFetch(object):
-    """Range Fetch Class"""
+    LOGGER.info('>>>>>>>>>>>>>>> RangeFetch started(%r) %d-%d', client.url, start, end)
+    client.downstream_wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (
+        response_status, ''.join('%s: %s\r\n' % (k, v) for k, v in response_headers.items())))
 
-    maxsize = 1024 * 1024 * 4
-    bufsize = 8192
-    threads = 1
-    waitsize = 1024 * 512
-    urlfetch = staticmethod(gae_urlfetch)
-
-    def __init__(self, sock, response, method, url, headers, payload, fetchservers, password, maxsize=0, bufsize=0,
-                 waitsize=0, threads=0):
-        self.sock = sock
-        self.response = response
-        self.method = method
-        self.url = url
-        self.headers = headers
-        self.payload = payload
-        self.fetchservers = fetchservers
-        self.password = password
-        self.maxsize = maxsize or self.__class__.maxsize
-        self.bufsize = bufsize or self.__class__.bufsize
-        self.waitsize = waitsize or self.__class__.bufsize
-        self.threads = threads or self.__class__.threads
-        self._stopped = None
-        self._last_app_status = {}
-
-    def fetch(self):
-        response_status = self.response.status
-        response_headers = dict((k.title(), v) for k, v in self.response.getheaders())
-        content_range = response_headers['Content-Range']
-        #content_length = response_headers['Content-Length']
-        start, end, length = map(int, re.search(r'bytes (\d+)-(\d+)/(\d+)', content_range).group(1, 2, 3))
-        if start == 0:
-            response_status = 200
-            response_headers['Content-Length'] = str(length)
-        else:
-            response_headers['Content-Range'] = 'bytes %s-%s/%s' % (start, end, length)
-            response_headers['Content-Length'] = str(length - start)
-
-        wfile = self.sock.makefile('w', 0)
-        LOGGER.info('>>>>>>>>>>>>>>> RangeFetch started(%r) %d-%d', self.url, start, end)
-        wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (
-            response_status, ''.join('%s: %s\r\n' % (k, v) for k, v in response_headers.items())))
-
-        data_queue = gevent.queue.PriorityQueue()
-        range_queue = gevent.queue.PriorityQueue()
-        range_queue.put((start, end, self.response))
-        for begin in range(end + 1, length, self.maxsize):
-            range_queue.put((begin, min(begin + self.maxsize - 1, length - 1), None))
-        for i in xrange(self.threads):
-            gevent.spawn(self.__fetchlet, range_queue, data_queue)
-        has_peek = hasattr(data_queue, 'peek')
-        peek_timeout = 90
-        expect_begin = start
-        while expect_begin < length - 1:
-            try:
-                if has_peek:
-                    begin, data = data_queue.peek(timeout=peek_timeout)
-                    if expect_begin == begin:
-                        data_queue.get()
-                    elif expect_begin < begin:
-                        gevent.sleep(0.1)
-                        continue
-                    else:
-                        LOGGER.error('RangeFetch Error: begin(%r) < expect_begin(%r), quit.', begin, expect_begin)
-                        break
+    data_queue = gevent.queue.PriorityQueue()
+    range_queue = gevent.queue.PriorityQueue()
+    range_queue.put((start, end, response))
+    for begin in range(end + 1, length, AUTORANGE_MAXSIZE):
+        range_queue.put((begin, min(begin + AUTORANGE_MAXSIZE - 1, length - 1), None))
+    for i in xrange(AUTORANGE_THREADS):
+        gevent.spawn(gae_range_urlfetch_worker, client, proxy, range_queue, data_queue)
+    has_peek = hasattr(data_queue, 'peek')
+    peek_timeout = 90
+    expect_begin = start
+    while expect_begin < length - 1:
+        try:
+            if has_peek:
+                begin, data = data_queue.peek(timeout=peek_timeout)
+                if expect_begin == begin:
+                    data_queue.get()
+                elif expect_begin < begin:
+                    gevent.sleep(0.1)
+                    continue
                 else:
-                    begin, data = data_queue.get(timeout=peek_timeout)
-                    if expect_begin == begin:
-                        pass
-                    elif expect_begin < begin:
-                        data_queue.put((begin, data))
-                        gevent.sleep(0.1)
-                        continue
-                    else:
-                        LOGGER.error('RangeFetch Error: begin(%r) < expect_begin(%r), quit.', begin, expect_begin)
-                        break
-            except gevent.queue.Empty:
-                LOGGER.error('data_queue peek timeout, break')
-                break
-            try:
-                wfile.write(data)
-                expect_begin += len(data)
-            except socket.error as e:
-                LOGGER.info('RangeFetch client connection aborted(%s).', e)
-                break
-        self._stopped = True
+                    LOGGER.error('RangeFetch Error: begin(%r) < expect_begin(%r), quit.', begin, expect_begin)
+                    break
+            else:
+                begin, data = data_queue.get(timeout=peek_timeout)
+                if expect_begin == begin:
+                    pass
+                elif expect_begin < begin:
+                    data_queue.put((begin, data))
+                    gevent.sleep(0.1)
+                    continue
+                else:
+                    LOGGER.error('RangeFetch Error: begin(%r) < expect_begin(%r), quit.', begin, expect_begin)
+                    break
+        except gevent.queue.Empty:
+            LOGGER.error('data_queue peek timeout, break')
+            break
+        try:
+            client.downstream_wfile.write(data)
+            expect_begin += len(data)
+        except socket.error as e:
+            LOGGER.info('RangeFetch client connection aborted(%s).', e)
+            break
+    client.range_urlfetch_stopped = True
 
-    def __fetchlet(self, range_queue, data_queue):
-        headers = self.headers.copy()
-        headers['Connection'] = 'close'
-        while 1:
+def gae_range_urlfetch_worker(client, proxy, range_queue, data_queue):
+    headers = client.headers.copy()
+    headers['Connection'] = 'close'
+    while 1:
+        try:
+            if client.range_urlfetch_stopped:
+                return
+            if data_queue.qsize() * AUTORANGE_BUFSIZE > 180 * 1024 * 1024:
+                gevent.sleep(10)
+                continue
             try:
-                if self._stopped:
-                    return
-                if data_queue.qsize() * self.bufsize > 180 * 1024 * 1024:
-                    gevent.sleep(10)
-                    continue
-                try:
-                    start, end, response = range_queue.get(timeout=1)
-                    headers['Range'] = 'bytes=%d-%d' % (start, end)
-                    fetchserver = ''
-                    if not response:
-                        fetchserver = random.choice(self.fetchservers)
-                        if self._last_app_status.get(fetchserver, 200) >= 500:
-                            gevent.sleep(5)
-                        response = self.urlfetch(self.method, self.url, headers, self.payload, fetchserver,
-                                                 password=self.password)
-                except gevent.queue.Empty:
-                    continue
-                except socket.error:
-                    logging.warning("Response SSLError in __fetchlet")
+                start, end, response = range_queue.get(timeout=1)
+                headers['Range'] = 'bytes=%d-%d' % (start, end)
                 if not response:
-                    logging.warning('RangeFetch %s return %r', headers['Range'], response)
-                    range_queue.put((start, end, None))
-                    continue
-                if fetchserver:
-                    self._last_app_status[fetchserver] = response.app_status
-                if response.app_status != 200:
-                    logging.warning('Range Fetch "%s %s" %s return %s', self.method, self.url, headers['Range'],
-                                    response.app_status)
+                    if client._last_app_status.get(proxy.appid, 200) >= 500:
+                        gevent.sleep(5)
+                    response = gae_urlfetch(client, proxy, headers)
+            except gevent.queue.Empty:
+                continue
+            except socket.error:
+                LOGGER.warning("Response SSLError in __fetchlet")
+            if not response:
+                LOGGER.warning('RangeFetch %s return %r', headers['Range'], response)
+                range_queue.put((start, end, None))
+                continue
+            client._last_app_status[proxy.appid] = response.app_status
+            if response.app_status != 200:
+                LOGGER.warning('Range Fetch "%s %s" %s return %s', client.method, client.url, headers['Range'],
+                                response.app_status)
+                response.close()
+                range_queue.put((start, end, None))
+                continue
+            if response.getheader('Location'):
+                client.url = response.getheader('Location')
+                LOGGER.info('RangeFetch Redirect(%r)', client.url)
+                response.close()
+                range_queue.put((start, end, None))
+                continue
+            if 200 <= response.status < 300:
+                content_range = response.getheader('Content-Range')
+                if not content_range:
+                    LOGGER.warning('RangeFetch "%s %s" return Content-Range=%r: response headers=%r', client.method,
+                                   client.url, content_range, str(response.msg))
                     response.close()
                     range_queue.put((start, end, None))
                     continue
-                if response.getheader('Location'):
-                    self.url = response.getheader('Location')
-                    LOGGER.info('RangeFetch Redirect(%r)', self.url)
-                    response.close()
-                    range_queue.put((start, end, None))
-                    continue
-                if 200 <= response.status < 300:
-                    content_range = response.getheader('Content-Range')
-                    if not content_range:
-                        logging.warning('RangeFetch "%s %s" return Content-Range=%r: response headers=%r', self.method,
-                                        self.url, content_range, str(response.msg))
-                        response.close()
-                        range_queue.put((start, end, None))
-                        continue
-                    content_length = int(response.getheader('Content-Length', 0))
-                    LOGGER.info('>>>>>>>>>>>>>>> [thread %s] %s %s', id(gevent.getcurrent()), content_length,
-                                content_range)
-                    while 1:
-                        try:
-                            data = response.read(self.bufsize)
-                            if not data:
-                                break
-                            data_queue.put((start, data))
-                            start += len(data)
-                        except socket.error as e:
-                            logging.warning('RangeFetch "%s %s" %s failed: %s', self.method, self.url, headers['Range'],
-                                            e)
+                content_length = int(response.getheader('Content-Length', 0))
+                LOGGER.info('>>>>>>>>>>>>>>> [thread %s] %s %s', id(gevent.getcurrent()), content_length,
+                            content_range)
+                while 1:
+                    try:
+                        data = response.read(AUTORANGE_BUFSIZE)
+                        if not data:
                             break
-                    if start < end:
-                        logging.warning('RangeFetch "%s %s" retry %s-%s', self.method, self.url, start, end)
-                        response.close()
-                        range_queue.put((start, end, None))
-                        continue
-                else:
-                    LOGGER.error('RangeFetch %r return %s', self.url, response.status)
+                        data_queue.put((start, data))
+                        start += len(data)
+                    except socket.error as e:
+                        LOGGER.warning('RangeFetch "%s %s" %s failed: %s', client.method, client.url, headers['Range'],
+                                        e)
+                        break
+                if start < end:
+                    LOGGER.warning('RangeFetch "%s %s" retry %s-%s', client.method, client.url, start, end)
                     response.close()
-                    #range_queue.put((start, end, None))
+                    range_queue.put((start, end, None))
                     continue
-            except Exception as e:
-                LOGGER.exception('RangeFetch._fetchlet error:%s', e)
-                raise
+            else:
+                LOGGER.error('RangeFetch %r return %s', client.url, response.status)
+                response.close()
+                #range_queue.put((start, end, None))
+                continue
+        except Exception as e:
+            LOGGER.exception('RangeFetch._fetchlet error:%s', e)
+            raise
