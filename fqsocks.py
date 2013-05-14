@@ -252,6 +252,29 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
+# TODO resolve goagent appid dns record
+# TODO dynamic proxy resolve proxy from dns record
+# TODO http-try proxy, detect GFW keyword filtering, then fallback
+# TODO http-connect detects failure (proxy reject, empty response), then fallback
+# TODO direct detects connection failure (ip blocked), then fallback
+# TODO china ip go direct with mark
+# TODO non china ip, http, go http-try => goagent => http-connect
+# TODO non china ip, https, go direct => http-connect
+# TODO twitter, go http-connect
+# TODO refresh every 30 minutes
+# TODO refresh failure detection, retry after 10 seconds, for 3 times
+# TODO refresh retry, with exponential backoff (1s => 2s => 4s => 8s)
+# TODO check twitter/youtube/facebook/google+ access after refresh
+# TODO === merge into fqrouter ===
+# TODO measure the speed of proxy which adds weight to the picking process
+# TODO add http-relay proxy
+# TODO add socks4 proxy
+# TODO add socks5 proxy
+# TODO add ssh proxy
+# TODO add shadowsocks proxy
+# TODO add spdy proxy
+# TODO === future ===
+# TODO add vpn as proxy (setup vpn, mark packet, mark based routing)
 
 if '__main__' == __name__:
     argument_parser = argparse.ArgumentParser()

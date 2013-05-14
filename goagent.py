@@ -50,9 +50,10 @@ class GoAgentProxy(Proxy):
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
 
-    def __init__(self, appid, password=False, validate=0):
+    def __init__(self, appid=None, appid_record=None, password=False, validate=0):
         super(GoAgentProxy, self).__init__()
         self.appid = appid
+        self.appid_record = appid_record
         self.password = password
         self.validate = validate
 
@@ -89,6 +90,9 @@ class GoAgentProxy(Proxy):
     @classmethod
     def refresh(cls, proxies, create_sock):
         cls.resolve_google_ips(create_sock)
+        for proxy in proxies:
+            if proxy.appid_record:
+                pass
         return proxies
 
     @classmethod
@@ -130,6 +134,9 @@ class GoAgentProxy(Proxy):
     def __repr__(self):
         return 'GoAgentProxy[%s]' % self.appid
 
+
+def resolve_appid(record):
+    pass
 
 def test_google_ip(queue, create_sock, ip):
     try:
