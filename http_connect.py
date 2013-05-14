@@ -11,7 +11,7 @@ class HttpConnectProxy(object):
         self.proxy_ip = proxy_ip
         self.proxy_port = proxy_port
 
-    def forward(self, client, peeked_data):
+    def forward(self, client):
         upstream_sock = client.create_upstream_sock()
         LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
         upstream_sock.connect((self.proxy_ip, self.proxy_port))
@@ -25,9 +25,12 @@ class HttpConnectProxy(object):
         if match and '200' == match.group(1):
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] upstream connected' % repr(client))
-            upstream_sock.sendall(peeked_data)
+            upstream_sock.sendall(client.peeked_data)
             client.forward(upstream_sock)
         else:
             LOGGER.error('[%s] http connect response from %s:%s\n%s' %
                          (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
+
+    def __repr__(self):
+        return 'HttpConnectProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
 

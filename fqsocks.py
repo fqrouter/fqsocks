@@ -19,13 +19,15 @@ import gevent.monkey
 
 from direct import DIRECT_PROXY
 from urlfetch import UrlFetchProxy
+from http_connect import HttpConnectProxy
 
 
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
-urlfetch_proxies = [UrlFetchProxy('freegoagent458', '203.208.46.131')]
-http_connect_proxies = []
+proxies = [UrlFetchProxy('freegoagent001', '203.208.46.131'), UrlFetchProxy('freegoagent002', '203.208.46.131')]
+for proxy in proxies:
+    proxy.died = False
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -44,6 +46,7 @@ class ProxyClient(object):
         self.dst_ip = dst_ip
         self.dst_port = dst_port
         self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
+        self.peeked_data = ''
 
     def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
         upstream_sock = socket.socket(family=family, type=type, **kwargs)
@@ -57,6 +60,9 @@ class ProxyClient(object):
     def forward(self, to_sock):
         forward_socket(self.downstream_sock, to_sock)
 
+    def fall_back(self, reason, died=False):
+        raise ProxyFallBack(reason, died)
+
     def close(self):
         for res in [self.downstream_sock, self.downstream_rfile, self.downstream_wfile] + self.upstream_socks:
             try:
@@ -68,46 +74,75 @@ class ProxyClient(object):
         return self.description
 
 
+class ProxyFallBack(Exception):
+    def __init__(self, reason, died):
+        super(ProxyFallBack, self).__init__(reason)
+        self.reason = reason
+        self.died = died
+
+
 def handle(downstream_sock, address):
     dst = downstream_sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16)
     dst_port, dst_ip = struct.unpack("!2xH4s8x", dst)
     dst_ip = socket.inet_ntoa(dst_ip)
     client = ProxyClient(downstream_sock, '10.1.2.3', address[0], address[1], dst_ip, dst_port)
+    proxy = None
     try:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] downstream connected' % repr(client))
-        proxy, peeked_data = select_proxy(client)
-        proxy.forward(client, peeked_data)
+        pick_proxy_and_forward(client)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] done' % repr(client))
     except:
         LOGGER.exception('[%s] done with error' % repr(client))
+        if proxy:
+            proxy.died = True
     finally:
         client.close()
+    if proxy and proxy.died and proxy in proxies:
+        LOGGER.info('[%s] remove died proxy: %s' % (repr(client), repr(proxy)))
+        proxies.remove(proxy)
 
 
-def select_proxy(client):
-    ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
-    if errors:
-        LOGGER.error('[%s] peek data failed' % repr(client))
-        return DIRECT_PROXY, ''
-    if not ins:
-        LOGGER.error('[%s] peek data timed out' % repr(client))
-        peeked_data, protocol, domain = '', 'UNKNOWN', ''
-    else:
-        peeked_data = client.downstream_sock.recv(8192)
-        protocol, domain = analyze_protocol(peeked_data)
+def pick_proxy_and_forward(client):
+    for i in range(3):
+        proxy = pick_proxy(client)
         if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
+            LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
+        try:
+            proxy.forward(client)
+            return
+        except ProxyFallBack, e:
+            LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+            if e.died and proxy in proxies:
+                LOGGER.info('[%s] remove died proxy: %s' % (repr(client), repr(proxy)))
+                proxies.remove(proxy)
+    LOGGER.error('[%s] fall back too many times' % repr(client))
+    DIRECT_PROXY.forward(client)
+
+
+def pick_proxy(client):
+    if not client.peeked_data:
+        ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
+        if errors:
+            LOGGER.error('[%s] peek data failed' % repr(client))
+            return DIRECT_PROXY, ''
+        if not ins:
+            LOGGER.error('[%s] peek data timed out' % repr(client))
+        else:
+            client.peeked_data = client.downstream_sock.recv(8192)
+    protocol, domain = analyze_protocol(client.peeked_data)
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
         proxy = pick_urlfetch_proxy()
         if proxy:
-            return proxy, peeked_data
+            return proxy
     if protocol in ('HTTP', 'HTTPS') or client.dst_port in (80, 443):
         proxy = pick_http_connect_proxy()
         if proxy:
-            return proxy, peeked_data
-    return DIRECT_PROXY, peeked_data
+            return proxy
+    return DIRECT_PROXY
 
 
 def analyze_protocol(peeked_data):
@@ -138,6 +173,7 @@ def parse_sni_domain(data):
 
 
 def pick_urlfetch_proxy():
+    urlfetch_proxies = [proxy for proxy in proxies if isinstance(proxy, UrlFetchProxy)]
     if urlfetch_proxies:
         return random.choice(urlfetch_proxies)
     else:
@@ -145,6 +181,7 @@ def pick_urlfetch_proxy():
 
 
 def pick_http_connect_proxy():
+    http_connect_proxies = [proxy for proxy in proxies if isinstance(proxy, HttpConnectProxy)]
     if http_connect_proxies:
         return random.choice(http_connect_proxies)
     else:

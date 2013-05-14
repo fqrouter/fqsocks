@@ -1,3 +1,4 @@
+# thanks @phuslu modified from https://github.com/goagent/goagent/blob/2.0/local/proxy.py
 # coding:utf-8
 import logging
 import zlib
@@ -53,21 +54,20 @@ class UrlFetchProxy(object):
         self.password = password
         self.validate = validate
 
-    def forward(self, client, peeked_data):
-        request = peeked_data
+    def forward(self, client):
         for i in range(128):
-            if request.find(b'\r\n\r\n') != -1:
+            if client.peeked_data.find(b'\r\n\r\n') != -1:
                 break
             line = client.downstream_rfile.readline(8192)
             if not line or line == b'\r\n':
                 break
-            request += line
-        if 'Host:' not in request:
+            client.peeked_data += line
+        if 'Host:' not in client.peeked_data:
             LOGGER.info('[%s] not http, forward directly' % repr(client))
-            DIRECT_PROXY.forward(client, request)
+            DIRECT_PROXY.forward(client)
             return
         try:
-            client.method, path, client.headers = parse_request(request)
+            client.method, path, client.headers = parse_request(client.peeked_data)
             client.host = client.headers.pop('Host', '')
             if not client.host:
                 raise Exception('missing host')
@@ -78,10 +78,13 @@ class UrlFetchProxy(object):
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] parsed request: %s %s' % (repr(client), client.method, client.url))
         except:
-            LOGGER.error('[%s] failed to parse http request:\n%s' % (repr(client), request))
+            LOGGER.error('[%s] failed to parse http request:\n%s' % (repr(client), client.peeked_data))
             raise
         LOGGER.info('[%s] urlfetch via %s at %s' % (repr(client), self.appid, self.google_ip))
         forward(client, self)
+
+    def __repr__(self):
+        return 'UrlFetchProxy[%s]' % self.appid
 
 
 def parse_request(request):
@@ -122,6 +125,8 @@ def forward(client, proxy):
             except (EOFError, socket.error) as e:
                 LOGGER.error('handle_method_urlfetch read payload failed:%s', e)
                 return
+        if client.payload:
+            client.peeked_data += client.payload
         errors = []
         kwargs = {}
         if proxy.password:
@@ -134,6 +139,10 @@ def forward(client, proxy):
             html = html.encode('utf-8') if isinstance(html, unicode) else html
             client.downstream_sock.sendall(b'HTTP/1.0 502\r\nContent-Type: text/html\r\n\r\n' + html)
             return
+        if response.app_status == 503:
+            client.fall_back('over quota', died=True)
+        if response.app_status == 404:
+            client.fall_back('goagent server not found', died=True)
         if response.app_status != 200:
             client.downstream_wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
                 '%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
