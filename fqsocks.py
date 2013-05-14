@@ -9,11 +9,12 @@ import errno
 import select
 import signal
 import subprocess
-import atexit
 import random
 import re
-import dpkt
+import argparse
+import atexit
 
+import dpkt
 import gevent.server
 import gevent.monkey
 
@@ -25,21 +26,21 @@ from http_connect import HttpConnectProxy
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
-proxies = [UrlFetchProxy('freegoagent001', '203.208.46.131'), UrlFetchProxy('freegoagent002', '203.208.46.131')]
-for proxy in proxies:
-    proxy.died = False
+proxies = []
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
+LISTEN_IP = None
+LISTEN_PORT = None
+OUTBOUND_IP = None
 
 
 class ProxyClient(object):
-    def __init__(self, downstream_sock, upstream_bind_ip, src_ip, src_port, dst_ip, dst_port):
+    def __init__(self, downstream_sock, src_ip, src_port, dst_ip, dst_port):
         super(ProxyClient, self).__init__()
         self.downstream_sock = downstream_sock
         self.downstream_rfile = downstream_sock.makefile('rb', 8192)
         self.downstream_wfile = downstream_sock.makefile('wb', 0)
-        self.upstream_bind_ip = upstream_bind_ip
         self.upstream_socks = []
         self.src_ip = src_ip
         self.src_port = src_port
@@ -50,7 +51,7 @@ class ProxyClient(object):
 
     def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
         upstream_sock = socket.socket(family=family, type=type, **kwargs)
-        upstream_sock.bind((self.upstream_bind_ip, 0))
+        upstream_sock.bind((OUTBOUND_IP, 0))
         self.upstream_socks.append(upstream_sock)
         return upstream_sock
 
@@ -85,7 +86,7 @@ def handle(downstream_sock, address):
     dst = downstream_sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16)
     dst_port, dst_ip = struct.unpack("!2xH4s8x", dst)
     dst_ip = socket.inet_ntoa(dst_ip)
-    client = ProxyClient(downstream_sock, '10.1.2.3', address[0], address[1], dst_ip, dst_port)
+    client = ProxyClient(downstream_sock, address[0], address[1], dst_ip, dst_port)
     proxy = None
     try:
         if LOGGER.isEnabledFor(logging.DEBUG):
@@ -117,7 +118,7 @@ def pick_proxy_and_forward(client):
             if e.died and proxy in proxies:
                 LOGGER.info('[%s] remove died proxy: %s' % (repr(client), repr(proxy)))
                 proxies.remove(proxy)
-    LOGGER.error('[%s] fall back too many times' % repr(client))
+    LOGGER.error('[%s] fall back to direct after too many retries' % repr(client))
     DIRECT_PROXY.forward(client)
 
 
@@ -128,7 +129,8 @@ def pick_proxy(client):
             LOGGER.error('[%s] peek data failed' % repr(client))
             return DIRECT_PROXY, ''
         if not ins:
-            LOGGER.error('[%s] peek data timed out' % repr(client))
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] peek data timed out' % repr(client))
         else:
             client.peeked_data = client.downstream_sock.recv(8192)
     protocol, domain = analyze_protocol(client.peeked_data)
@@ -215,28 +217,35 @@ def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None
             raise
 
 
-def on_exit(signum, frame):
-    delete_iptables_rule()
-
-
-def delete_iptables_rule():
+def setup_development_env():
     subprocess.check_call(
-        'iptables -t nat -D OUTPUT -p tcp ! -s 10.1.2.3 -j DNAT --to-destination 10.1.2.3:1234', shell=True)
+        'iptables -t nat -I OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
+        (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
+
+
+def teardown_development_env():
+    subprocess.check_call(
+        'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
+        (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
 
 if '__main__' == __name__:
-    signal.signal(signal.SIGTERM, on_exit)
-    signal.signal(signal.SIGINT, on_exit)
-    atexit.register(delete_iptables_rule)
-    gevent.monkey.patch_all()
+    argument_parser = argparse.ArgumentParser()
+    argument_parser.add_argument('--listen', default='127.0.0.1:12345')
+    argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
+    argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
+    args = argument_parser.parse_args()
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
-    ip = '10.1.2.3'
-    port = 1234
-    server = gevent.server.StreamServer((ip, port), handle)
-    LOGGER.info('started fqsocks at %s:%s' % (ip, port))
-    subprocess.check_call(
-        'iptables -t nat -I OUTPUT -p tcp ! -s 10.1.2.3 -j DNAT --to-destination 10.1.2.3:1234', shell=True)
-    try:
-        server.serve_forever()
-    finally:
-        delete_iptables_rule()
+    LISTEN_IP, LISTEN_PORT = args.listen.split(':')
+    LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
+    LISTEN_PORT = int(LISTEN_PORT)
+    OUTBOUND_IP = args.outbound_ip
+    if args.dev:
+        signal.signal(signal.SIGTERM, lambda signum, fame: teardown_development_env())
+        signal.signal(signal.SIGINT, lambda signum, fame: teardown_development_env())
+        atexit.register(teardown_development_env)
+        setup_development_env()
+    gevent.monkey.patch_all()
+    server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)
+    LOGGER.info('started fqsocks at %s:%s' % (LISTEN_IP, LISTEN_PORT))
+    server.serve_forever()

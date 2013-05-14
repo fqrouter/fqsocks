@@ -63,7 +63,8 @@ class UrlFetchProxy(object):
                 break
             client.peeked_data += line
         if 'Host:' not in client.peeked_data:
-            LOGGER.info('[%s] not http, forward directly' % repr(client))
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] not http, forward directly' % repr(client))
             DIRECT_PROXY.forward(client)
             return
         try:
@@ -80,7 +81,8 @@ class UrlFetchProxy(object):
         except:
             LOGGER.error('[%s] failed to parse http request:\n%s' % (repr(client), client.peeked_data))
             raise
-        LOGGER.info('[%s] urlfetch via %s at %s' % (repr(client), self.appid, self.google_ip))
+        LOGGER.info('[%s] urlfetch %s %s via %s at %s' %
+                    (repr(client), client.method, client.url, self.appid, self.google_ip))
         forward(client, self)
 
     def __repr__(self):
