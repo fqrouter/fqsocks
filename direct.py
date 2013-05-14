@@ -12,7 +12,7 @@ class Proxy(object):
         raise NotImplementedError()
 
     @classmethod
-    def refresh(cls, proxies):
+    def refresh(cls, proxies, create_sock):
         raise NotImplementedError()
 
 
@@ -26,7 +26,7 @@ class DirectProxy(Proxy):
         client.forward(upstream_sock)
 
     @classmethod
-    def refresh(cls, proxies):
+    def refresh(cls, proxies, create_sock):
         return proxies
 
     def __repr__(self):

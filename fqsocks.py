@@ -73,7 +73,7 @@ class ProxyClient(object):
             try:
                 res.close()
             except:
-                LOGGER.exception('failed to close: %s' % res)
+                pass
 
     def __repr__(self):
         return self.description
@@ -215,15 +215,30 @@ def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None
 
 
 def refresh_proxies():
+    LOGGER.info('refresh proxies')
     global proxies
+    socks = []
+
+    def create_sock(family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
+        sock = socket.socket(family=family, type=type, **kwargs)
+        sock.bind((OUTBOUND_IP, 0))
+        socks.append(sock)
+        return sock
+
     type_to_proxies = {}
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
     new_proxies = []
     for proxy_type, instances in type_to_proxies.items():
-        new_instances = proxy_type.refresh(instances)
+        new_instances = proxy_type.refresh(instances, create_sock)
         new_proxies.extend(new_instances)
     proxies = new_proxies
+    for sock in socks:
+        try:
+            sock.close()
+        except:
+            pass
+    LOGGER.info('refreshed proxies')
 
 
 def setup_development_env():
@@ -245,6 +260,8 @@ if '__main__' == __name__:
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
     argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--proxy', action='append', default=[])
+    argument_parser.add_argument(
+        '--google-host', action='append', default=[])
     args = argument_parser.parse_args()
     logging.basicConfig(
         stream=sys.stdout, level=getattr(logging, args.log_level), format='%(asctime)s %(levelname)s %(message)s')
@@ -252,6 +269,8 @@ if '__main__' == __name__:
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
     OUTBOUND_IP = args.outbound_ip
+    if args.google_host:
+        GoAgentProxy.GOOGLE_HOSTS = args.google_host
     for proxy_properties in args.proxy:
         proxy_properties = proxy_properties.split(',')
         proxy = proxy_types[proxy_properties[0]](**dict(p.split('=') for p in proxy_properties[1:]))

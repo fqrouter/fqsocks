@@ -34,7 +34,7 @@ class HttpConnectProxy(Proxy):
                          (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
 
     @classmethod
-    def refresh(cls, proxies):
+    def refresh(cls, proxies, create_sock):
         return proxies
 
     def __repr__(self):

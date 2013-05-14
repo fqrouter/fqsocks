@@ -47,7 +47,8 @@ normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-C
 
 
 class GoAgentProxy(Proxy):
-    google_ip = '203.208.46.131'
+    GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
+    GOOGLE_IPS = []
 
     def __init__(self, appid, password=False, validate=0):
         super(GoAgentProxy, self).__init__()
@@ -82,16 +83,73 @@ class GoAgentProxy(Proxy):
         except:
             LOGGER.error('[%s] failed to parse http request:\n%s' % (repr(client), client.peeked_data))
             raise
-        LOGGER.info('[%s] urlfetch %s %s via %s at %s' %
-                    (repr(client), client.method, client.url, self.appid, self.google_ip))
+        LOGGER.info('[%s] %s urlfetch %s %s' % (repr(client), self.appid, client.method, client.url))
         forward(client, self)
 
     @classmethod
-    def refresh(cls, proxies):
+    def refresh(cls, proxies, create_sock):
+        cls.resolve_google_ips(create_sock)
         return proxies
+
+    @classmethod
+    def resolve_google_ips(cls, create_sock):
+        if cls.GOOGLE_IPS:
+            return
+        all_ips = set()
+        for host in cls.GOOGLE_HOSTS:
+            if re.match(r'\d+\.\d+\.\d+\.\d+', host):
+                all_ips.add(host)
+            else:
+                ips = socket.gethostbyname_ex(host)[-1]
+                if len(ips) > 1:
+                    all_ips |= set(ips)
+        if not all_ips:
+            raise Exception('failed to resolve google ip')
+        queue = gevent.queue.Queue()
+        greenlets = []
+        try:
+            for ip in all_ips:
+                greenlets.append(gevent.spawn(test_google_ip, queue, create_sock, ip))
+                time.sleep(0.1)
+            selected_ips = []
+            for i in range(min(3, len(all_ips))):
+                try:
+                    selected_ips.append(queue.get(timeout=1))
+                except:
+                    break
+            if selected_ips:
+                LOGGER.info('found google ip: %s' % cls.GOOGLE_IPS)
+                cls.GOOGLE_IPS = selected_ips
+            else:
+                cls.GOOGLE_IPS = all_ips[:3]
+                LOGGER.error('failed to find working google ip, fallback to first 3: %s' % cls.GOOGLE_IPS)
+        finally:
+            for greenlet in greenlets:
+                greenlet.kill(block=False)
 
     def __repr__(self):
         return 'GoAgentProxy[%s]' % self.appid
+
+
+def test_google_ip(queue, create_sock, ip):
+    try:
+        sock = create_sock()
+        sock.settimeout(3)
+        ssl_sock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_TLSv1)
+        try:
+            ssl_sock.connect((ip, 443))
+            request = 'GET / HTTP/1.1\r\n'
+            request += 'Host: googcloudlabs.appspot.com\r\n'
+            request += 'Connection: close\r\n'
+            request += '\r\n'
+            ssl_sock.sendall(request)
+            response = ssl_sock.recv(8192)
+            if 'Google App Engine' in response:
+                queue.put(ip)
+        finally:
+            ssl_sock.close()
+    except:
+        LOGGER.exception('failed to test google ip')
 
 
 def parse_request(request):
@@ -270,7 +328,7 @@ def gae_urlfetch(client, proxy, headers=None, **kwargs):
 
 
 def http_request(client, proxy, method, payload, headers):
-    sock = create_ssl_connection(client, proxy)
+    sock = create_ssl_connection(client)
     request_data = ''
     request_data += '%s %s %s\r\n' % (method, GAE_PATH, 'HTTP/1.1')
     request_data += 'Host: %s.appspot.com\r\n' % proxy.appid
@@ -301,7 +359,7 @@ def http_request(client, proxy, method, payload, headers):
     return response
 
 
-def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry=4, max_window=4):
+def create_ssl_connection(client, timeout=None, max_timeout=16, max_retry=4, max_window=4):
     def _create_ssl_connection(address, timeout, queue):
         try:
             # create a ipv4/ipv6 socket object
@@ -340,7 +398,7 @@ def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry
             # reset a large and random timeout to the address
             ssl_connection_time[address] = max_timeout + random.random()
 
-    addresses = [(proxy.google_ip, 443)]
+    addresses = [(google_ip, 443) for google_ip in GoAgentProxy.GOOGLE_IPS]
     for i in xrange(max_retry):
         window = min((max_window + 1) // 2 + i, len(addresses))
         addresses.sort(key=ssl_connection_time.get)
