@@ -65,8 +65,8 @@ class ProxyClient(object):
     def forward(self, to_sock):
         forward_socket(self.downstream_sock, to_sock)
 
-    def fall_back(self, reason, died=False):
-        raise ProxyFallBack(reason, died)
+    def fall_back(self, reason):
+        raise ProxyFallBack(reason)
 
     def close(self):
         for res in [self.downstream_sock, self.downstream_rfile, self.downstream_wfile] + self.upstream_socks:
@@ -80,10 +80,9 @@ class ProxyClient(object):
 
 
 class ProxyFallBack(Exception):
-    def __init__(self, reason, died):
+    def __init__(self, reason):
         super(ProxyFallBack, self).__init__(reason)
         self.reason = reason
-        self.died = died
 
 
 def handle(downstream_sock, address):
@@ -104,9 +103,6 @@ def handle(downstream_sock, address):
             proxy.died = True
     finally:
         client.close()
-    if proxy and proxy.died and proxy in proxies:
-        LOGGER.info('[%s] remove died proxy: %s' % (repr(client), repr(proxy)))
-        proxies.remove(proxy)
 
 
 def pick_proxy_and_forward(client):
@@ -119,9 +115,6 @@ def pick_proxy_and_forward(client):
             return
         except ProxyFallBack, e:
             LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
-            if e.died and proxy in proxies:
-                LOGGER.info('[%s] remove died proxy: %s' % (repr(client), repr(proxy)))
-                proxies.remove(proxy)
     LOGGER.error('[%s] fall back to direct after too many retries' % repr(client))
     DIRECT_PROXY.forward(client)
 
@@ -179,7 +172,7 @@ def parse_sni_domain(data):
 
 
 def pick_goagent_proxy():
-    goagent_proxies = [proxy for proxy in proxies if isinstance(proxy, GoAgentProxy)]
+    goagent_proxies = [proxy for proxy in proxies if isinstance(proxy, GoAgentProxy) and not proxy.died]
     if goagent_proxies:
         return random.choice(goagent_proxies)
     else:
@@ -187,7 +180,7 @@ def pick_goagent_proxy():
 
 
 def pick_http_connect_proxy():
-    http_connect_proxies = [proxy for proxy in proxies if isinstance(proxy, HttpConnectProxy)]
+    http_connect_proxies = [proxy for proxy in proxies if isinstance(proxy, HttpConnectProxy) and not proxy.died]
     if http_connect_proxies:
         return random.choice(http_connect_proxies)
     else:
@@ -221,6 +214,18 @@ def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None
             raise
 
 
+def refresh_proxies():
+    global proxies
+    type_to_proxies = {}
+    for proxy in proxies:
+        type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
+    new_proxies = []
+    for proxy_type, instances in type_to_proxies.items():
+        new_instances = proxy_type.refresh(instances)
+        new_proxies.extend(new_instances)
+    proxies = new_proxies
+
+
 def setup_development_env():
     subprocess.check_call(
         'iptables -t nat -I OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
@@ -238,16 +243,20 @@ if '__main__' == __name__:
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
+    argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--proxy', action='append', default=[])
     args = argument_parser.parse_args()
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+    logging.basicConfig(
+        stream=sys.stdout, level=getattr(logging, args.log_level), format='%(asctime)s %(levelname)s %(message)s')
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
     OUTBOUND_IP = args.outbound_ip
-    for proxy in args.proxy:
-        parts = proxy.split(',')
-        proxies.append(proxy_types[parts[0]](**dict(p.split('=') for p in parts[1:])))
+    for proxy_properties in args.proxy:
+        proxy_properties = proxy_properties.split(',')
+        proxy = proxy_types[proxy_properties[0]](**dict(p.split('=') for p in proxy_properties[1:]))
+        proxies.append(proxy)
+    refresh_proxies()
     if args.dev:
         signal.signal(signal.SIGTERM, lambda signum, fame: teardown_development_env())
         signal.signal(signal.SIGINT, lambda signum, fame: teardown_development_env())

@@ -1,11 +1,13 @@
 import logging
 import re
+from direct import Proxy
 
 LOGGER = logging.getLogger(__name__)
 
 RE_STATUS = re.compile(r'HTTP/1.\d (\d+) ')
 
-class HttpConnectProxy(object):
+
+class HttpConnectProxy(Proxy):
     def __init__(self, proxy_ip, proxy_port):
         super(HttpConnectProxy, self).__init__()
         self.proxy_ip = proxy_ip
@@ -30,6 +32,10 @@ class HttpConnectProxy(object):
         else:
             LOGGER.error('[%s] http connect response from %s:%s\n%s' %
                          (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
+
+    @classmethod
+    def refresh(cls, proxies):
+        return proxies
 
     def __repr__(self):
         return 'HttpConnectProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)

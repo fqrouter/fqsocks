@@ -17,7 +17,7 @@ import fnmatch
 
 import ssl
 import gevent.queue
-from direct import DIRECT_PROXY
+from direct import Proxy, DIRECT_PROXY
 
 
 LOGGER = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
 
-class GoAgentProxy(object):
+class GoAgentProxy(Proxy):
     google_ip = '203.208.46.131'
 
     def __init__(self, appid, password=False, validate=0):
@@ -85,6 +85,10 @@ class GoAgentProxy(object):
         LOGGER.info('[%s] urlfetch %s %s via %s at %s' %
                     (repr(client), client.method, client.url, self.appid, self.google_ip))
         forward(client, self)
+
+    @classmethod
+    def refresh(cls, proxies):
+        return proxies
 
     def __repr__(self):
         return 'GoAgentProxy[%s]' % self.appid
@@ -143,9 +147,11 @@ def forward(client, proxy):
             client.downstream_sock.sendall(b'HTTP/1.0 502\r\nContent-Type: text/html\r\n\r\n' + html)
             return
         if response.app_status == 503:
-            client.fall_back('over quota', died=True)
+            proxy.died = True
+            client.fall_back('over quota')
         if response.app_status == 404:
-            client.fall_back('goagent server not found', died=True)
+            proxy.died = True
+            client.fall_back('goagent server not found')
         if response.app_status != 200:
             client.downstream_wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
                 '%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
