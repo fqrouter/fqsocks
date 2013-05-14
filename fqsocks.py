@@ -17,13 +17,14 @@ import dpkt
 import gevent.server
 import gevent.monkey
 
-from direct import DirectProxy
+from direct import DIRECT_PROXY
+from urlfetch import UrlFetchProxy
 
 
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
-DIRECT_PROXY = DirectProxy()
+urlfetch_proxies = [UrlFetchProxy('freegoagent263', '203.208.46.131')]
 http_connect_proxies = []
 
 TLS1_1_VERSION = 0x0302
@@ -31,24 +32,37 @@ RE_HTTP_HOST = re.compile('Host: (.+)')
 
 
 class ProxyClient(object):
-    def __init__(self, downstream_sock, upstream_sock, src_ip, src_port, dst_ip, dst_port):
+    def __init__(self, downstream_sock, upstream_bind_ip, src_ip, src_port, dst_ip, dst_port):
         super(ProxyClient, self).__init__()
         self.downstream_sock = downstream_sock
-        self.upstream_sock = upstream_sock
+        self.downstream_rfile = downstream_sock.makefile('rb', 8192)
+        self.downstream_wfile = downstream_sock.makefile('wb', 0)
+        self.upstream_bind_ip = upstream_bind_ip
+        self.upstream_socks = []
         self.src_ip = src_ip
         self.src_port = src_port
         self.dst_ip = dst_ip
         self.dst_port = dst_port
         self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
 
-    def close(self):
-        try:
-            self.downstream_sock.close()
-        finally:
-            self.upstream_sock.close()
+    def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
+        upstream_sock = socket.socket(family=family, type=type, **kwargs)
+        upstream_sock.bind((self.upstream_bind_ip, 0))
+        self.upstream_socks.append(upstream_sock)
+        return upstream_sock
 
-    def forward(self):
-        forward_socket(self.downstream_sock, self.upstream_sock)
+    def add_upstream_sock(self, sock):
+        self.upstream_socks.append(sock)
+
+    def forward(self, to_sock):
+        forward_socket(self.downstream_sock, to_sock)
+
+    def close(self):
+        for res in [self.downstream_sock, self.downstream_rfile, self.downstream_wfile] + self.upstream_socks:
+            try:
+                res.close()
+            except:
+                LOGGER.exception('failed to close: %s' % res)
 
     def __repr__(self):
         return self.description
@@ -58,19 +72,14 @@ def handle(downstream_sock, address):
     dst = downstream_sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16)
     dst_port, dst_ip = struct.unpack("!2xH4s8x", dst)
     dst_ip = socket.inet_ntoa(dst_ip)
-    upstream_sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-    upstream_sock.bind(('10.1.2.3', 0))
-    client = ProxyClient(downstream_sock, upstream_sock, address[0], address[1], dst_ip, dst_port)
+    client = ProxyClient(downstream_sock, '10.1.2.3', address[0], address[1], dst_ip, dst_port)
     try:
-        LOGGER.debug('[%s] downstream connected' % repr(client))
-        proxy, peaked_data = select_proxy(client)
-        if not proxy.connect_upstream(client):
-            LOGGER.debug('[%s] upstream connect failed' % repr(client))
-            return
-        LOGGER.debug('[%s] upstream connected' % repr(client))
-        client.upstream_sock.sendall(peaked_data)
-        client.forward()
-        LOGGER.debug('[%s] done' % repr(client))
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] downstream connected' % repr(client))
+        proxy, peeked_data = select_proxy(client)
+        proxy.forward(client, peeked_data)
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] done' % repr(client))
     except:
         LOGGER.exception('[%s] done with error' % repr(client))
     finally:
@@ -84,11 +93,21 @@ def select_proxy(client):
         return DIRECT_PROXY, ''
     if not ins:
         LOGGER.error('[%s] peek data timed out' % repr(client))
-        return pick_http_connect_proxy() if client.dst_port in (80, 443) else DIRECT_PROXY, ''
-    peeked_data = client.downstream_sock.recv(512)
-    protocol, domain = analyze_protocol(peeked_data)
-    LOGGER.info('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
-    return pick_http_connect_proxy(), peeked_data
+        peeked_data, protocol, domain = '', 'UNKNOWN', ''
+    else:
+        peeked_data = client.downstream_sock.recv(8192)
+        protocol, domain = analyze_protocol(peeked_data)
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
+    if protocol == 'HTTP' or client.dst_port == 80:
+        proxy = pick_urlfetch_proxy()
+        if proxy:
+            return proxy, peeked_data
+    if protocol in ('HTTP', 'HTTPS') or client.dst_port in (80, 443):
+        proxy = pick_http_connect_proxy()
+        if proxy:
+            return proxy, peeked_data
+    return DIRECT_PROXY, peeked_data
 
 
 def analyze_protocol(peeked_data):
@@ -96,7 +115,10 @@ def analyze_protocol(peeked_data):
         match = RE_HTTP_HOST.search(peeked_data)
         if match:
             return 'HTTP', match.group(1)
-        ssl3 = dpkt.ssl.SSL3(peeked_data)
+        try:
+            ssl3 = dpkt.ssl.SSL3(peeked_data)
+        except dpkt.NeedData:
+            return 'UNKNOWN', ''
         if ssl3.version in (dpkt.ssl.SSL3_VERSION, dpkt.ssl.TLS1_VERSION, TLS1_1_VERSION):
             return 'HTTPS', parse_sni_domain(peeked_data)
     except:
@@ -115,11 +137,18 @@ def parse_sni_domain(data):
     return domain
 
 
+def pick_urlfetch_proxy():
+    if urlfetch_proxies:
+        return random.choice(urlfetch_proxies)
+    else:
+        return None
+
+
 def pick_http_connect_proxy():
     if http_connect_proxies:
         return random.choice(http_connect_proxies)
     else:
-        return DIRECT_PROXY
+        return None
 
 
 def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None):
