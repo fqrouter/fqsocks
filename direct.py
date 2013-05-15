@@ -7,6 +7,7 @@ class Proxy(object):
     def __init__(self):
         super(Proxy, self).__init__()
         self.died = False
+        self.flags = set()
 
     def forward(self, client):
         client.forwarding_by = self
@@ -24,6 +25,10 @@ class Proxy(object):
 
 
 class DirectProxy(Proxy):
+    def __init__(self):
+        super(DirectProxy, self).__init__()
+        self.flags.add('DIRECT')
+
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
         upstream_sock.settimeout(5)

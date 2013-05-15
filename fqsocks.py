@@ -13,6 +13,7 @@ import random
 import re
 import argparse
 import atexit
+import fnmatch
 
 import dpkt
 import gevent.server
@@ -45,6 +46,20 @@ RE_HTTP_HOST = re.compile('Host: (.+)')
 LISTEN_IP = None
 LISTEN_PORT = None
 OUTBOUND_IP = None
+NO_PUBLIC_PROXY_HOSTS = {
+    'www.google.com',
+    'google.com',
+    'www.google.com.hk',
+    'google.com.hk'
+}
+NO_DIRECT_PROXY_HOSTS = {
+    '*.twitter.com',
+    'twitter.com',
+    '*.t.co',
+    't.co',
+    '*.twimg.com',
+    'twimg.com'
+}
 
 
 class ProxyClient(object):
@@ -129,7 +144,18 @@ def handle(downstream_sock, address):
 
 def pick_proxy_and_forward(client):
     for i in range(3):
-        proxy = pick_proxy(client) or DIRECT_PROXY
+        proxy = pick_proxy(client)
+        while proxy:
+            if not client.host:
+                break
+            if 'DIRECT' in proxy.flags and any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
+                client.tried_proxies.append(proxy)
+            elif 'PUBLIC' in proxy.flags and any(fnmatch.fnmatch(client.host, host) for host in NO_PUBLIC_PROXY_HOSTS):
+                client.tried_proxies.append(proxy)
+            else:
+                break
+            proxy = pick_proxy(client)
+        proxy = proxy or DIRECT_PROXY
         client.tried_proxies.append(proxy)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
@@ -166,25 +192,27 @@ def pick_proxy(client):
         LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), ip_color, protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
         if 'BLACK' == ip_color:
-            return pick_http_proxy(client.tried_proxies)
+            return pick_http_proxy(client)
         elif 'WHITE' == ip_color:
-            return pick_http_try_proxy(client.tried_proxies) or pick_http_proxy(client.tried_proxies)
+            return pick_http_try_proxy(client) or pick_http_proxy(client)
         else:
             spawn_try_direct_connection(client)
-            return pick_http_proxy(client.tried_proxies)
+            return pick_http_proxy(client)
     elif protocol == 'HTTPS' or client.dst_port == 443:
         if 'BLACK' == ip_color:
-            return pick_https_proxy(client.tried_proxies)
+            return pick_https_proxy(client)
         elif 'WHITE' == ip_color:
-            return pick_direct_proxy(client.tried_proxies) or pick_https_proxy(client.tried_proxies)
+            return pick_direct_proxy(client) or pick_https_proxy(client)
         else:
             spawn_try_direct_connection(client)
-            return pick_https_proxy(client.tried_proxies)
+            return pick_https_proxy(client)
     else:
         return None
 
 
 def spawn_try_direct_connection(client):
+    if client.host and any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
+        return
     tried_times = ip_tried_times.get(client.dst_ip, 0)
     if tried_times < 2:
         gevent.spawn(try_direct_connection, client)
@@ -239,31 +267,31 @@ def parse_sni_domain(data):
     return domain
 
 
-def pick_direct_proxy(tried_proxies):
-    return None if DIRECT_PROXY in tried_proxies else DIRECT_PROXY
+def pick_direct_proxy(client):
+    return None if DIRECT_PROXY in client.tried_proxies else DIRECT_PROXY
 
 
-def pick_http_try_proxy(tried_proxies):
-    return None if HTTP_TRY_PROXY in tried_proxies else HTTP_TRY_PROXY
+def pick_http_try_proxy(client):
+    return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
 
-def pick_http_proxy(tried_proxies):
+def pick_http_proxy(client):
     http_only_proxies = [proxy for proxy in proxies if
-                    proxy.is_protocol_supported('HTTP') and not proxy.is_protocol_supported('HTTPS')
-                    and not proxy.died and proxy not in tried_proxies]
+                         proxy.is_protocol_supported('HTTP') and not proxy.is_protocol_supported('HTTPS')
+                         and not proxy.died and proxy not in client.tried_proxies]
     if http_only_proxies:
         return random.choice(http_only_proxies)
     http_proxies = [proxy for proxy in proxies if
                     proxy.is_protocol_supported('HTTP')
-                    and not proxy.died and proxy not in tried_proxies]
+                    and not proxy.died and proxy not in client.tried_proxies]
     if http_proxies:
         return random.choice(http_proxies)
     return None
 
 
-def pick_https_proxy(tried_proxies):
+def pick_https_proxy(client):
     https_proxies = [proxy for proxy in proxies if
-                     proxy.is_protocol_supported('HTTPS') and not proxy.died and proxy not in tried_proxies]
+                     proxy.is_protocol_supported('HTTPS') and not proxy.died and proxy not in client.tried_proxies]
     if https_proxies:
         return random.choice(https_proxies)
     else:
@@ -336,9 +364,6 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO china ip go direct with mark
-# TODO non china ip, http, go http-try => goagent => http-connect
-# TODO non china ip, https, go direct => http-connect
 # TODO twitter, go http-connect
 # TODO refresh every 30 minutes
 # TODO refresh failure detection, retry after 10 seconds, for 3 times

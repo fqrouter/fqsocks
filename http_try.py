@@ -9,6 +9,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class HttpTryProxy(Proxy):
+    def __init__(self):
+        super(HttpTryProxy, self).__init__()
+        self.flags.add('DIRECT')
+
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
         upstream_sock.settimeout(5)

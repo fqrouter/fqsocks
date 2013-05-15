@@ -10,10 +10,12 @@ RE_STATUS = re.compile(r'HTTP/1.\d (\d+) ')
 
 
 class HttpConnectProxy(Proxy):
-    def __init__(self, proxy_ip, proxy_port):
+    def __init__(self, proxy_ip, proxy_port, is_public=True):
         super(HttpConnectProxy, self).__init__()
         self.proxy_ip = proxy_ip
         self.proxy_port = proxy_port
+        if is_public:
+            self.flags.add('PUBLIC')
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
