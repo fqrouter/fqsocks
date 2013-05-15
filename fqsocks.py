@@ -72,8 +72,8 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, to_sock):
-        forward_socket(self.downstream_sock, to_sock)
+    def forward(self, to_sock, **kwargs):
+        forward_socket(self.downstream_sock, to_sock, **kwargs)
 
     def close(self):
         for res in self.resources:
@@ -261,25 +261,29 @@ def pick_https_proxy(tried_proxies):
         return None
 
 
-def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None):
+def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None,
+                   on_upstream_timed_out=None):
+    upstream_responded = False
     try:
         timecount = timeout
         while 1:
             timecount -= tick
             if timecount <= 0:
-                break
-            ins, _, errors = select.select([local, remote], [], [local, remote], tick)
+                if not upstream_responded and on_upstream_timed_out:
+                    on_upstream_timed_out()
+            ins, _, errors = select.select([downstream, upstream], [], [downstream, upstream], tick)
             if errors:
                 break
             if ins:
                 for sock in ins:
                     data = sock.recv(bufsize)
                     if data:
-                        if sock is remote:
-                            local.sendall(data)
+                        if sock is upstream:
+                            remote_responded = True
+                            downstream.sendall(data)
                             timecount = maxpong or timeout
                         else:
-                            remote.sendall(data)
+                            upstream.sendall(data)
                             timecount = maxping or timeout
                     else:
                         return
