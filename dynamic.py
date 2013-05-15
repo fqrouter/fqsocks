@@ -13,8 +13,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DynamicProxy(Proxy):
-    def __init__(self, proxy_dns_record):
+    def __init__(self, proxy_dns_record, resolve_at='8.8.8.8'):
         self.proxy_dns_record = proxy_dns_record
+        self.resolve_at = resolve_at
         self.delegated_to = None
         super(DynamicProxy, self).__init__()
 
@@ -53,10 +54,7 @@ class DynamicProxy(Proxy):
             return False
 
     def __repr__(self):
-        if self.delegated_to:
-            return 'DynamicProxy[%s=>%s]' % (self.proxy_dns_record, repr(self.delegated_to))
-        else:
-            return 'DynamicProxy[UNRESOLVED]'
+        return 'DynamicProxy[%s=>%s]' % (self.proxy_dns_record, self.delegated_to or 'UNRESOLVED')
 
 
 def resolve_proxy(proxy):
@@ -65,7 +63,7 @@ def resolve_proxy(proxy):
         sock.settimeout(3)
         request = dpkt.dns.DNS(
             id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.proxy_dns_record, type=dpkt.dns.DNS_TXT)])
-        sock.sendto(str(request), ('8.8.8.8', 53))
+        sock.sendto(str(request), (proxy.resolve_at, 53))
         connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
         connection_info = ''.join(e for e in connection_info if e.isalnum() or e in [':', '.', '-'])
         proxy_type, ip, port, username, password = connection_info.split(':')

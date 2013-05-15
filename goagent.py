@@ -52,10 +52,11 @@ class GoAgentProxy(Proxy):
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
 
-    def __init__(self, appid=None, appid_dns_record=None, password=False, validate=0):
+    def __init__(self, appid=None, appid_dns_record=None, resolve_at='8.8.8.8', password=False, validate=0):
         super(GoAgentProxy, self).__init__()
         self.appid = appid
         self.appid_dns_record = appid_dns_record
+        self.resolve_at = resolve_at
         self.password = password
         self.validate = validate
         if self.appid is None and self.appid_dns_record is None:
@@ -143,7 +144,7 @@ class GoAgentProxy(Proxy):
 
     def __repr__(self):
         if self.appid_dns_record:
-            return 'GoAgentProxy[%s=>%s]' % (self.appid_dns_record, self.appid)
+            return 'GoAgentProxy[%s=>%s]' % (self.appid_dns_record, self.appid or 'UNRESOLVED')
         else:
             return 'GoAgentProxy[%s]' % self.appid
 
@@ -154,7 +155,7 @@ def resolve_appid(proxy):
         sock.settimeout(3)
         request = dpkt.dns.DNS(
             id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.appid_dns_record, type=dpkt.dns.DNS_TXT)])
-        sock.sendto(str(request), ('8.8.8.8', 53))
+        sock.sendto(str(request), (proxy.resolve_at, 53))
         appid = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
         appid = ''.join(e for e in appid if e.isalnum())
         proxy.appid = appid
