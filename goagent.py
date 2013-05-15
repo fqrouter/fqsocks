@@ -21,6 +21,7 @@ import gevent.queue
 
 from direct import Proxy
 from http_try import recv_and_parse_request
+from http_try import NotHttp
 
 
 LOGGER = logging.getLogger(__name__)
@@ -64,7 +65,10 @@ class GoAgentProxy(Proxy):
             raise Exception('either appid or appid_dns_record should be specified')
 
     def do_forward(self, client):
-        recv_and_parse_request(client)
+        try:
+            recv_and_parse_request(client)
+        except NotHttp:
+            client.fall_back('not http')
         LOGGER.info('[%s] %s urlfetch %s %s' % (repr(client), self.appid, client.method, client.url))
         forward(client, self)
 
@@ -146,7 +150,7 @@ def resolve_appid(proxy):
 def test_google_ip(queue, create_sock, ip):
     try:
         sock = create_sock()
-        sock.settimeout(3)
+        sock.settimeout(5)
         ssl_sock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_TLSv1)
         try:
             ssl_sock.connect((ip, 443))

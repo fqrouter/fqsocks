@@ -57,6 +57,10 @@ def send_first_request_and_get_response(client, upstream_sock):
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try pass to direct proxy due to response too large' % repr(client))
             return ''
+        if 'html' not in (http_response.msg.getheader('content-type') or ''):
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] http try pass to direct proxy due to not html' % repr(client))
+            return ''
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:

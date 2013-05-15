@@ -248,12 +248,17 @@ def pick_http_try_proxy(tried_proxies):
 
 
 def pick_http_proxy(tried_proxies):
+    http_only_proxies = [proxy for proxy in proxies if
+                    proxy.is_protocol_supported('HTTP') and not proxy.is_protocol_supported('HTTPS')
+                    and not proxy.died and proxy not in tried_proxies]
+    if http_only_proxies:
+        return random.choice(http_only_proxies)
     http_proxies = [proxy for proxy in proxies if
-                    proxy.is_protocol_supported('HTTP') and not proxy.died and proxy not in tried_proxies]
+                    proxy.is_protocol_supported('HTTP')
+                    and not proxy.died and proxy not in tried_proxies]
     if http_proxies:
         return random.choice(http_proxies)
-    else:
-        return None
+    return None
 
 
 def pick_https_proxy(tried_proxies):
