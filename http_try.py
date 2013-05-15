@@ -68,7 +68,7 @@ def send_first_request_and_get_response(client, upstream_sock):
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:
-        client.fall_back(reason='not http')
+        raise
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] http try read response failed' % (repr(client)), exc_info=1)

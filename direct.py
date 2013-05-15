@@ -11,14 +11,19 @@ class Proxy(object):
 
     def forward(self, client):
         client.forwarding_by = self
-        self.do_forward(client)
+        try:
+            self.do_forward(client)
+        finally:
+            if self.died:
+                LOGGER.error('[%s] !!! proxy died !!!: %s' % (repr(client), self))
+                client.dump_proxies()
 
     def do_forward(self, client):
         raise NotImplementedError()
 
     @classmethod
     def refresh(cls, proxies, create_sock):
-        pass
+        return True
 
     def is_protocol_supported(self, protocol):
         return False

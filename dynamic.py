@@ -44,8 +44,11 @@ class DynamicProxy(Proxy):
         greenlets = []
         for proxy in proxies:
             greenlets.append(gevent.spawn(resolve_proxy, proxy))
+        success_count = 0
         for greenlet in greenlets:
-            greenlet.join()
+            if greenlet.get():
+                success_count += 2
+        return success_count > (len(proxies) / 2)
 
     def is_protocol_supported(self, protocol):
         if self.delegated_to:
@@ -71,7 +74,8 @@ def resolve_proxy(proxy):
         proxy.delegated_to = HttpConnectProxy(ip, port)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('resolved proxy: %s' % repr(proxy))
+        return True
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('failed to resolve proxy: %s' % repr(proxy), exc_info=1)
-        proxy.delegated_to = None
+        return False

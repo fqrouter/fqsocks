@@ -22,6 +22,7 @@ import china_ip
 
 from direct import DIRECT_PROXY
 from http_try import HTTP_TRY_PROXY
+from http_try import NotHttp
 from goagent import GoAgentProxy
 from http_connect import HttpConnectProxy
 from dynamic import DynamicProxy
@@ -60,6 +61,7 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.twimg.com',
     'twimg.com'
 }
+REFRESH_INTERVAL = 60 * 30
 
 
 class ProxyClient(object):
@@ -110,6 +112,9 @@ class ProxyClient(object):
         ip_black_list.add(self.dst_ip)
         LOGGER.info('[%s] direct connection failed' % repr(self))
 
+    def dump_proxies(self):
+        LOGGER.info('dump proxies: %s' % proxies)
+
     def __repr__(self):
         description = self.description
         if self.host:
@@ -143,6 +148,11 @@ def handle(downstream_sock, address):
 
 
 def pick_proxy_and_forward(client):
+    if china_ip.is_china_ip(client.dst_ip):
+        try:
+            DIRECT_PROXY.forward(client)
+        except ProxyFallBack:
+            pass
     for i in range(3):
         proxy = pick_proxy(client)
         while proxy:
@@ -163,17 +173,17 @@ def pick_proxy_and_forward(client):
             proxy.forward(client)
             return
         except ProxyFallBack, e:
-            if china_ip.is_china_ip(client.dst_ip):
-                DIRECT_PROXY.forward(client)
-            else:
-                LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+            LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+        except NotHttp:
+            continue
     LOGGER.error('[%s] fall back to direct after too many retries' % repr(client))
-    DIRECT_PROXY.forward(client)
+    try:
+        DIRECT_PROXY.forward(client)
+    except ProxyFallBack:
+        pass
 
 
 def pick_proxy(client):
-    if china_ip.is_china_ip(client.dst_ip):
-        return DIRECT_PROXY
     if not client.peeked_data:
         ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
         if errors:
@@ -343,14 +353,16 @@ def refresh_proxies():
     type_to_proxies = {}
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
+    success = True
     for proxy_type, instances in type_to_proxies.items():
-        proxy_type.refresh(instances, create_sock)
+        success = success and proxy_type.refresh(instances, create_sock)
     for sock in socks:
         try:
             sock.close()
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
+    return success
 
 
 def setup_development_env():
@@ -364,8 +376,24 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO twitter, go http-connect
-# TODO refresh every 30 minutes
+
+def start_server():
+    server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)
+    LOGGER.info('started fqsocks at %s:%s' % (LISTEN_IP, LISTEN_PORT))
+    server.serve_forever()
+
+
+def keep_refreshing_proxies():
+    while True:
+        LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
+        gevent.sleep(REFRESH_INTERVAL)
+        for i in range(3):
+            if refresh_proxies():
+                break
+            LOGGER.error('refresh failed, will retry %s seconds later' % 10)
+            gevent.sleep(10)
+
+
 # TODO refresh failure detection, retry after 10 seconds, for 3 times
 # TODO refresh retry, with exponential backoff (1s => 2s => 4s => 8s)
 # TODO check twitter/youtube/facebook/google+ access after refresh
@@ -398,10 +426,18 @@ if '__main__' == __name__:
     OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
-    for proxy_properties in args.proxy:
-        proxy_properties = proxy_properties.split(',')
-        proxy = proxy_types[proxy_properties[0]](**dict(p.split('=') for p in proxy_properties[1:]))
-        proxies.append(proxy)
+    for props in args.proxy:
+        props = props.split(',')
+        prop_dict = dict(p.split('=') for p in props[1:])
+        n = prop_dict.pop('n', 0)
+        n = int(n)
+        if n:
+            for i in range(1, 1 + n):
+                proxy = proxy_types[props[0]](**{k: v.replace('#n#', str(i)) for k, v in prop_dict.items()})
+                proxies.append(proxy)
+        else:
+            proxy = proxy_types[props[0]](**prop_dict)
+            proxies.append(proxy)
     refresh_proxies()
     if args.dev:
         signal.signal(signal.SIGTERM, lambda signum, fame: teardown_development_env())
@@ -409,6 +445,6 @@ if '__main__' == __name__:
         atexit.register(teardown_development_env)
         setup_development_env()
     gevent.monkey.patch_all()
-    server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)
-    LOGGER.info('started fqsocks at %s:%s' % (LISTEN_IP, LISTEN_PORT))
-    server.serve_forever()
+    greenlets = [gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies)]
+    for greenlet in greenlets:
+        greenlet.join()

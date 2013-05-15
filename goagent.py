@@ -65,11 +65,8 @@ class GoAgentProxy(Proxy):
             raise Exception('either appid or appid_dns_record should be specified')
 
     def do_forward(self, client):
-        try:
-            recv_and_parse_request(client)
-        except NotHttp:
-            client.fall_back('not http')
-        LOGGER.info('[%s] %s urlfetch %s %s' % (repr(client), self.appid, client.method, client.url))
+        recv_and_parse_request(client)
+        LOGGER.info('[%s] urlfetch %s %s' % (repr(client), client.method, client.url))
         forward(client, self)
 
     @classmethod
@@ -83,8 +80,11 @@ class GoAgentProxy(Proxy):
         for proxy in proxies:
             if proxy.appid_dns_record:
                 greenlets.append(gevent.spawn(resolve_appid, proxy))
+        success_count = 0
         for greenlet in greenlets:
-            greenlet.join()
+            if greenlet.get():
+                success_count += 1
+        return success_count > (len(proxies) / 2)
 
     @classmethod
     def resolve_google_ips(cls, create_sock):
@@ -106,7 +106,7 @@ class GoAgentProxy(Proxy):
         try:
             for ip in all_ips:
                 greenlets.append(gevent.spawn(test_google_ip, queue, create_sock, ip))
-                time.sleep(0.1)
+                gevent.sleep(0.1)
             for i in range(min(3, len(all_ips))):
                 try:
                     selected_ips.add(queue.get(timeout=1))
@@ -141,10 +141,13 @@ def resolve_appid(proxy):
         proxy.appid = appid
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('resolved appid: %s' % repr(proxy))
+        return True
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('failed to resolve appid: %s' % repr(proxy), exc_info=1)
-        proxy.died = True
+        if not proxy.appid:
+            proxy.died = True
+        return False
 
 
 def test_google_ip(queue, create_sock, ip):
@@ -165,7 +168,8 @@ def test_google_ip(queue, create_sock, ip):
         finally:
             ssl_sock.close()
     except:
-        LOGGER.exception('failed to test google ip')
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('failed to test google ip', exc_info=1)
 
 
 def forward(client, proxy):
