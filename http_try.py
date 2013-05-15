@@ -2,6 +2,7 @@ import logging
 import httplib
 
 from direct import Proxy
+from direct import DIRECT_PROXY
 
 
 LOGGER = logging.getLogger(__name__)
@@ -20,8 +21,11 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
         client.direct_connection_succeeded()
         response = send_first_request_and_get_response(client, upstream_sock)
-        client.downstream_sock.sendall(response)
-        client.forward(upstream_sock)
+        if response:
+            client.downstream_sock.sendall(response)
+            client.forward(upstream_sock)
+        else:
+            DIRECT_PROXY.forward(client)
 
     def is_protocol_supported(self, protocol):
         return 'HTTP' == protocol
@@ -42,6 +46,17 @@ def send_first_request_and_get_response(client, upstream_sock):
         capturing_sock = CapturingSock(upstream_rfile)
         http_response = httplib.HTTPResponse(capturing_sock)
         http_response.begin()
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] http try read response header: %s %s' %
+                         (repr(client), http_response.status, http_response.length))
+        if http_response.chunked:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] http try pass to direct proxy due to response chunked' % repr(client))
+            return ''
+        if http_response.length > 1024 * 1024:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] http try pass to direct proxy due to response too large' % repr(client))
+            return ''
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:

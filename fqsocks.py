@@ -17,6 +17,7 @@ import atexit
 import dpkt
 import gevent.server
 import gevent.monkey
+import china_ip
 
 from direct import DIRECT_PROXY
 from http_try import HTTP_TRY_PROXY
@@ -130,7 +131,10 @@ def pick_proxy_and_forward(client):
             proxy.forward(client)
             return
         except ProxyFallBack, e:
-            LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+            if china_ip.is_china_ip(client.dst_ip):
+                DIRECT_PROXY.forward(client)
+            else:
+                LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
         except NotHttp:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] not http, forward directly' % repr(client))
@@ -140,6 +144,8 @@ def pick_proxy_and_forward(client):
 
 
 def pick_proxy(client):
+    if china_ip.is_china_ip(client.dst_ip):
+        return DIRECT_PROXY
     if not client.peeked_data:
         ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
         if errors:
@@ -317,8 +323,6 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO direct detects connection failure (ip blocked), then fallback
-# TODO maintain ip white/black list, default to gray
 # TODO china ip go direct with mark
 # TODO non china ip, http, go http-try => goagent => http-connect
 # TODO non china ip, https, go direct => http-connect
