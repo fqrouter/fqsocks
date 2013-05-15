@@ -141,13 +141,13 @@ def pick_proxy(client):
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
-        if HTTP_TRY_PROXY not in client.tried_proxies:
-            return HTTP_TRY_PROXY
-        proxy = pick_http_proxy()
+        # if HTTP_TRY_PROXY not in client.tried_proxies:
+        #     return HTTP_TRY_PROXY
+        proxy = pick_http_proxy(client.tried_proxies)
         if proxy:
             return proxy
     if protocol == 'HTTPS' or client.dst_port == 443:
-        proxy = pick_https_proxy()
+        proxy = pick_https_proxy(client.tried_proxies)
         if proxy:
             return proxy
     return DIRECT_PROXY
@@ -180,16 +180,18 @@ def parse_sni_domain(data):
     return domain
 
 
-def pick_http_proxy():
-    http_proxies = [proxy for proxy in proxies if proxy.is_protocol_supported('HTTP') and not proxy.died]
+def pick_http_proxy(tried_proxies):
+    http_proxies = [proxy for proxy in proxies if
+                    proxy.is_protocol_supported('HTTP') and not proxy.died and proxy not in tried_proxies]
     if http_proxies:
         return random.choice(http_proxies)
     else:
         return None
 
 
-def pick_https_proxy():
-    https_proxies = [proxy for proxy in proxies if proxy.is_protocol_supported('HTTPS') and not proxy.died]
+def pick_https_proxy(tried_proxies):
+    https_proxies = [proxy for proxy in proxies if
+                     proxy.is_protocol_supported('HTTPS') and not proxy.died and proxy not in tried_proxies]
     if https_proxies:
         return random.choice(https_proxies)
     else:

@@ -9,7 +9,15 @@ LOGGER = logging.getLogger(__name__)
 
 class HttpTryProxy(Proxy):
     def forward(self, client):
-        upstream_sock, response = send_first_request_and_get_response(client)
+        upstream_sock = client.create_upstream_sock()
+        upstream_sock.settimeout(2)
+        try:
+            upstream_sock.connect((client.dst_ip, client.dst_port))
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
+            client.fall_back(reason='http try connect failed')
+        response = send_first_request_and_get_response(client, upstream_sock)
         client.downstream_sock.sendall(response)
         client.forward(upstream_sock)
 
@@ -23,12 +31,9 @@ class HttpTryProxy(Proxy):
 HTTP_TRY_PROXY = HttpTryProxy()
 
 
-def send_first_request_and_get_response(client):
+def send_first_request_and_get_response(client, upstream_sock):
     try:
         recv_and_parse_request(client)
-        upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(2)
-        upstream_sock.connect((client.dst_ip, client.dst_port))
         upstream_sock.sendall(client.peeked_data)
         upstream_rfile = upstream_sock.makefile('rb', 8192)
         client.add_resource(upstream_rfile)
@@ -36,13 +41,13 @@ def send_first_request_and_get_response(client):
         http_response = httplib.HTTPResponse(capturing_sock)
         http_response.begin()
         http_response.read()
-        return upstream_sock, capturing_sock.rfile.captured
+        return capturing_sock.rfile.captured
     except NotHttp:
         raise
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] http try failed' % (repr(client)), exc_info=1)
-        client.fall_back(reason='http try failed')
+            LOGGER.debug('[%s] http try read response failed' % (repr(client)), exc_info=1)
+        client.fall_back(reason='http try read response failed')
 
 
 class CapturingSock(object):
