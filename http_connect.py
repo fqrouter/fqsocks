@@ -35,7 +35,10 @@ class HttpConnectProxy(Proxy):
 
     @classmethod
     def refresh(cls, proxies, create_sock):
-        return proxies
+        pass
+
+    def is_protocol_supported(self, protocol):
+        return protocol in ('HTTP', 'HTTPS')
 
     def __repr__(self):
         return 'HttpConnectProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)

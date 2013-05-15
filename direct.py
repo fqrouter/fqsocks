@@ -15,6 +15,9 @@ class Proxy(object):
     def refresh(cls, proxies, create_sock):
         raise NotImplementedError()
 
+    def is_protocol_supported(self, protocol):
+        return False
+
 
 class DirectProxy(Proxy):
     def forward(self, client):
@@ -27,7 +30,10 @@ class DirectProxy(Proxy):
 
     @classmethod
     def refresh(cls, proxies, create_sock):
-        return proxies
+        pass
+
+    def is_protocol_supported(self, protocol):
+        return True
 
     def __repr__(self):
         return 'DirectProxy'

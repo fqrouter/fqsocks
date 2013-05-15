@@ -92,6 +92,10 @@ class GoAgentProxy(Proxy):
         forward(client, self)
 
     @classmethod
+    def is_protocol_supported(cls, protocol):
+        return 'HTTP' == protocol
+
+    @classmethod
     def refresh(cls, proxies, create_sock):
         cls.resolve_google_ips(create_sock)
         greenlets = []
@@ -100,7 +104,6 @@ class GoAgentProxy(Proxy):
                 greenlets.append(gevent.spawn(resolve_appid, proxy))
         for greenlet in greenlets:
             greenlet.join()
-        return proxies
 
     @classmethod
     def resolve_google_ips(cls, create_sock):

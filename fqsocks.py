@@ -21,11 +21,13 @@ import gevent.monkey
 from direct import DIRECT_PROXY
 from goagent import GoAgentProxy
 from http_connect import HttpConnectProxy
+from dynamic import DynamicProxy
 
 
 proxy_types = {
     'http-connect': HttpConnectProxy,
-    'goagent': GoAgentProxy
+    'goagent': GoAgentProxy,
+    'dynamic': DynamicProxy
 }
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
@@ -134,11 +136,11 @@ def pick_proxy(client):
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
-        proxy = pick_goagent_proxy()
+        proxy = pick_http_proxy()
         if proxy:
             return proxy
-    if protocol in ('HTTP', 'HTTPS') or client.dst_port in (80, 443):
-        proxy = pick_http_connect_proxy()
+    if protocol == 'HTTPS' or client.dst_port == 443:
+        proxy = pick_https_proxy()
         if proxy:
             return proxy
     return DIRECT_PROXY
@@ -171,18 +173,18 @@ def parse_sni_domain(data):
     return domain
 
 
-def pick_goagent_proxy():
-    goagent_proxies = [proxy for proxy in proxies if isinstance(proxy, GoAgentProxy) and not proxy.died]
-    if goagent_proxies:
-        return random.choice(goagent_proxies)
+def pick_http_proxy():
+    http_proxies = [proxy for proxy in proxies if proxy.is_protocol_supported('HTTP') and not proxy.died]
+    if http_proxies:
+        return random.choice(http_proxies)
     else:
         return None
 
 
-def pick_http_connect_proxy():
-    http_connect_proxies = [proxy for proxy in proxies if isinstance(proxy, HttpConnectProxy) and not proxy.died]
-    if http_connect_proxies:
-        return random.choice(http_connect_proxies)
+def pick_https_proxy():
+    https_proxies = [proxy for proxy in proxies if proxy.is_protocol_supported('HTTPS') and not proxy.died]
+    if https_proxies:
+        return random.choice(https_proxies)
     else:
         return None
 
@@ -215,8 +217,8 @@ def forward_socket(local, remote, timeout=60, tick=2, bufsize=8192, maxping=None
 
 
 def refresh_proxies():
-    LOGGER.info('refresh proxies')
     global proxies
+    LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
 
     def create_sock(family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
@@ -228,17 +230,14 @@ def refresh_proxies():
     type_to_proxies = {}
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
-    new_proxies = []
     for proxy_type, instances in type_to_proxies.items():
-        new_instances = proxy_type.refresh(instances, create_sock)
-        new_proxies.extend(new_instances)
-    proxies = new_proxies
+        proxy_type.refresh(instances, create_sock)
     for sock in socks:
         try:
             sock.close()
         except:
             pass
-    LOGGER.info('refreshed proxies')
+    LOGGER.info('refreshed proxies: %s' % proxies)
 
 
 def setup_development_env():
@@ -252,7 +251,6 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO resolve goagent appid dns record
 # TODO dynamic proxy resolve proxy from dns record
 # TODO http-try proxy, detect GFW keyword filtering, then fallback
 # TODO http-connect detects failure (proxy reject, empty response), then fallback
