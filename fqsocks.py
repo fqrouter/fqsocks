@@ -19,9 +19,11 @@ import gevent.server
 import gevent.monkey
 
 from direct import DIRECT_PROXY
+from http_try import HTTP_TRY_PROXY
 from goagent import GoAgentProxy
 from http_connect import HttpConnectProxy
 from dynamic import DynamicProxy
+from http_try import NotHttp
 
 
 proxy_types = {
@@ -47,22 +49,23 @@ class ProxyClient(object):
         self.downstream_sock = downstream_sock
         self.downstream_rfile = downstream_sock.makefile('rb', 8192)
         self.downstream_wfile = downstream_sock.makefile('wb', 0)
-        self.upstream_socks = []
+        self.resources = [self.downstream_sock, self.downstream_rfile, self.downstream_wfile]
         self.src_ip = src_ip
         self.src_port = src_port
         self.dst_ip = dst_ip
         self.dst_port = dst_port
         self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
         self.peeked_data = ''
+        self.tried_proxies = []
 
     def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
         upstream_sock = socket.socket(family=family, type=type, **kwargs)
         upstream_sock.bind((OUTBOUND_IP, 0))
-        self.upstream_socks.append(upstream_sock)
+        self.resources.append(upstream_sock)
         return upstream_sock
 
-    def add_upstream_sock(self, sock):
-        self.upstream_socks.append(sock)
+    def add_resource(self, res):
+        self.resources.append(res)
 
     def forward(self, to_sock):
         forward_socket(self.downstream_sock, to_sock)
@@ -71,7 +74,7 @@ class ProxyClient(object):
         raise ProxyFallBack(reason)
 
     def close(self):
-        for res in [self.downstream_sock, self.downstream_rfile, self.downstream_wfile] + self.upstream_socks:
+        for res in self.resources:
             try:
                 res.close()
             except:
@@ -92,7 +95,6 @@ def handle(downstream_sock, address):
     dst_port, dst_ip = struct.unpack("!2xH4s8x", dst)
     dst_ip = socket.inet_ntoa(dst_ip)
     client = ProxyClient(downstream_sock, address[0], address[1], dst_ip, dst_port)
-    proxy = None
     try:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] downstream connected' % repr(client))
@@ -101,8 +103,6 @@ def handle(downstream_sock, address):
             LOGGER.debug('[%s] done' % repr(client))
     except:
         LOGGER.exception('[%s] done with error' % repr(client))
-        if proxy:
-            proxy.died = True
     finally:
         client.close()
 
@@ -110,6 +110,7 @@ def handle(downstream_sock, address):
 def pick_proxy_and_forward(client):
     for i in range(3):
         proxy = pick_proxy(client)
+        client.tried_proxies.append(proxy)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
         try:
@@ -117,6 +118,10 @@ def pick_proxy_and_forward(client):
             return
         except ProxyFallBack, e:
             LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+        except NotHttp:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] not http, forward directly' % repr(client))
+            DIRECT_PROXY.forward(client)
     LOGGER.error('[%s] fall back to direct after too many retries' % repr(client))
     DIRECT_PROXY.forward(client)
 
@@ -136,6 +141,8 @@ def pick_proxy(client):
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
+        if HTTP_TRY_PROXY not in client.tried_proxies:
+            return HTTP_TRY_PROXY
         proxy = pick_http_proxy()
         if proxy:
             return proxy
@@ -251,7 +258,6 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO dynamic proxy resolve proxy from dns record
 # TODO http-try proxy, detect GFW keyword filtering, then fallback
 # TODO http-connect detects failure (proxy reject, empty response), then fallback
 # TODO direct detects connection failure (ip blocked), then fallback

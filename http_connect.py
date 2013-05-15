@@ -16,7 +16,7 @@ class HttpConnectProxy(Proxy):
     def forward(self, client):
         upstream_sock = client.create_upstream_sock()
         # upstream_sock = ssl.wrap_socket(upstream_sock)
-        # client.add_upstream_sock(upstream_sock)
+        # client.add_resource(upstream_sock)
         LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
         upstream_sock.connect((self.proxy_ip, self.proxy_port))
         if 443 == client.dst_port:
@@ -37,10 +37,6 @@ class HttpConnectProxy(Proxy):
                              (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
         else:
             client.forward(upstream_sock)
-
-    @classmethod
-    def refresh(cls, proxies, create_sock):
-        pass
 
     def is_protocol_supported(self, protocol):
         return protocol in ('HTTP', 'HTTPS')

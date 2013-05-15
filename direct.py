@@ -13,7 +13,7 @@ class Proxy(object):
 
     @classmethod
     def refresh(cls, proxies, create_sock):
-        raise NotImplementedError()
+        pass
 
     def is_protocol_supported(self, protocol):
         return False
@@ -27,10 +27,6 @@ class DirectProxy(Proxy):
             LOGGER.debug('[%s] upstream connected' % repr(client))
         upstream_sock.sendall(client.peeked_data)
         client.forward(upstream_sock)
-
-    @classmethod
-    def refresh(cls, proxies, create_sock):
-        pass
 
     def is_protocol_supported(self, protocol):
         return True

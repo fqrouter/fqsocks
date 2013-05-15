@@ -19,7 +19,8 @@ import ssl
 import dpkt
 import gevent.queue
 
-from direct import Proxy, DIRECT_PROXY
+from direct import Proxy
+from http_try import recv_and_parse_request
 
 
 LOGGER = logging.getLogger(__name__)
@@ -63,32 +64,7 @@ class GoAgentProxy(Proxy):
             raise Exception('either appid or appid_dns_record should be specified')
 
     def forward(self, client):
-        for i in range(128):
-            if client.peeked_data.find(b'\r\n\r\n') != -1:
-                break
-            line = client.downstream_rfile.readline(8192)
-            if not line or line == b'\r\n':
-                break
-            client.peeked_data += line
-        if 'Host:' not in client.peeked_data:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] not http, forward directly' % repr(client))
-            DIRECT_PROXY.forward(client)
-            return
-        try:
-            client.method, path, client.headers = parse_request(client.peeked_data)
-            client.host = client.headers.pop('Host', '')
-            if not client.host:
-                raise Exception('missing host')
-            if path[0] == '/':
-                client.url = 'http://%s%s' % (client.host, path)
-            else:
-                client.url = path
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] parsed request: %s %s' % (repr(client), client.method, client.url))
-        except:
-            LOGGER.error('[%s] failed to parse http request:\n%s' % (repr(client), client.peeked_data))
-            raise
+        recv_and_parse_request(client)
         LOGGER.info('[%s] %s urlfetch %s %s' % (repr(client), self.appid, client.method, client.url))
         forward(client, self)
 
@@ -188,19 +164,6 @@ def test_google_ip(queue, create_sock, ip):
         LOGGER.exception('failed to test google ip')
 
 
-def parse_request(request):
-    lines = request.splitlines()
-    method, path = lines[0].split()[:2]
-    headers = dict()
-    for line in lines[1:]:
-        keyword, _, value = line.partition(b':')
-        keyword = keyword.title()
-        value = value.strip()
-        if keyword and value:
-            headers[keyword] = value
-    return method, path, headers
-
-
 def forward(client, proxy):
     if 'Range' in client.headers:
         m = re.search('bytes=(\d+)-', client.headers['Range'])
@@ -219,15 +182,6 @@ def forward(client, proxy):
         except StopIteration:
             pass
     try:
-        client.payload = None
-        if 'Content-Length' in client.headers:
-            try:
-                client.payload = client.downstream_rfile.read(int(client.headers.get('Content-Length', 0)))
-            except (EOFError, socket.error) as e:
-                LOGGER.error('handle_method_urlfetch read payload failed:%s', e)
-                return
-        if client.payload:
-            client.peeked_data += client.payload
         errors = []
         kwargs = {}
         if proxy.password:
@@ -411,7 +365,7 @@ def create_ssl_connection(client, timeout=None, max_timeout=16, max_retry=4, max
             # create ssl socket
             ssl_sock = ssl.wrap_socket(
                 sock, do_handshake_on_connect=False, ssl_version=ssl.PROTOCOL_TLSv1)
-            client.add_upstream_sock(ssl_sock)
+            client.add_resource(ssl_sock)
             # start connection time record
             start_time = time.time()
             # TCP connect
