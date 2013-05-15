@@ -22,7 +22,15 @@ class Proxy(object):
 class DirectProxy(Proxy):
     def forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        upstream_sock.connect((client.dst_ip, client.dst_port))
+        upstream_sock.settimeout(5)
+        try:
+            upstream_sock.connect((client.dst_ip, client.dst_port))
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] direct connect upstream socket timed out' % (repr(client)), exc_info=1)
+            client.direct_connection_failed()
+            client.fall_back(reason='direct connect upstream socket timed out')
+        client.direct_connection_succeeded()
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] upstream connected' % repr(client))
         upstream_sock.sendall(client.peeked_data)

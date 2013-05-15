@@ -35,6 +35,10 @@ LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
 proxies = []
+# ip is default to be gray, will go through proxy and start direct connect attempt
+ip_black_list = set() # always go through proxy
+ip_white_list = set() # always go direct
+ip_tried_times = {} # ip => tried direct connection
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -70,15 +74,24 @@ class ProxyClient(object):
     def forward(self, to_sock):
         forward_socket(self.downstream_sock, to_sock)
 
-    def fall_back(self, reason):
-        raise ProxyFallBack(reason)
-
     def close(self):
         for res in self.resources:
             try:
                 res.close()
             except:
                 pass
+
+    def fall_back(self, reason):
+        raise ProxyFallBack(reason)
+
+    def direct_connection_succeeded(self):
+        ip_white_list.add(self.dst_ip)
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] direct connection succeeded' % repr(self))
+
+    def direct_connection_failed(self):
+        ip_black_list.add(self.dst_ip)
+        LOGGER.info('[%s] direct connection failed' % repr(self))
 
     def __repr__(self):
         return self.description
@@ -109,7 +122,7 @@ def handle(downstream_sock, address):
 
 def pick_proxy_and_forward(client):
     for i in range(3):
-        proxy = pick_proxy(client)
+        proxy = pick_proxy(client) or DIRECT_PROXY
         client.tried_proxies.append(proxy)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
@@ -138,19 +151,55 @@ def pick_proxy(client):
         else:
             client.peeked_data = client.downstream_sock.recv(8192)
     protocol, domain = analyze_protocol(client.peeked_data)
+    ip_color = get_ip_color(client.dst_ip)
     if LOGGER.isEnabledFor(logging.DEBUG):
-        LOGGER.debug('[%s] analyzed protocol: %s %s' % (repr(client), protocol, domain))
+        LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), ip_color, protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
-        # if HTTP_TRY_PROXY not in client.tried_proxies:
-        #     return HTTP_TRY_PROXY
-        proxy = pick_http_proxy(client.tried_proxies)
-        if proxy:
-            return proxy
-    if protocol == 'HTTPS' or client.dst_port == 443:
-        proxy = pick_https_proxy(client.tried_proxies)
-        if proxy:
-            return proxy
-    return DIRECT_PROXY
+        if 'BLACK' == ip_color:
+            return pick_http_proxy(client.tried_proxies)
+        elif 'WHITE' == ip_color:
+            return pick_http_try_proxy(client.tried_proxies) or pick_http_proxy(client.tried_proxies)
+        else:
+            spawn_try_direct_connection(client)
+            return pick_http_proxy(client.tried_proxies)
+    elif protocol == 'HTTPS' or client.dst_port == 443:
+        if 'BLACK' == ip_color:
+            return pick_https_proxy(client.tried_proxies)
+        elif 'WHITE' == ip_color:
+            return pick_direct_proxy(client.tried_proxies) or pick_https_proxy(client.tried_proxies)
+        else:
+            spawn_try_direct_connection(client)
+            return pick_https_proxy(client.tried_proxies)
+    else:
+        return None
+
+
+def spawn_try_direct_connection(client):
+    tried_times = ip_tried_times.get(client.dst_ip, 0)
+    if tried_times < 2:
+        gevent.spawn(try_direct_connection, client)
+        ip_tried_times[client.dst_ip] = tried_times + 1
+
+
+def try_direct_connection(client):
+    upstream_sock = client.create_upstream_sock()
+    upstream_sock.settimeout(5)
+    try:
+        try:
+            upstream_sock.connect((client.dst_ip, client.dst_port))
+            client.direct_connection_succeeded()
+        except:
+            client.direct_connection_failed()
+    finally:
+        upstream_sock.close()
+
+
+def get_ip_color(ip):
+    if ip in ip_black_list:
+        return 'BLACK'
+    if ip in ip_white_list:
+        return 'WHITE'
+    return 'GRAY'
 
 
 def analyze_protocol(peeked_data):
@@ -178,6 +227,14 @@ def parse_sni_domain(data):
     except StopIteration:
         pass
     return domain
+
+
+def pick_direct_proxy(tried_proxies):
+    return None if DIRECT_PROXY in tried_proxies else DIRECT_PROXY
+
+
+def pick_http_try_proxy(tried_proxies):
+    return None if HTTP_TRY_PROXY in tried_proxies else HTTP_TRY_PROXY
 
 
 def pick_http_proxy(tried_proxies):
@@ -260,8 +317,8 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO http-connect detects failure (proxy reject, empty response), then fallback
 # TODO direct detects connection failure (ip blocked), then fallback
+# TODO maintain ip white/black list, default to gray
 # TODO china ip go direct with mark
 # TODO non china ip, http, go http-try => goagent => http-connect
 # TODO non china ip, https, go direct => http-connect

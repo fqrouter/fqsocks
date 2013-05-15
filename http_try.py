@@ -10,13 +10,15 @@ LOGGER = logging.getLogger(__name__)
 class HttpTryProxy(Proxy):
     def forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(2)
+        upstream_sock.settimeout(5)
         try:
             upstream_sock.connect((client.dst_ip, client.dst_port))
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
+            client.direct_connection_failed()
             client.fall_back(reason='http try connect failed')
+        client.direct_connection_succeeded()
         response = send_first_request_and_get_response(client, upstream_sock)
         client.downstream_sock.sendall(response)
         client.forward(upstream_sock)

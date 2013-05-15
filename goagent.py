@@ -87,14 +87,15 @@ class GoAgentProxy(Proxy):
         if cls.GOOGLE_IPS:
             return
         all_ips = set()
+        selected_ips = set()
         for host in cls.GOOGLE_HOSTS:
             if re.match(r'\d+\.\d+\.\d+\.\d+', host):
-                all_ips.add(host)
+                selected_ips.add(host)
             else:
                 ips = socket.gethostbyname_ex(host)[-1]
                 if len(ips) > 1:
                     all_ips |= set(ips)
-        if not all_ips:
+        if not selected_ips and not all_ips:
             raise Exception('failed to resolve google ip')
         queue = gevent.queue.Queue()
         greenlets = []
@@ -102,10 +103,9 @@ class GoAgentProxy(Proxy):
             for ip in all_ips:
                 greenlets.append(gevent.spawn(test_google_ip, queue, create_sock, ip))
                 time.sleep(0.1)
-            selected_ips = []
             for i in range(min(3, len(all_ips))):
                 try:
-                    selected_ips.append(queue.get(timeout=1))
+                    selected_ips.add(queue.get(timeout=1))
                 except:
                     break
             if selected_ips:

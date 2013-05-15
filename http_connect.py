@@ -17,7 +17,7 @@ class HttpConnectProxy(Proxy):
 
     def forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(10)
+        upstream_sock.settimeout(5)
         # upstream_sock = ssl.wrap_socket(upstream_sock)
         # client.add_resource(upstream_sock)
         LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
@@ -26,6 +26,7 @@ class HttpConnectProxy(Proxy):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http-connect upstream socket connect timed out' % (repr(client)), exc_info=1)
+            self.died = True
             client.fall_back(reason='http-connect upstream socket connect timed out')
         if 443 == client.dst_port:
             upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))
@@ -44,6 +45,7 @@ class HttpConnectProxy(Proxy):
             else:
                 LOGGER.error('[%s] http connect response from %s:%s\n%s' %
                              (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
+                self.died = True
                 client.fall_back(response.splitlines()[0] if response.splitlines() else 'unknown')
         else:
             response = send_first_request_and_get_response(client, upstream_sock)
