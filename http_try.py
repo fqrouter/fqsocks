@@ -75,7 +75,7 @@ class CapturingFile(object):
 
 
 def recv_and_parse_request(client):
-    client.peeked_data = recv_http_header(client.peeked_data, client.downstream_sock)
+    client.peeked_data = recv_till_double_newline(client.peeked_data, client.downstream_sock)
     if 'Host:' not in client.peeked_data:
         raise NotHttp()
     try:
@@ -99,7 +99,7 @@ def recv_and_parse_request(client):
         raise
 
 
-def recv_http_header(peeked_data, sock):
+def recv_till_double_newline(peeked_data, sock):
     for i in range(3):
         if peeked_data.find(b'\r\n\r\n') != -1:
             return peeked_data

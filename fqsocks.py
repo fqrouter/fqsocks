@@ -258,7 +258,6 @@ def teardown_development_env():
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
         (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
-# TODO http-try proxy, detect GFW keyword filtering, then fallback
 # TODO http-connect detects failure (proxy reject, empty response), then fallback
 # TODO direct detects connection failure (ip blocked), then fallback
 # TODO china ip go direct with mark

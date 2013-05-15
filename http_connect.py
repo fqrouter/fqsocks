@@ -1,6 +1,7 @@
 import logging
 import re
 from direct import Proxy
+from http_try import recv_till_double_newline
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,11 +22,7 @@ class HttpConnectProxy(Proxy):
         upstream_sock.connect((self.proxy_ip, self.proxy_port))
         if 443 == client.dst_port:
             upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))
-            response = ''
-            rfile = upstream_sock.makefile('rb', 8192)
-            while response.find('\r\n\r\n') == -1:
-                line = rfile.readline(8192)
-                response += line
+            response = recv_till_double_newline('', upstream_sock)
             match = RE_STATUS.search(response)
             if match and '200' == match.group(1):
                 if LOGGER.isEnabledFor(logging.DEBUG):
@@ -35,6 +32,7 @@ class HttpConnectProxy(Proxy):
             else:
                 LOGGER.error('[%s] http connect response from %s:%s\n%s' %
                              (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
+                client.fall_back(response.splitlines()[0] if response.splitlines() else 'unknown')
         else:
             client.forward(upstream_sock)
 
