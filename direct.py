@@ -9,6 +9,10 @@ class Proxy(object):
         self.died = False
 
     def forward(self, client):
+        client.forwarding_by = self
+        self.do_forward(client)
+
+    def do_forward(self, client):
         raise NotImplementedError()
 
     @classmethod
@@ -20,7 +24,7 @@ class Proxy(object):
 
 
 class DirectProxy(Proxy):
-    def forward(self, client):
+    def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
         upstream_sock.settimeout(5)
         try:

@@ -15,7 +15,7 @@ class HttpConnectProxy(Proxy):
         self.proxy_ip = proxy_ip
         self.proxy_port = proxy_port
 
-    def forward(self, client):
+    def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
         upstream_sock.settimeout(5)
         # upstream_sock = ssl.wrap_socket(upstream_sock)

@@ -9,7 +9,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class HttpTryProxy(Proxy):
-    def forward(self, client):
+    def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
         upstream_sock.settimeout(5)
         try:
@@ -60,7 +60,7 @@ def send_first_request_and_get_response(client, upstream_sock):
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:
-        raise
+        client.fall_back(reason='not http')
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] http try read response failed' % (repr(client)), exc_info=1)

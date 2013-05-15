@@ -24,7 +24,6 @@ from http_try import HTTP_TRY_PROXY
 from goagent import GoAgentProxy
 from http_connect import HttpConnectProxy
 from dynamic import DynamicProxy
-from http_try import NotHttp
 
 
 proxy_types = {
@@ -61,7 +60,9 @@ class ProxyClient(object):
         self.dst_port = dst_port
         self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
         self.peeked_data = ''
+        self.host = ''
         self.tried_proxies = []
+        self.forwarding_by = None
 
     def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
         upstream_sock = socket.socket(family=family, type=type, **kwargs)
@@ -95,7 +96,12 @@ class ProxyClient(object):
         LOGGER.info('[%s] direct connection failed' % repr(self))
 
     def __repr__(self):
-        return self.description
+        description = self.description
+        if self.host:
+            description = '%s %s' % (description, self.host)
+        if self.forwarding_by:
+            description = '%s %s' % (description, repr(self.forwarding_by))
+        return description
 
 
 class ProxyFallBack(Exception):
@@ -135,10 +141,6 @@ def pick_proxy_and_forward(client):
                 DIRECT_PROXY.forward(client)
             else:
                 LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
-        except NotHttp:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] not http, forward directly' % repr(client))
-            DIRECT_PROXY.forward(client)
     LOGGER.error('[%s] fall back to direct after too many retries' % repr(client))
     DIRECT_PROXY.forward(client)
 
@@ -157,6 +159,8 @@ def pick_proxy(client):
         else:
             client.peeked_data = client.downstream_sock.recv(8192)
     protocol, domain = analyze_protocol(client.peeked_data)
+    if domain:
+        client.host = domain
     ip_color = get_ip_color(client.dst_ip)
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), ip_color, protocol, domain))
@@ -212,13 +216,13 @@ def analyze_protocol(peeked_data):
     try:
         match = RE_HTTP_HOST.search(peeked_data)
         if match:
-            return 'HTTP', match.group(1)
+            return 'HTTP', match.group(1).strip()
         try:
             ssl3 = dpkt.ssl.SSL3(peeked_data)
         except dpkt.NeedData:
             return 'UNKNOWN', ''
         if ssl3.version in (dpkt.ssl.SSL3_VERSION, dpkt.ssl.TLS1_VERSION, TLS1_1_VERSION):
-            return 'HTTPS', parse_sni_domain(peeked_data)
+            return 'HTTPS', parse_sni_domain(peeked_data).strip()
     except:
         LOGGER.exception('failed to analyze protocol')
     return 'UNKNOWN', ''

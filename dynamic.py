@@ -19,7 +19,7 @@ class DynamicProxy(Proxy):
         self.delegated_to = None
         super(DynamicProxy, self).__init__()
 
-    def forward(self, client):
+    def do_forward(self, client):
         if self.delegated_to:
             self.delegated_to.forward(client)
         else:

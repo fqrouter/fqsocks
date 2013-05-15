@@ -63,7 +63,7 @@ class GoAgentProxy(Proxy):
         if self.appid is None and self.appid_dns_record is None:
             raise Exception('either appid or appid_dns_record should be specified')
 
-    def forward(self, client):
+    def do_forward(self, client):
         recv_and_parse_request(client)
         LOGGER.info('[%s] %s urlfetch %s %s' % (repr(client), self.appid, client.method, client.url))
         forward(client, self)
