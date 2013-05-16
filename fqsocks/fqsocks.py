@@ -325,6 +325,7 @@ def pick_https_proxy(client):
 def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None,
                    on_upstream_timed_out=None):
     upstream_responded = False
+    buffer_multiplier = 1
     try:
         timecount = timeout
         while 1:
@@ -337,17 +338,23 @@ def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxpi
                 break
             if ins:
                 for sock in ins:
-                    data = sock.recv(bufsize)
-                    if data:
-                        if sock is upstream:
+                    if sock is upstream:
+                        data = sock.recv(bufsize * buffer_multiplier)
+                        buffer_multiplier = min(16, buffer_multiplier + 1)
+                        if data:
                             upstream_responded = True
                             downstream.sendall(data)
                             timecount = maxpong or timeout
                         else:
+                            return
+                    else:
+                        buffer_multiplier = 1
+                        data = sock.recv(bufsize)
+                        if data:
                             upstream.sendall(data)
                             timecount = maxping or timeout
-                    else:
-                        return
+                        else:
+                            return
     except socket.error as e:
         if e[0] not in (10053, 10054, 10057, errno.EPIPE):
             raise
@@ -508,9 +515,7 @@ def main():
         greenlet.join()
 
 # TODO include port in black/white list
-# TODO increase buffer
 # TODO skip china and white list ip before nat
-# TODO === merge into fqrouter ===
 # TODO measure the speed of proxy which adds weight to the picking process
 # TODO add http-relay proxy
 # TODO add socks4 proxy
