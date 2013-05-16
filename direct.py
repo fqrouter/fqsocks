@@ -15,7 +15,7 @@ class Proxy(object):
             self.do_forward(client)
         finally:
             if self.died:
-                LOGGER.error('[%s] !!! proxy died !!!: %s' % (repr(client), self))
+                LOGGER.fatal('[%s] !!! proxy died !!!: %s' % (repr(client), self))
                 client.dump_proxies()
 
     def do_forward(self, client):

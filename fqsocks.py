@@ -390,7 +390,7 @@ def check_access_many_times(url, times):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('get check access result failed', exc_info=1)
-    LOGGER.info('checked %s access: %s/%s' % (url, success, times))
+    LOGGER.fatal('checked access %s: %s/%s' % (url, success, times))
     return success
 
 
@@ -434,7 +434,7 @@ def keep_refreshing_proxies():
         gevent.sleep(REFRESH_INTERVAL)
 
 
-# TODO check twitter/youtube/facebook/google+ access after refresh
+# TODO move dns_record to dynamic proxy
 # TODO optionally mark china traffic
 # TODO === merge into fqrouter ===
 # TODO measure the speed of proxy which adds weight to the picking process

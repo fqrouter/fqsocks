@@ -16,7 +16,6 @@ import functools
 import fnmatch
 import ssl
 
-import dpkt
 import gevent.queue
 
 from direct import Proxy
@@ -49,22 +48,16 @@ ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
 
-# TODO move dns_record to dynamic proxy
 class GoAgentProxy(Proxy):
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
 
-    def __init__(self, appid=None, appid_dns_record=None, resolve_at='8.8.8.8', password=False, validate=0):
+    def __init__(self, appid, resolve_at='8.8.8.8', password=False, validate=0):
         super(GoAgentProxy, self).__init__()
         self.appid = appid
-        if not self.appid:
-            self.died = True
-        self.appid_dns_record = appid_dns_record
         self.resolve_at = resolve_at
         self.password = password
         self.validate = validate
-        if self.appid is None and self.appid_dns_record is None:
-            raise Exception('either appid or appid_dns_record should be specified')
 
     def do_forward(self, client):
         recv_and_parse_request(client)
@@ -77,21 +70,12 @@ class GoAgentProxy(Proxy):
 
     @classmethod
     def refresh(cls, proxies, create_sock):
-        cls.resolve_google_ips(create_sock)
-        greenlets = []
-        for proxy in proxies:
-            if proxy.appid_dns_record:
-                greenlets.append(gevent.spawn(resolve_appid, proxy))
-        success_count = 0
-        for greenlet in greenlets:
-            if greenlet.get():
-                success_count += 1
-        return success_count > (len(proxies) / 2)
+        return cls.resolve_google_ips(create_sock)
 
     @classmethod
     def resolve_google_ips(cls, create_sock):
         if cls.GOOGLE_IPS:
-            return
+            return True
         all_ips = set()
         selected_ips = set()
         for host in cls.GOOGLE_HOSTS:
@@ -102,7 +86,8 @@ class GoAgentProxy(Proxy):
                 if len(ips) > 1:
                     all_ips |= set(ips)
         if not selected_ips and not all_ips:
-            raise Exception('failed to resolve google ip')
+            LOGGER.fatal('failed to resolve google ip')
+            return False
         queue = gevent.queue.Queue()
         greenlets = []
         try:
@@ -120,39 +105,13 @@ class GoAgentProxy(Proxy):
             else:
                 cls.GOOGLE_IPS = all_ips[:3]
                 LOGGER.error('failed to find working google ip, fallback to first 3: %s' % cls.GOOGLE_IPS)
+            return True
         finally:
             for greenlet in greenlets:
                 greenlet.kill(block=False)
 
     def __repr__(self):
-        if self.appid_dns_record:
-            return 'GoAgentProxy[%s=>%s]' % (self.appid_dns_record, self.appid or 'UNRESOLVED')
-        else:
-            return 'GoAgentProxy[%s]' % self.appid
-
-
-def resolve_appid(proxy):
-    try:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
-            sock.settimeout(3)
-            request = dpkt.dns.DNS(
-                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.appid_dns_record, type=dpkt.dns.DNS_TXT)])
-            sock.sendto(str(request), (proxy.resolve_at, 53))
-            appid = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
-            appid = ''.join(e for e in appid if e.isalnum())
-            if appid:
-                proxy.appid = appid
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('resolved appid: %s' % repr(proxy))
-            return True
-        except:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('failed to resolve appid: %s' % repr(proxy), exc_info=1)
-            return False
-    finally:
-        if not proxy.appid:
-            proxy.died = True
+        return 'GoAgentProxy[%s]' % self.appid
 
 
 def test_google_ip(queue, create_sock, ip):
