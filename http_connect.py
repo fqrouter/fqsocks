@@ -45,8 +45,10 @@ class HttpConnectProxy(Proxy):
                 upstream_sock.sendall(client.peeked_data)
                 client.forward(upstream_sock)
             else:
-                LOGGER.error('[%s] http connect response from %s:%s\n%s' %
-                             (repr(client), self.proxy_ip, self.proxy_port, response.strip()))
+                if LOGGER.isEnabledFor(logging.DEBUG):
+                    LOGGER.debug('[%s] http connect response: %s' % response.strip())
+                LOGGER.error('[%s] http connect rejected: %s' %
+                             (repr(client), response.splitlines()[0] if response.splitlines() else 'unknown'))
                 self.died = True
                 client.fall_back(response.splitlines()[0] if response.splitlines() else 'unknown')
         else:

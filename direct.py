@@ -1,6 +1,8 @@
 import logging
+import socket
 
 LOGGER = logging.getLogger(__name__)
+SO_MARK = 36
 
 
 class Proxy(object):
@@ -30,12 +32,15 @@ class Proxy(object):
 
 
 class DirectProxy(Proxy):
-    def __init__(self):
+    def __init__(self, mark=None):
         super(DirectProxy, self).__init__()
         self.flags.add('DIRECT')
+        self.mark = mark
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
+        if self.mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self.mark)
         upstream_sock.settimeout(5)
         try:
             upstream_sock.connect((client.dst_ip, client.dst_port))

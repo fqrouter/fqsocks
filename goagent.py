@@ -372,6 +372,7 @@ def create_ssl_connection(client, timeout=None, max_timeout=16, max_retry=4, max
             result = queue.get()
             if not isinstance(result, socket.error):
                 return result
+    client.fall_back('connect to google ip failed')
 
 
 def gae_range_urlfetch(client, proxy, response):

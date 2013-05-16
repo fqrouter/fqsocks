@@ -23,6 +23,7 @@ import gevent.monkey
 
 import china_ip
 from direct import DIRECT_PROXY
+from direct import DirectProxy
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
@@ -64,6 +65,7 @@ NO_DIRECT_PROXY_HOSTS = {
     'twimg.com'
 }
 REFRESH_INTERVAL = 60 * 30
+CHINA_PROXY = None
 
 
 class ProxyClient(object):
@@ -150,17 +152,21 @@ def handle(downstream_sock, address):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] done' % repr(client))
     except:
-        LOGGER.exception('[%s] done with error' % repr(client))
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
+        else:
+            LOGGER.debug('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
     finally:
         client.close()
 
 
 def pick_proxy_and_forward(client):
-    if china_ip.is_china_ip(client.dst_ip):
+    if CHINA_PROXY and china_ip.is_china_ip(client.dst_ip):
         try:
-            DIRECT_PROXY.forward(client)
+            CHINA_PROXY.forward(client)
         except ProxyFallBack:
             pass
+        return
     for i in range(3):
         proxy = pick_proxy(client)
         while proxy:
@@ -434,8 +440,6 @@ def keep_refreshing_proxies():
         gevent.sleep(REFRESH_INTERVAL)
 
 
-# TODO move dns_record to dynamic proxy
-# TODO optionally mark china traffic
 # TODO === merge into fqrouter ===
 # TODO measure the speed of proxy which adds weight to the picking process
 # TODO add http-relay proxy
@@ -454,8 +458,9 @@ if '__main__' == __name__:
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
     argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--proxy', action='append', default=[])
-    argument_parser.add_argument(
-        '--google-host', action='append', default=[])
+    argument_parser.add_argument('--google-host', action='append', default=[])
+    argument_parser.add_argument('--disable-china-optimization', action='store_true')
+    argument_parser.add_argument('--china-traffic-mark', help='an integer, for example 0xcafe')
     args = argument_parser.parse_args()
     logging.basicConfig(
         stream=sys.stdout, level=getattr(logging, args.log_level), format='%(asctime)s %(levelname)s %(message)s')
@@ -465,6 +470,11 @@ if '__main__' == __name__:
     OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
+    if not args.disable_china_optimization:
+        if args.china_traffic_mark:
+            CHINA_PROXY = DirectProxy(eval(args.china_traffic_mark))
+        else:
+            CHINA_PROXY = DIRECT_PROXY
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
