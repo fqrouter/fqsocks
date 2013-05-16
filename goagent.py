@@ -49,6 +49,7 @@ ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
 
+# TODO move dns_record to dynamic proxy
 class GoAgentProxy(Proxy):
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
@@ -56,6 +57,8 @@ class GoAgentProxy(Proxy):
     def __init__(self, appid=None, appid_dns_record=None, resolve_at='8.8.8.8', password=False, validate=0):
         super(GoAgentProxy, self).__init__()
         self.appid = appid
+        if not self.appid:
+            self.died = True
         self.appid_dns_record = appid_dns_record
         self.resolve_at = resolve_at
         self.password = password

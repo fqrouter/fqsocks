@@ -14,12 +14,14 @@ import re
 import argparse
 import atexit
 import fnmatch
+import math
+import urllib
 
 import dpkt
 import gevent.server
 import gevent.monkey
-import china_ip
 
+import china_ip
 from direct import DIRECT_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
@@ -366,7 +368,40 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
+    if success:
+        check_access_many_times('https://www.twitter.com', len(proxies))
+        check_access_many_times('https://plus.google.com', 5)
+        check_access_many_times('http://www.youtube.com', 5)
+        check_access_many_times('http://www.facebook.com', 5)
     return success
+
+
+def check_access_many_times(url, times):
+    greenlets = []
+    for i in range(times):
+        greenlets.append(gevent.spawn(check_access, url))
+    success = 0
+    for greenlet in greenlets:
+        try:
+            if greenlet.get(timeout=10):
+                success += 1
+        except gevent.Timeout:
+            pass
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('get check access result failed', exc_info=1)
+    LOGGER.info('checked %s access: %s/%s' % (url, success, times))
+    return success
+
+
+def check_access(url):
+    try:
+        urllib.urlretrieve(url)
+        return True
+    except:
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('check access failed: %s' % url, exc_info=1)
+        return False
 
 
 def setup_development_env():
@@ -389,16 +424,16 @@ def start_server():
 
 def keep_refreshing_proxies():
     while True:
-        LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
-        gevent.sleep(REFRESH_INTERVAL)
-        for i in range(3):
+        for i in range(16):
             if refresh_proxies():
                 break
-            LOGGER.error('refresh failed, will retry %s seconds later' % 10)
-            gevent.sleep(10)
+            retry_interval = math.pow(2, i)
+            LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
+            gevent.sleep(retry_interval)
+        LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
+        gevent.sleep(REFRESH_INTERVAL)
 
 
-# TODO refresh retry, with exponential backoff (1s => 2s => 4s => 8s)
 # TODO check twitter/youtube/facebook/google+ access after refresh
 # TODO optionally mark china traffic
 # TODO === merge into fqrouter ===
@@ -442,7 +477,6 @@ if '__main__' == __name__:
         else:
             proxy = proxy_types[props[0]](**prop_dict)
             proxies.append(proxy)
-    refresh_proxies()
     if args.dev:
         signal.signal(signal.SIGTERM, lambda signum, fame: teardown_development_env())
         signal.signal(signal.SIGINT, lambda signum, fame: teardown_development_env())
