@@ -78,13 +78,14 @@ class GoAgentProxy(Proxy):
     def resolve_google_ips(cls, create_sock):
         if cls.GOOGLE_IPS:
             return True
+        LOGGER.info('resolving google ips from %s' % cls.GOOGLE_HOSTS)
         all_ips = set()
         selected_ips = set()
         for host in cls.GOOGLE_HOSTS:
             if re.match(r'\d+\.\d+\.\d+\.\d+', host):
                 selected_ips.add(host)
             else:
-                ips = socket.gethostbyname_ex(host)[-1]
+                ips = resolve_google_ips(host)
                 if len(ips) > 1:
                     all_ips |= set(ips)
         if not selected_ips and not all_ips:
@@ -114,6 +115,16 @@ class GoAgentProxy(Proxy):
 
     def __repr__(self):
         return 'GoAgentProxy[%s]' % self.appid
+
+
+def resolve_google_ips(host):
+    for i in range(3):
+        try:
+            return gevent.spawn(socket.gethostbyname_ex, host).get(timeout=3)[-1]
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('failed to resolve google ips', exc_info=1)
+    return []
 
 
 def test_google_ip(queue, create_sock, ip):

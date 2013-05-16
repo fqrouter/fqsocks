@@ -4,7 +4,7 @@ import random
 
 import gevent
 import dpkt
-
+import time
 from direct import Proxy
 from http_connect import HttpConnectProxy
 from goagent import GoAgentProxy
@@ -47,15 +47,24 @@ class DynamicProxy(Proxy):
         for proxy in proxies:
             greenlets.append(gevent.spawn(resolve_proxy, proxy))
         success_count = 0
+        deadline = time.time() + 5
         for greenlet in greenlets:
-            if greenlet.get():
-                success_count += 2
+            try:
+                timeout = deadline - time.time()
+                if timeout > 0:
+                    if greenlet.get(timeout=timeout):
+                        success_count += 1
+                else:
+                    if greenlet.get(block=False):
+                        success_count += 1
+            except:
+                pass
         success = success_count > (len(proxies) / 2)
         type_to_proxies = {}
         for proxy in proxies:
             type_to_proxies.setdefault(proxy.delegated_to.__class__, []).append(proxy.delegated_to)
         for proxy_type, instances in type_to_proxies.items():
-            success = success and proxy_type.refresh(instances, create_sock)
+            success = proxy_type.refresh(instances, create_sock) and success
         return success
 
     def is_protocol_supported(self, protocol):
@@ -83,10 +92,11 @@ def resolve_proxy(proxy):
             proxy_type, ip, port, username, password = connection_info.split(':')
             assert 'http-connect' == proxy_type # only support one type currently
             proxy.delegated_to = HttpConnectProxy(ip, port)
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('resolved proxy: %s' % repr(proxy))
+        LOGGER.info('resolved proxy: %s' % repr(proxy))
         return True
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('failed to resolve proxy: %s' % repr(proxy), exc_info=1)
+        else:
+            LOGGER.info('failed to resolve proxy: %s' % repr(proxy))
         return False
