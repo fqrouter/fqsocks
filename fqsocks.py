@@ -105,11 +105,17 @@ class ProxyClient(object):
 
     def direct_connection_succeeded(self):
         ip_white_list.add(self.dst_ip)
+        if self.dst_ip in ip_tried_times:
+            del ip_tried_times[self.dst_ip]
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] direct connection succeeded' % repr(self))
 
     def direct_connection_failed(self):
         ip_black_list.add(self.dst_ip)
+        if self.dst_ip in ip_white_list:
+            ip_white_list.remove(self.dst_ip)
+        if self.dst_ip in ip_tried_times:
+            del ip_tried_times[self.dst_ip]
         LOGGER.info('[%s] direct connection failed' % repr(self))
 
     def dump_proxies(self):
@@ -158,8 +164,6 @@ def pick_proxy_and_forward(client):
         while proxy:
             if not client.host:
                 break
-            if 'DIRECT' in proxy.flags and any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
-                client.tried_proxies.append(proxy)
             elif 'PUBLIC' in proxy.flags and any(fnmatch.fnmatch(client.host, host) for host in NO_PUBLIC_PROXY_HOSTS):
                 client.tried_proxies.append(proxy)
             else:
@@ -197,6 +201,8 @@ def pick_proxy(client):
     protocol, domain = analyze_protocol(client.peeked_data)
     if domain:
         client.host = domain
+        if any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
+            ip_black_list.add(client.dst_ip)
     ip_color = get_ip_color(client.dst_ip)
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), ip_color, protocol, domain))
@@ -221,8 +227,6 @@ def pick_proxy(client):
 
 
 def spawn_try_direct_connection(client):
-    if client.host and any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
-        return
     tried_times = ip_tried_times.get(client.dst_ip, 0)
     if tried_times < 2:
         gevent.spawn(try_direct_connection, client)
@@ -394,9 +398,9 @@ def keep_refreshing_proxies():
             gevent.sleep(10)
 
 
-# TODO refresh failure detection, retry after 10 seconds, for 3 times
 # TODO refresh retry, with exponential backoff (1s => 2s => 4s => 8s)
 # TODO check twitter/youtube/facebook/google+ access after refresh
+# TODO optionally mark china traffic
 # TODO === merge into fqrouter ===
 # TODO measure the speed of proxy which adds weight to the picking process
 # TODO add http-relay proxy

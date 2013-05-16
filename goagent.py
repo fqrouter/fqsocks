@@ -21,7 +21,6 @@ import gevent.queue
 
 from direct import Proxy
 from http_try import recv_and_parse_request
-from http_try import NotHttp
 
 
 LOGGER = logging.getLogger(__name__)
@@ -131,23 +130,26 @@ class GoAgentProxy(Proxy):
 
 def resolve_appid(proxy):
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
-        sock.settimeout(3)
-        request = dpkt.dns.DNS(
-            id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.appid_dns_record, type=dpkt.dns.DNS_TXT)])
-        sock.sendto(str(request), (proxy.resolve_at, 53))
-        appid = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
-        appid = ''.join(e for e in appid if e.isalnum())
-        proxy.appid = appid
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('resolved appid: %s' % repr(proxy))
-        return True
-    except:
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('failed to resolve appid: %s' % repr(proxy), exc_info=1)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+            sock.settimeout(3)
+            request = dpkt.dns.DNS(
+                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.appid_dns_record, type=dpkt.dns.DNS_TXT)])
+            sock.sendto(str(request), (proxy.resolve_at, 53))
+            appid = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
+            appid = ''.join(e for e in appid if e.isalnum())
+            if appid:
+                proxy.appid = appid
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('resolved appid: %s' % repr(proxy))
+            return True
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('failed to resolve appid: %s' % repr(proxy), exc_info=1)
+            return False
+    finally:
         if not proxy.appid:
             proxy.died = True
-        return False
 
 
 def test_google_ip(queue, create_sock, ip):
