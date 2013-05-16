@@ -58,6 +58,8 @@ class GoAgentProxy(Proxy):
         self.resolve_at = resolve_at
         self.password = password
         self.validate = validate
+        if not self.appid:
+            self.died = True
 
     def do_forward(self, client):
         recv_and_parse_request(client)

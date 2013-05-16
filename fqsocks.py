@@ -66,6 +66,7 @@ NO_DIRECT_PROXY_HOSTS = {
 }
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
+CHECK_ACCESS = True
 
 
 class ProxyClient(object):
@@ -374,7 +375,7 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
-    if success:
+    if success and CHECK_ACCESS:
         check_access_many_times('https://www.twitter.com', len(proxies))
         check_access_many_times('https://plus.google.com', 5)
         check_access_many_times('http://www.youtube.com', 5)
@@ -460,6 +461,7 @@ if '__main__' == __name__:
     argument_parser.add_argument('--proxy', action='append', default=[])
     argument_parser.add_argument('--google-host', action='append', default=[])
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
+    argument_parser.add_argument('--disable-access-check', action='store_true')
     argument_parser.add_argument('--china-traffic-mark', help='an integer, for example 0xcafe')
     args = argument_parser.parse_args()
     logging.basicConfig(
@@ -475,6 +477,8 @@ if '__main__' == __name__:
             CHINA_PROXY = DirectProxy(eval(args.china_traffic_mark))
         else:
             CHINA_PROXY = DIRECT_PROXY
+    if args.disable_access_check:
+        CHECK_ACCESS = False
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])

@@ -50,7 +50,13 @@ class DynamicProxy(Proxy):
         for greenlet in greenlets:
             if greenlet.get():
                 success_count += 2
-        return success_count > (len(proxies) / 2)
+        success = success_count > (len(proxies) / 2)
+        type_to_proxies = {}
+        for proxy in proxies:
+            type_to_proxies.setdefault(proxy.delegated_to.__class__, []).append(proxy.delegated_to)
+        for proxy_type, instances in type_to_proxies.items():
+            success = success and proxy_type.refresh(instances, create_sock)
+        return success
 
     def is_protocol_supported(self, protocol):
         if self.delegated_to:
