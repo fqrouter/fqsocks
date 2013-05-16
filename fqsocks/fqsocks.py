@@ -16,7 +16,7 @@ import argparse
 import atexit
 import fnmatch
 import math
-import urllib
+import urllib2
 
 import dpkt
 import gevent.server
@@ -322,7 +322,7 @@ def pick_https_proxy(client):
         return None
 
 
-def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None,
+def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=1024 * 32, maxping=None, maxpong=None,
                    on_upstream_timed_out=None):
     upstream_responded = False
     try:
@@ -340,7 +340,7 @@ def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxpi
                     data = sock.recv(bufsize)
                     if data:
                         if sock is upstream:
-                            remote_responded = True
+                            upstream_responded = True
                             downstream.sendall(data)
                             timecount = maxpong or timeout
                         else:
@@ -404,11 +404,13 @@ def check_access_many_times(url, times):
 
 def check_access(url):
     try:
-        urllib.urlretrieve(url)
+        urllib2.urlopen(url).read()
         return True
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('check access failed: %s' % url, exc_info=1)
+            LOGGER.debug('check access %s failed' % url, exc_info=1)
+        else:
+            LOGGER.info('check access %s failed: %s' % (url, sys.exc_info()[1]))
         return False
 
 

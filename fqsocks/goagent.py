@@ -367,7 +367,8 @@ def create_ssl_connection(client, timeout=None, max_timeout=16, max_retry=4, max
             ssl_sock.sock = sock
             queue.put(ssl_sock)
         except socket.error as e:
-            LOGGER.exception('[%s] upstream connection error' % repr(client))
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] upstream connection error' % repr(client), exc_info=1)
             # any socket.error, put Excpetions to output queue.
             queue.put(e)
             # reset a large and random timeout to the address
