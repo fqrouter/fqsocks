@@ -322,7 +322,7 @@ def pick_https_proxy(client):
         return None
 
 
-def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=1024 * 32, maxping=None, maxpong=None,
+def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None,
                    on_upstream_timed_out=None):
     upstream_responded = False
     try:
