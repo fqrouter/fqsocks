@@ -2,6 +2,7 @@
 # thanks @phuslu https://github.com/phus/sniproxy/blob/master/sniproxy.py
 # thanks @ofmax https://github.com/madeye/gaeproxy/blob/master/assets/modules/python.mp3
 import logging
+import logging.handlers
 import sys
 import struct
 import socket
@@ -447,6 +448,7 @@ def main():
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
     argument_parser.add_argument('--log-level', default='INFO')
+    argument_parser.add_argument('--log-file')
     argument_parser.add_argument(
         '--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
     argument_parser.add_argument('--google-host', action='append', default=[])
@@ -454,8 +456,15 @@ def main():
     argument_parser.add_argument('--disable-access-check', action='store_true')
     argument_parser.add_argument('--china-traffic-mark', help='an integer, for example 0xcafe')
     args = argument_parser.parse_args()
+    log_level = getattr(logging, args.log_level)
     logging.basicConfig(
-        stream=sys.stdout, level=getattr(logging, args.log_level), format='%(asctime)s %(levelname)s %(message)s')
+        stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
+    if args.log_file:
+        handler = logging.handlers.RotatingFileHandler(
+            args.log_file, maxBytes=1024 * 512, backupCount=0)
+        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        handler.setLevel(log_level)
+        logging.getLogger('fqsocks').addHandler(handler)
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
