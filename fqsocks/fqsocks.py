@@ -369,7 +369,11 @@ def refresh_proxies():
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
     success = True
     for proxy_type, instances in type_to_proxies.items():
-        success = success and proxy_type.refresh(instances, create_sock)
+        try:
+            success = success and proxy_type.refresh(instances, create_sock)
+        except:
+            LOGGER.exception('failed to refresh proxies %s' % instances)
+            success = False
     for sock in socks:
         try:
             sock.close()
@@ -388,6 +392,7 @@ def check_access_many_times(url, times):
     greenlets = []
     for i in range(times):
         greenlets.append(gevent.spawn(check_access, url))
+        gevent.sleep(1)
     success = 0
     for greenlet in greenlets:
         try:
@@ -502,6 +507,9 @@ def main():
     for greenlet in greenlets:
         greenlet.join()
 
+# TODO include port in black/white list
+# TODO increase buffer
+# TODO skip china and white list ip before nat
 # TODO === merge into fqrouter ===
 # TODO measure the speed of proxy which adds weight to the picking process
 # TODO add http-relay proxy
