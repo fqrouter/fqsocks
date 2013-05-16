@@ -440,25 +440,15 @@ def keep_refreshing_proxies():
         LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
         gevent.sleep(REFRESH_INTERVAL)
 
-
-# TODO === merge into fqrouter ===
-# TODO measure the speed of proxy which adds weight to the picking process
-# TODO add http-relay proxy
-# TODO add socks4 proxy
-# TODO add socks5 proxy
-# TODO add ssh proxy
-# TODO add shadowsocks proxy
-# TODO add spdy proxy
-# TODO === future ===
-# TODO add vpn as proxy (setup vpn, mark packet, mark based routing)
-
-if '__main__' == __name__:
+def main():
+    global LISTEN_IP, LISTEN_PORT, OUTBOUND_IP, CHINA_PROXY, CHECK_ACCESS
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
     argument_parser.add_argument('--log-level', default='INFO')
-    argument_parser.add_argument('--proxy', action='append', default=[])
+    argument_parser.add_argument(
+        '--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
     argument_parser.add_argument('--google-host', action='append', default=[])
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
@@ -500,3 +490,17 @@ if '__main__' == __name__:
     greenlets = [gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies)]
     for greenlet in greenlets:
         greenlet.join()
+
+# TODO === merge into fqrouter ===
+# TODO measure the speed of proxy which adds weight to the picking process
+# TODO add http-relay proxy
+# TODO add socks4 proxy
+# TODO add socks5 proxy
+# TODO add ssh proxy
+# TODO add shadowsocks proxy
+# TODO add spdy proxy
+# TODO === future ===
+# TODO add vpn as proxy (setup vpn, mark packet, mark based routing)
+
+if '__main__' == __name__:
+    main()
