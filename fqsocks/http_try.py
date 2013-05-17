@@ -55,6 +55,10 @@ def send_first_request_and_get_response(client, upstream_sock):
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] skip try reading response due to chunked' % repr(client))
             return capturing_sock.rfile.captured
+        if not http_response.length:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] skip try reading response due to no content length' % repr(client))
+            return capturing_sock.rfile.captured
         if http_response.length > 1024 * 1024:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] skip try reading response due to too large' % repr(client))
@@ -105,7 +109,7 @@ class CapturingFile(object):
 
 
 def recv_and_parse_request(client):
-    client.peeked_data = recv_till_double_newline(client.peeked_data, client.downstream_sock)
+    client.peeked_data, client.payload = recv_till_double_newline(client.peeked_data, client.downstream_sock)
     if 'Host:' not in client.peeked_data:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] not http' % (repr(client)))
@@ -121,9 +125,9 @@ def recv_and_parse_request(client):
             client.url = path
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] parsed http header: %s %s' % (repr(client), client.method, client.url))
-        client.payload = None
         if 'Content-Length' in client.headers:
-            client.payload = client.downstream_rfile.read(int(client.headers.get('Content-Length', 0)))
+            more_payload_len = int(client.headers.get('Content-Length', 0)) - len(client.payload)
+            client.payload = client.downstream_rfile.read(more_payload_len)
         if client.payload:
             client.peeked_data += client.payload
     except:
@@ -132,11 +136,15 @@ def recv_and_parse_request(client):
 
 
 def recv_till_double_newline(peeked_data, sock):
-    for i in range(3):
+    for i in range(16):
         if peeked_data.find(b'\r\n\r\n') != -1:
-            return peeked_data
-        peeked_data += sock.recv(8192)
-    return peeked_data
+            header, crlf, payload = peeked_data.partition(b'\r\n\r\n')
+            return header + crlf, payload
+        more_data = sock.recv(8192)
+        if not more_data:
+            return peeked_data, ''
+        peeked_data += more_data
+    raise Exception('http end not found')
 
 
 class NotHttp(Exception):

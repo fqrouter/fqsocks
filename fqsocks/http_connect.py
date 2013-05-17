@@ -33,7 +33,7 @@ class HttpConnectProxy(Proxy):
         if 443 == client.dst_port:
             upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))
             try:
-                response = recv_till_double_newline('', upstream_sock)
+                response, _ = recv_till_double_newline('', upstream_sock)
             except:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] http-connect upstream connect command failed' % (repr(client)), exc_info=1)
