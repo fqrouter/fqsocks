@@ -189,6 +189,9 @@ def forward(client, proxy):
         if response.app_status == 404:
             proxy.died = True
             client.fall_back('goagent server not found')
+        if response.app_status == 302:
+            proxy.died = True
+            client.fall_back('goagent server 302 moved')
         if response.app_status != 200:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
