@@ -15,7 +15,7 @@ class HttpTryProxy(Proxy):
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(5)
+        upstream_sock.settimeout(2)
         try:
             upstream_sock.connect((client.dst_ip, client.dst_port))
         except:

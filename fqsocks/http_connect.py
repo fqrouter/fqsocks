@@ -1,5 +1,6 @@
 import logging
 import re
+import sys
 from direct import Proxy
 from http_try import recv_till_double_newline
 from http_try import send_first_request_and_get_response
@@ -37,7 +38,7 @@ class HttpConnectProxy(Proxy):
             except:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] http-connect upstream connect command failed' % (repr(client)), exc_info=1)
-                client.fall_back(reason='http-connect upstream connect command failed')
+                client.fall_back(reason='http-connect upstream connect command failed: %s' % sys.exc_info()[1])
             match = RE_STATUS.search(response)
             if match and '200' == match.group(1):
                 if LOGGER.isEnabledFor(logging.DEBUG):

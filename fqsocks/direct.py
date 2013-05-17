@@ -32,16 +32,17 @@ class Proxy(object):
 
 
 class DirectProxy(Proxy):
-    def __init__(self, mark=None):
+    def __init__(self, mark=None, connect_timeout=5):
         super(DirectProxy, self).__init__()
         self.flags.add('DIRECT')
         self.mark = mark
+        self.connect_timeout = connect_timeout
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
         if self.mark:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self.mark)
-        upstream_sock.settimeout(5)
+        upstream_sock.settimeout(self.connect_timeout)
         try:
             upstream_sock.connect((client.dst_ip, client.dst_port))
         except:
@@ -50,6 +51,7 @@ class DirectProxy(Proxy):
             client.direct_connection_failed()
             client.fall_back(reason='direct connect upstream socket timed out')
         client.direct_connection_succeeded()
+        upstream_sock.settimeout(None)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] direct upstream connected' % repr(client))
         upstream_sock.sendall(client.peeked_data)
@@ -63,3 +65,4 @@ class DirectProxy(Proxy):
 
 
 DIRECT_PROXY = DirectProxy()
+HTTPS_TRY_PROXY = DirectProxy(connect_timeout=2)

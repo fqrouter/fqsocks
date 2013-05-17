@@ -18,6 +18,7 @@ import fnmatch
 import math
 import urllib2
 import traceback
+import time
 
 import dpkt
 import gevent.server
@@ -25,6 +26,7 @@ import gevent.monkey
 
 import china_ip
 from direct import DIRECT_PROXY
+from direct import HTTPS_TRY_PROXY
 from direct import DirectProxy
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
@@ -42,10 +44,9 @@ LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
 proxies = []
-# ip is default to be gray, will go through proxy and start direct connect attempt
+direct_connection_successes = set() # set of (ip, port)
+direct_connection_failures = {} # (ip, port) => failed_at
 ip_black_list = set() # always go through proxy
-ip_white_list = set() # always go direct
-ip_tried_times = {} # ip => tried direct connection
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -148,18 +149,12 @@ class ProxyClient(object):
         raise ProxyFallBack(reason)
 
     def direct_connection_succeeded(self):
-        ip_white_list.add(self.dst_ip)
-        if self.dst_ip in ip_tried_times:
-            del ip_tried_times[self.dst_ip]
+        direct_connection_successes.add((self.dst_ip, self.dst_port))
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] direct connection succeeded' % repr(self))
 
     def direct_connection_failed(self):
-        ip_black_list.add(self.dst_ip)
-        if self.dst_ip in ip_white_list:
-            ip_white_list.remove(self.dst_ip)
-        if self.dst_ip in ip_tried_times:
-            del ip_tried_times[self.dst_ip]
+        direct_connection_failures[(self.dst_ip, self.dst_port)] = time.time()
         LOGGER.info('[%s] direct connection failed' % repr(self))
 
     def dump_proxies(self):
@@ -251,28 +246,30 @@ def pick_proxy(client):
         client.host = domain
         if any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
             ip_black_list.add(client.dst_ip)
-    ip_color = get_ip_color(client.dst_ip)
+    dst_color = get_dst_color(client.dst_ip, client.dst_port)
     if LOGGER.isEnabledFor(logging.DEBUG):
-        LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), ip_color, protocol, domain))
+        LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), dst_color, protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
-        if 'BLACK' == ip_color:
+        if 'BLACK' == dst_color:
             return pick_http_proxy(client)
         else:
             return pick_http_try_proxy(client) or pick_http_proxy(client)
     elif protocol == 'HTTPS' or client.dst_port == 443:
-        if 'BLACK' == ip_color:
+        if 'BLACK' == dst_color:
             return pick_https_proxy(client)
         else:
-            return pick_direct_proxy(client) or pick_https_proxy(client)
+            return pick_https_try_proxy(client) or pick_https_proxy(client)
     else:
         return None
 
 
-def get_ip_color(ip):
-    if ip in ip_black_list:
-        return 'BLACK'
-    if ip in ip_white_list:
+def get_dst_color(ip, port):
+    dst = (ip, port)
+    if dst in direct_connection_successes:
         return 'WHITE'
+    failure = direct_connection_failures.get(dst)
+    if failure and (time.time() - failure) < 60: # make dst BLACK for 1 minute
+        return 'BLACK'
     return 'GRAY'
 
 
@@ -309,6 +306,10 @@ def pick_direct_proxy(client):
 
 def pick_http_try_proxy(client):
     return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
+
+
+def pick_https_try_proxy(client):
+    return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
 
 def pick_http_proxy(client):
@@ -489,8 +490,6 @@ def main():
     for greenlet in greenlets:
         greenlet.join()
 
-# TODO fix HTTP POST save tumblr post
-# TODO include port in black/white list
 # TODO skip china and white list ip before nat
 # TODO measure the speed of proxy which adds weight to the picking process
 # TODO add http-relay proxy
