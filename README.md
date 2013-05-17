@@ -24,3 +24,12 @@ Basic Usage
 
 Alternatively, you can use --mark or --owner module to distinguish the fqsocks outbound traffic from others.
 But use outbound ip is the most portable way, especially for android.
+
+Proxy Selection Logic
+=====================
+
+* china ip: go directly
+* dport is 80 or protocol is http: direct => http only proxy => http/https proxy
+* dport is 443 or protocol is https: direct => https proxy
+* direct connection failed will blacklist that ip:port for 1 minute
+* blacklisted ip:port will use proxy
