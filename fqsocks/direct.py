@@ -51,9 +51,9 @@ class DirectProxy(Proxy):
             client.fall_back(reason='direct connect upstream socket timed out')
         client.direct_connection_succeeded()
         if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] upstream connected' % repr(client))
+            LOGGER.debug('[%s] direct upstream connected' % repr(client))
         upstream_sock.sendall(client.peeked_data)
-        client.forward(upstream_sock, on_upstream_timed_out=lambda: client.fall_back('upstream read timed out'))
+        client.forward(upstream_sock)
 
     def is_protocol_supported(self, protocol):
         return True

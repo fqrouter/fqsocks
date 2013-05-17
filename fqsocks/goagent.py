@@ -147,6 +147,8 @@ def test_google_ip(queue, create_sock, ip):
                 queue.put(ip)
         finally:
             ssl_sock.close()
+    except gevent.GreenletExit:
+        pass
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('failed to test google ip: %s' % ip, exc_info=1)
@@ -180,22 +182,20 @@ def forward(client, proxy):
             kwargs['validate'] = 1
         response = gae_urlfetch(client, proxy)
         if response is None:
-            html = message_html('502 URLFetch failed', 'Local URLFetch %r failed' % client.url, str(errors))
-            html = html.encode('utf-8') if isinstance(html, unicode) else html
-            client.downstream_sock.sendall(b'HTTP/1.0 502\r\nContent-Type: text/html\r\n\r\n' + html)
-            return
+            client.fall_back('urlfetch empty response')
         if response.app_status == 503:
             proxy.died = True
-            client.fall_back('over quota')
+            client.fall_back('goagent server over quota')
         if response.app_status == 404:
             proxy.died = True
             client.fall_back('goagent server not found')
         if response.app_status != 200:
-            client.downstream_wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
-                '%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
-            client.downstream_wfile.write(response.read())
-            response.close()
-            return
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
+                    '%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
+                LOGGER.debug(response.read())
+            client.fall_back('urlfetch failed: %s' % response.app_status)
+        client.forward_started = True
         if response.status == 206:
             return gae_range_urlfetch(client, proxy, response)
 
@@ -213,41 +213,6 @@ def forward(client, proxy):
         # Connection closed before proxy return
         if e.args[0] not in (errno.ECONNABORTED, errno.EPIPE):
             raise
-
-
-def message_html(title, banner, detail=''):
-    MESSAGE_TEMPLATE = '''
-    <html><head>
-    <meta http-equiv="content-type" content="text/html;charset=utf-8">
-    <title>{{ title }}</title>
-    <style><!--
-    body {font-family: arial,sans-serif}
-    div.nav {margin-top: 1ex}
-    div.nav A {font-size: 10pt; font-family: arial,sans-serif}
-    span.nav {font-size: 10pt; font-family: arial,sans-serif; font-weight: bold}
-    div.nav A,span.big {font-size: 12pt; color: #0000cc}
-    div.nav A {font-size: 10pt; color: black}
-    A.l:link {color: #6f6f6f}
-    A.u:link {color: green}
-    //--></style>
-    </head>
-    <body text=#000000 bgcolor=#ffffff>
-    <table border=0 cellpadding=2 cellspacing=0 width=100%>
-    <tr><td bgcolor=#3366cc><font face=arial,sans-serif color=#ffffff><b>Message</b></td></tr>
-    <tr><td> </td></tr></table>
-    <blockquote>
-    <H1>{{ banner }}</H1>
-    {{ detail }}
-    <p>
-    </blockquote>
-    <table width=100% cellpadding=0 cellspacing=0><tr><td bgcolor=#3366cc><img alt="" width=1 height=4></td></tr></table>
-    </body></html>
-    '''
-    kwargs = dict(title=title, banner=banner, detail=detail)
-    template = MESSAGE_TEMPLATE
-    for keyword, value in kwargs.items():
-        template = template.replace('{{ %s }}' % keyword, value)
-    return template
 
 
 def gae_urlfetch(client, proxy, headers=None, **kwargs):

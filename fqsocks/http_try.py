@@ -25,11 +25,9 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
         client.direct_connection_succeeded()
         response = send_first_request_and_get_response(client, upstream_sock)
-        if response:
-            client.downstream_sock.sendall(response)
-            client.forward(upstream_sock)
-        else:
-            DIRECT_PROXY.forward(client)
+        client.forward_started = True
+        client.downstream_sock.sendall(response)
+        client.forward(upstream_sock)
 
     def is_protocol_supported(self, protocol):
         return 'HTTP' == protocol
@@ -45,7 +43,7 @@ def send_first_request_and_get_response(client, upstream_sock):
     try:
         recv_and_parse_request(client)
         upstream_sock.sendall(client.peeked_data)
-        upstream_rfile = upstream_sock.makefile('rb', 8192)
+        upstream_rfile = upstream_sock.makefile('rb', 0)
         client.add_resource(upstream_rfile)
         capturing_sock = CapturingSock(upstream_rfile)
         http_response = httplib.HTTPResponse(capturing_sock)
@@ -55,16 +53,18 @@ def send_first_request_and_get_response(client, upstream_sock):
                          (repr(client), http_response.status, http_response.length))
         if http_response.chunked:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] http try pass to direct proxy due to response chunked' % repr(client))
-            return ''
+                LOGGER.debug('[%s] skip try reading response due to chunked' % repr(client))
+            return capturing_sock.rfile.captured
         if http_response.length > 1024 * 1024:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] http try pass to direct proxy due to response too large' % repr(client))
-            return ''
+                LOGGER.debug('[%s] skip try reading response due to too large' % repr(client))
+            return capturing_sock.rfile.captured
+        if not (200 <= http_response.status < 400):
+            raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
         if 'html' not in (http_response.msg.getheader('content-type') or ''):
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] http try pass to direct proxy due to not html' % repr(client))
-            return ''
+                LOGGER.debug('[%s] skip try reading response due to not html' % repr(client))
+            return capturing_sock.rfile.captured
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:
@@ -107,6 +107,8 @@ class CapturingFile(object):
 def recv_and_parse_request(client):
     client.peeked_data = recv_till_double_newline(client.peeked_data, client.downstream_sock)
     if 'Host:' not in client.peeked_data:
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] not http' % (repr(client)))
         raise NotHttp()
     try:
         client.method, path, client.headers = parse_request(client.peeked_data)

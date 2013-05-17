@@ -17,6 +17,7 @@ import atexit
 import fnmatch
 import math
 import urllib2
+import traceback
 
 import dpkt
 import gevent.server
@@ -76,6 +77,7 @@ class ProxyClient(object):
         self.downstream_sock = downstream_sock
         self.downstream_rfile = downstream_sock.makefile('rb', 8192)
         self.downstream_wfile = downstream_sock.makefile('wb', 0)
+        self.forward_started = False
         self.resources = [self.downstream_sock, self.downstream_rfile, self.downstream_wfile]
         self.src_ip = src_ip
         self.src_port = src_port
@@ -96,8 +98,40 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, to_sock, **kwargs):
-        forward_socket(self.downstream_sock, to_sock, **kwargs)
+    def forward(self, upstream_sock, timeout=61, tick=2, bufsize=8192):
+        buffer_multiplier = 1
+        try:
+            timecount = timeout
+            while 1:
+                timecount -= tick
+                if timecount <= 0:
+                    return
+                ins, _, errors = select.select(
+                    [self.downstream_sock, upstream_sock], [], [self.downstream_sock, upstream_sock], tick)
+                if errors:
+                    break
+                if ins:
+                    for sock in ins:
+                        if sock is upstream_sock:
+                            data = sock.recv(bufsize * buffer_multiplier)
+                            buffer_multiplier = min(16, buffer_multiplier + 1)
+                            if data:
+                                self.forward_started = True
+                                self.downstream_sock.sendall(data)
+                                timecount = timeout
+                            else:
+                                return
+                        else:
+                            buffer_multiplier = 1
+                            data = sock.recv(bufsize)
+                            if data:
+                                upstream_sock.sendall(data)
+                                timecount = timeout
+                            else:
+                                return
+        except socket.error as e:
+            if e[0] not in (10053, 10054, 10057, errno.EPIPE):
+                raise
 
     def close(self):
         for res in self.resources:
@@ -107,6 +141,10 @@ class ProxyClient(object):
                 pass
 
     def fall_back(self, reason):
+        if self.forward_started:
+            LOGGER.fatal('[%s] fall back can not happen after forward started:\n%s' %
+                         (repr(self), traceback.format_stack()))
+            raise Exception('!!! fall back can not happen after forward started !!!')
         raise ProxyFallBack(reason)
 
     def direct_connection_succeeded(self):
@@ -125,7 +163,7 @@ class ProxyClient(object):
         LOGGER.info('[%s] direct connection failed' % repr(self))
 
     def dump_proxies(self):
-        LOGGER.info('dump proxies: %s' % proxies)
+        LOGGER.info('dump proxies: %s' % [p for p in proxies if not p.died])
 
     def __repr__(self):
         description = self.description
@@ -219,41 +257,15 @@ def pick_proxy(client):
     if protocol == 'HTTP' or client.dst_port == 80:
         if 'BLACK' == ip_color:
             return pick_http_proxy(client)
-        elif 'WHITE' == ip_color:
-            return pick_http_try_proxy(client) or pick_http_proxy(client)
         else:
-            spawn_try_direct_connection(client)
-            return pick_http_proxy(client)
+            return pick_http_try_proxy(client) or pick_http_proxy(client)
     elif protocol == 'HTTPS' or client.dst_port == 443:
         if 'BLACK' == ip_color:
             return pick_https_proxy(client)
-        elif 'WHITE' == ip_color:
-            return pick_direct_proxy(client) or pick_https_proxy(client)
         else:
-            spawn_try_direct_connection(client)
-            return pick_https_proxy(client)
+            return pick_direct_proxy(client) or pick_https_proxy(client)
     else:
         return None
-
-
-def spawn_try_direct_connection(client):
-    tried_times = ip_tried_times.get(client.dst_ip, 0)
-    if tried_times < 2:
-        gevent.spawn(try_direct_connection, client)
-        ip_tried_times[client.dst_ip] = tried_times + 1
-
-
-def try_direct_connection(client):
-    upstream_sock = client.create_upstream_sock()
-    upstream_sock.settimeout(5)
-    try:
-        try:
-            upstream_sock.connect((client.dst_ip, client.dst_port))
-            client.direct_connection_succeeded()
-        except:
-            client.direct_connection_failed()
-    finally:
-        upstream_sock.close()
 
 
 def get_ip_color(ip):
@@ -320,44 +332,6 @@ def pick_https_proxy(client):
         return random.choice(https_proxies)
     else:
         return None
-
-
-def forward_socket(downstream, upstream, timeout=60, tick=2, bufsize=8192, maxping=None, maxpong=None,
-                   on_upstream_timed_out=None):
-    upstream_responded = False
-    buffer_multiplier = 1
-    try:
-        timecount = timeout
-        while 1:
-            timecount -= tick
-            if timecount <= 0:
-                if not upstream_responded and on_upstream_timed_out:
-                    on_upstream_timed_out()
-            ins, _, errors = select.select([downstream, upstream], [], [downstream, upstream], tick)
-            if errors:
-                break
-            if ins:
-                for sock in ins:
-                    if sock is upstream:
-                        data = sock.recv(bufsize * buffer_multiplier)
-                        buffer_multiplier = min(16, buffer_multiplier + 1)
-                        if data:
-                            upstream_responded = True
-                            downstream.sendall(data)
-                            timecount = maxpong or timeout
-                        else:
-                            return
-                    else:
-                        buffer_multiplier = 1
-                        data = sock.recv(bufsize)
-                        if data:
-                            upstream.sendall(data)
-                            timecount = maxping or timeout
-                        else:
-                            return
-    except socket.error as e:
-        if e[0] not in (10053, 10054, 10057, errno.EPIPE):
-            raise
 
 
 def refresh_proxies():
@@ -454,6 +428,7 @@ def keep_refreshing_proxies():
             gevent.sleep(retry_interval)
         LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
         gevent.sleep(REFRESH_INTERVAL)
+
 
 def main():
     global LISTEN_IP, LISTEN_PORT, OUTBOUND_IP, CHINA_PROXY, CHECK_ACCESS
