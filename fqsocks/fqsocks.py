@@ -446,7 +446,7 @@ def start_server():
 
 def keep_refreshing_proxies():
     while True:
-        for i in range(16):
+        for i in range(8):
             if refresh_proxies():
                 break
             retry_interval = math.pow(2, i)
@@ -514,6 +514,7 @@ def main():
     for greenlet in greenlets:
         greenlet.join()
 
+# TODO fix HTTP POST save tumblr post
 # TODO include port in black/white list
 # TODO skip china and white list ip before nat
 # TODO measure the speed of proxy which adds weight to the picking process

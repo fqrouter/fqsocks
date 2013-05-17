@@ -52,10 +52,9 @@ class GoAgentProxy(Proxy):
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
 
-    def __init__(self, appid, resolve_at='8.8.8.8', password=False, validate=0):
+    def __init__(self, appid, password=False, validate=0):
         super(GoAgentProxy, self).__init__()
         self.appid = appid
-        self.resolve_at = resolve_at
         self.password = password
         self.validate = validate
         if not self.appid:
@@ -96,17 +95,21 @@ class GoAgentProxy(Proxy):
         try:
             for ip in all_ips:
                 greenlets.append(gevent.spawn(test_google_ip, queue, create_sock, ip))
-                gevent.sleep(0.1)
+            deadline = time.time() + 5
             for i in range(min(3, len(all_ips))):
                 try:
-                    selected_ips.add(queue.get(timeout=1))
+                    timeout = deadline - time.time()
+                    if timeout > 0:
+                        selected_ips.add(queue.get(timeout=1))
+                    else:
+                        selected_ips.add(queue.get(block=False))
                 except:
                     break
             if selected_ips:
                 cls.GOOGLE_IPS = selected_ips
                 LOGGER.info('found google ip: %s' % cls.GOOGLE_IPS)
             else:
-                cls.GOOGLE_IPS = all_ips[:3]
+                cls.GOOGLE_IPS = list(all_ips)[:3]
                 LOGGER.error('failed to find working google ip, fallback to first 3: %s' % cls.GOOGLE_IPS)
             return True
         finally:
@@ -146,7 +149,9 @@ def test_google_ip(queue, create_sock, ip):
             ssl_sock.close()
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('failed to test google ip', exc_info=1)
+            LOGGER.debug('failed to test google ip: %s' % ip, exc_info=1)
+        else:
+            LOGGER.info('failed to test google ip: %s %s' % (ip, sys.exc_info()[1]))
 
 
 def forward(client, proxy):
@@ -369,7 +374,7 @@ def create_ssl_connection(client, timeout=None, max_timeout=16, max_retry=4, max
         except socket.error as e:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] upstream connection error' % repr(client), exc_info=1)
-            # any socket.error, put Excpetions to output queue.
+                # any socket.error, put Excpetions to output queue.
             queue.put(e)
             # reset a large and random timeout to the address
             ssl_connection_time[address] = max_timeout + random.random()
