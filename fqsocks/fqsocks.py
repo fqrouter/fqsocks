@@ -19,6 +19,7 @@ import math
 import urllib2
 import traceback
 import time
+import lan_ip
 
 import dpkt
 import gevent.server
@@ -196,6 +197,12 @@ def handle(downstream_sock, address):
 
 
 def pick_proxy_and_forward(client):
+    if lan_ip.is_lan_traffic(client.src_ip, client.dst_ip):
+        try:
+            DIRECT_PROXY.forward(client)
+        except ProxyFallBack:
+            pass
+        return
     if CHINA_PROXY and china_ip.is_china_ip(client.dst_ip):
         try:
             CHINA_PROXY.forward(client)
