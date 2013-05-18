@@ -8,10 +8,20 @@ Motivation
 So, fqsocks is a transparent socks redirector, just like http://darkk.net.ru/redsocks/
 
 * redirect tcp traffic to fqsocks using iptables, fqsocks will select upstream and proxy for the tcp connection
-* goagent proxy (--proxy goagent,appid=abcd)
+* goagent proxy (--proxy goagent,appid=abcd), ripped out from original goagent client
 * http-connect proxy (--proxy http-connect,proxy_ip=1.2.3.4,proxy_port=8080)
-* dynamic proxy (--proxy dynamic,type=goagent,dns_record=goagent1.fqrouter.com)
-* more proxies scheduled
+* dynamic proxy (--proxy dynamic,type=goagent,dns_record=goagent1.fqrouter.com), change the proxy via dns
+
+Unique Features
+===============
+
+* detect the traffic protocol (HTTP/HTTPS), not just based on port
+* for http, the first request/response will be tried with proxy, if anything goes wrong fallback to another proxy.
+so, it is effective against GFW full text filtering.
+the page http://zh.wikipedia.org/zh/防火长城‎ is a typical example of full text filtering (the url does not trigger to RST)
+* for https, socket connect and full ssl handshake will be tried, if anything goes wrong (https certificate filtering for example), fallback to another proxy.
+* built-in support goagent as proxy, without starting an seperate goagent process
+* resolve proxy info from TXT dns record
 
 Basic Usage
 ===========
