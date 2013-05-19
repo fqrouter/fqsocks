@@ -15,11 +15,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DynamicProxy(Proxy):
-    def __init__(self, dns_record, type=None, resolve_at='8.8.8.8'):
+    def __init__(self, dns_record, type=None, resolve_at='8.8.8.8', **kwargs):
         self.dns_record = dns_record
         self.type = type
         self.resolve_at = resolve_at
         self.delegated_to = None
+        self.kwargs = kwargs
         super(DynamicProxy, self).__init__()
 
     def do_forward(self, client):
@@ -95,11 +96,11 @@ def resolve_proxy(proxy):
             connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
             connection_info = ''.join(e for e in connection_info if e.isalnum() or e in [':', '.', '-'])
             if 'goagent' == proxy.type:
-                proxy.delegated_to = GoAgentProxy(connection_info)
+                proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
             else:
                 proxy_type, ip, port, username, password = connection_info.split(':')
                 assert 'http-connect' == proxy_type # only support one type currently
-                proxy.delegated_to = HttpConnectProxy(ip, port)
+                proxy.delegated_to = HttpConnectProxy(ip, port, **proxy.kwargs)
             LOGGER.info('resolved proxy: %s' % repr(proxy))
             return True
         except:

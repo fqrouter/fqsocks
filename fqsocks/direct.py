@@ -2,7 +2,6 @@ import logging
 import socket
 
 LOGGER = logging.getLogger(__name__)
-SO_MARK = 36
 
 
 class Proxy(object):
@@ -40,16 +39,13 @@ class Proxy(object):
 class DirectProxy(Proxy):
     DEFAULT_CONNECT_TIMEOUT = 5
 
-    def __init__(self, mark=None, connect_timeout=DEFAULT_CONNECT_TIMEOUT):
+    def __init__(self, connect_timeout=DEFAULT_CONNECT_TIMEOUT):
         super(DirectProxy, self).__init__()
         self.flags.add('DIRECT')
-        self.mark = mark
         self.connect_timeout = connect_timeout
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        if self.mark:
-            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self.mark)
         upstream_sock.settimeout(self.connect_timeout)
         try:
             upstream_sock.connect((client.dst_ip, client.dst_port))
@@ -69,8 +65,8 @@ class DirectProxy(Proxy):
         return True
 
     def __repr__(self):
-        if self.mark or self.connect_timeout != self.DEFAULT_CONNECT_TIMEOUT:
-            return 'DirectProxy[mark=%s,connect_timeout=%s]' % (self.mark, self.connect_timeout)
+        if self.connect_timeout != self.DEFAULT_CONNECT_TIMEOUT:
+            return 'DirectProxy[connect_timeout=%s]' % self.connect_timeout
         else:
             return 'DirectProxy'
 

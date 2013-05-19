@@ -276,7 +276,7 @@ def gae_urlfetch(client, proxy, headers=None, **kwargs):
 
 
 def http_request(client, proxy, method, payload, headers):
-    sock = create_ssl_connection(client)
+    sock = create_ssl_connection(client, proxy)
     request_data = ''
     request_data += '%s %s %s\r\n' % (method, GAE_PATH, 'HTTP/1.1')
     request_data += 'Host: %s.appspot.com\r\n' % proxy.appid
@@ -307,7 +307,7 @@ def http_request(client, proxy, method, payload, headers):
     return response
 
 
-def create_ssl_connection(client, timeout=None, max_timeout=16, max_retry=4, max_window=4):
+def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry=4, max_window=4):
     def _create_ssl_connection(address, timeout, queue):
         try:
             # create a ipv4/ipv6 socket object

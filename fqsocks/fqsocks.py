@@ -72,7 +72,6 @@ REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
 CHECK_ACCESS = True
 
-
 class ProxyClient(object):
     def __init__(self, downstream_sock, src_ip, src_port, dst_ip, dst_port):
         super(ProxyClient, self).__init__()
@@ -452,7 +451,6 @@ def main():
     argument_parser.add_argument('--google-host', action='append', default=[])
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
-    argument_parser.add_argument('--china-traffic-mark', help='an integer, for example 0xcafe')
     args = argument_parser.parse_args()
     log_level = getattr(logging, args.log_level)
     logging.basicConfig(
@@ -470,10 +468,7 @@ def main():
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
     if not args.disable_china_optimization:
-        if args.china_traffic_mark:
-            CHINA_PROXY = DirectProxy(eval(args.china_traffic_mark))
-        else:
-            CHINA_PROXY = DIRECT_PROXY
+        CHINA_PROXY = DIRECT_PROXY
     if args.disable_access_check:
         CHECK_ACCESS = False
     for props in args.proxy:
