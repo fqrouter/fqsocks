@@ -30,9 +30,17 @@ class Proxy(object):
     def is_protocol_supported(self, protocol):
         return False
 
+    def __eq__(self, other):
+        return repr(self) == repr(other)
+
+    def __hash__(self):
+        return hash(repr(self))
+
 
 class DirectProxy(Proxy):
-    def __init__(self, mark=None, connect_timeout=5):
+    DEFAULT_CONNECT_TIMEOUT = 5
+
+    def __init__(self, mark=None, connect_timeout=DEFAULT_CONNECT_TIMEOUT):
         super(DirectProxy, self).__init__()
         self.flags.add('DIRECT')
         self.mark = mark
@@ -61,7 +69,10 @@ class DirectProxy(Proxy):
         return True
 
     def __repr__(self):
-        return 'DirectProxy'
+        if self.mark or self.connect_timeout != self.DEFAULT_CONNECT_TIMEOUT:
+            return 'DirectProxy[mark=%s,connect_timeout=%s]' % (self.mark, self.connect_timeout)
+        else:
+            return 'DirectProxy'
 
 
 DIRECT_PROXY = DirectProxy()

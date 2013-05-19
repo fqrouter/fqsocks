@@ -88,7 +88,7 @@ class ProxyClient(object):
         self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
         self.peeked_data = ''
         self.host = ''
-        self.tried_proxies = []
+        self.tried_proxies = {}
         self.forwarding_by = None
 
     def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
@@ -215,12 +215,11 @@ def pick_proxy_and_forward(client):
             if not client.host:
                 break
             elif 'PUBLIC' in proxy.flags and any(fnmatch.fnmatch(client.host, host) for host in NO_PUBLIC_PROXY_HOSTS):
-                client.tried_proxies.append(proxy)
+                client.tried_proxies[proxy] = 'skip PUBLIC'
             else:
                 break
             proxy = pick_proxy(client)
         proxy = proxy or DIRECT_PROXY
-        client.tried_proxies.append(proxy)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
         try:
@@ -228,9 +227,11 @@ def pick_proxy_and_forward(client):
             return
         except ProxyFallBack, e:
             LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+            client.tried_proxies[proxy] = e.reason
         except NotHttp:
+            client.tried_proxies[proxy] = 'not http'
             continue
-    LOGGER.error('[%s] fall back to direct after too many retries' % repr(client))
+    LOGGER.error('[%s] fall back to direct after too many retries: %s' % (repr(client), client.tried_proxies))
     try:
         DIRECT_PROXY.forward(client)
     except ProxyFallBack:
