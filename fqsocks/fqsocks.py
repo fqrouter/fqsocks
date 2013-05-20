@@ -28,7 +28,6 @@ import gevent.monkey
 import china_ip
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
-from direct import DirectProxy
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
@@ -451,6 +450,7 @@ def main():
     argument_parser.add_argument('--google-host', action='append', default=[])
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
+    argument_parser.add_argument('--http-request-mark')
     args = argument_parser.parse_args()
     log_level = getattr(logging, args.log_level)
     logging.basicConfig(
@@ -471,6 +471,8 @@ def main():
         CHINA_PROXY = DIRECT_PROXY
     if args.disable_access_check:
         CHECK_ACCESS = False
+    if args.http_request_mark:
+        HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])

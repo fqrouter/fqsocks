@@ -1,17 +1,19 @@
 import logging
 import httplib
+import socket
 
 from direct import Proxy
-from direct import DIRECT_PROXY
 
 
 LOGGER = logging.getLogger(__name__)
 
+SO_MARK = 36
 
 class HttpTryProxy(Proxy):
     def __init__(self):
         super(HttpTryProxy, self).__init__()
         self.flags.add('DIRECT')
+        self.http_request_mark = None
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
@@ -24,7 +26,14 @@ class HttpTryProxy(Proxy):
             client.direct_connection_failed()
             client.fall_back(reason='http try connect failed')
         client.direct_connection_succeeded()
-        response = send_first_request_and_get_response(client, upstream_sock)
+        try:
+            if self.http_request_mark:
+                LOGGER.info('!!!!!!!!!!!!!!')
+                upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self.http_request_mark)
+            response = send_first_request_and_get_response(client, upstream_sock)
+        finally:
+            if self.http_request_mark:
+                upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         client.forward_started = True
         client.downstream_sock.sendall(response)
         client.forward(upstream_sock)
