@@ -422,7 +422,12 @@ def teardown_development_env():
 def start_server():
     server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)
     LOGGER.info('started fqsocks at %s:%s' % (LISTEN_IP, LISTEN_PORT))
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except:
+        LOGGER.exception('failed to start server')
+    finally:
+        LOGGER.info('server stopped')
 
 
 def keep_refreshing_proxies():
