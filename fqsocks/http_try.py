@@ -17,7 +17,7 @@ class HttpTryProxy(Proxy):
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(2)
+        upstream_sock.settimeout(3)
         try:
             upstream_sock.connect((client.dst_ip, client.dst_port))
         except:
@@ -28,7 +28,6 @@ class HttpTryProxy(Proxy):
         client.direct_connection_succeeded()
         try:
             if self.http_request_mark:
-                LOGGER.info('!!!!!!!!!!!!!!')
                 upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self.http_request_mark)
             response = send_first_request_and_get_response(client, upstream_sock)
         finally:
