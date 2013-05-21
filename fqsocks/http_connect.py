@@ -15,12 +15,13 @@ class HttpConnectProxy(Proxy):
         super(HttpConnectProxy, self).__init__()
         self.proxy_ip = proxy_ip
         self.proxy_port = proxy_port
+        self.failed_times = 0
         if is_public:
             self.flags.add('PUBLIC')
 
     def do_forward(self, client):
         upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(5)
+        upstream_sock.settimeout(3)
         # upstream_sock = ssl.wrap_socket(upstream_sock)
         # client.add_resource(upstream_sock)
         LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
@@ -29,8 +30,8 @@ class HttpConnectProxy(Proxy):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http-connect upstream socket connect timed out' % (repr(client)), exc_info=1)
-            self.died = True
-            client.fall_back(reason='http-connect upstream socket connect timed out')
+            self.report_failure(client, 'http-connect upstream socket connect timed out')
+        upstream_sock.settimeout(5)
         if 443 == client.dst_port:
             upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))
             try:
@@ -38,7 +39,7 @@ class HttpConnectProxy(Proxy):
             except:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] http-connect upstream connect command failed' % (repr(client)), exc_info=1)
-                client.fall_back(reason='http-connect upstream connect command failed: %s' % sys.exc_info()[1])
+                self.report_failure(client, 'http-connect upstream connect command failed: %s' % sys.exc_info()[1])
             match = RE_STATUS.search(response)
             if match and '200' == match.group(1):
                 if LOGGER.isEnabledFor(logging.DEBUG):
@@ -57,6 +58,12 @@ class HttpConnectProxy(Proxy):
             client.forward_started = True
             client.downstream_sock.sendall(response)
             client.forward(upstream_sock)
+
+    def report_failure(self, client, reason):
+        self.failed_times += 1
+        if self.failed_times > 3:
+            self.died = True
+        client.fall_back(reason=reason)
 
     def is_protocol_supported(self, protocol):
         return protocol in ('HTTP', 'HTTPS')
