@@ -93,8 +93,7 @@ def resolve_proxy(proxy):
             request = dpkt.dns.DNS(
                 id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
             sock.sendto(str(request), (proxy.resolve_at, 53))
-            connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].rdata
-            connection_info = ''.join(e for e in connection_info if e.isalnum() or e in [':', '.', '-'])
+            connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].text[0]
             if 'goagent' == proxy.type:
                 proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
             else:
