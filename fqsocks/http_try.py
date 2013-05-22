@@ -136,7 +136,7 @@ def recv_and_parse_request(client):
         if 'Content-Length' in client.headers:
             more_payload_len = int(client.headers.get('Content-Length', 0)) - len(client.payload)
             if more_payload_len > 0:
-                client.payload = client.downstream_rfile.read(more_payload_len)
+                client.payload += client.downstream_rfile.read(more_payload_len)
         if client.payload:
             client.peeked_data += client.payload
     except:
