@@ -69,7 +69,8 @@ def send_first_request_and_get_response(client, upstream_sock):
             return capturing_sock.rfile.captured
         if http_response.length > 1024 * 1024:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] skip try reading response due to too large' % repr(client))
+                LOGGER.debug('[%s] skip try reading response due to too large: %s' %
+                             (repr(client), http_response.length))
             return capturing_sock.rfile.captured
         if not (200 <= http_response.status < 400):
             raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
@@ -135,6 +136,9 @@ def recv_and_parse_request(client):
             LOGGER.debug('[%s] parsed http header: %s %s' % (repr(client), client.method, client.url))
         if 'Content-Length' in client.headers:
             more_payload_len = int(client.headers.get('Content-Length', 0)) - len(client.payload)
+            if more_payload_len > 1024 * 1024:
+                client.peeked_data += client.payload
+                client.fall_back('skip try reading request payload due to too large: %s' % more_payload_len)
             if more_payload_len > 0:
                 client.payload += client.downstream_rfile.read(more_payload_len)
         if client.payload:
