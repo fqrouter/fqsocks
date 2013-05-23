@@ -26,13 +26,7 @@ class HttpTryProxy(Proxy):
             client.direct_connection_failed()
             client.fall_back(reason='http try connect failed')
         client.direct_connection_succeeded()
-        try:
-            if self.http_request_mark:
-                upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self.http_request_mark)
-            response = send_first_request_and_get_response(client, upstream_sock)
-        finally:
-            if self.http_request_mark:
-                upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
+        response = send_first_request_and_get_response(client, upstream_sock)
         client.forward_started = True
         client.downstream_sock.sendall(response)
         client.forward(upstream_sock)
@@ -49,7 +43,10 @@ HTTP_TRY_PROXY = HttpTryProxy()
 
 def send_first_request_and_get_response(client, upstream_sock):
     try:
-        recv_and_parse_request(client)
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
+        if not recv_and_parse_request(client):
+            return ''
         upstream_sock.sendall(client.peeked_data)
         upstream_rfile = upstream_sock.makefile('rb', 0)
         client.add_resource(upstream_rfile)
@@ -86,6 +83,9 @@ def send_first_request_and_get_response(client, upstream_sock):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] http try read response failed' % (repr(client)), exc_info=1)
         client.fall_back(reason='http try read response failed')
+    finally:
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
 
 
 class CapturingSock(object):
@@ -138,11 +138,14 @@ def recv_and_parse_request(client):
             more_payload_len = int(client.headers.get('Content-Length', 0)) - len(client.payload)
             if more_payload_len > 1024 * 1024:
                 client.peeked_data += client.payload
-                client.fall_back('skip try reading request payload due to too large: %s' % more_payload_len)
+                LOGGER.info('[%s] skip try reading request payload due to too large: %s' %
+                            (repr(client), more_payload_len))
+                return False
             if more_payload_len > 0:
                 client.payload += client.downstream_rfile.read(more_payload_len)
         if client.payload:
             client.peeked_data += client.payload
+        return True
     except:
         LOGGER.error('[%s] failed to parse http request:\n%s' % (repr(client), client.peeked_data))
         raise
