@@ -70,11 +70,11 @@ class GoAgentProxy(Proxy):
         return 'HTTP' == protocol
 
     @classmethod
-    def refresh(cls, proxies, create_sock):
-        return cls.resolve_google_ips(create_sock)
+    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
+        return cls.resolve_google_ips(create_tcp_socket)
 
     @classmethod
-    def resolve_google_ips(cls, create_sock):
+    def resolve_google_ips(cls, create_tcp_socket):
         if cls.GOOGLE_IPS:
             return True
         LOGGER.info('resolving google ips from %s' % cls.GOOGLE_HOSTS)
@@ -94,7 +94,7 @@ class GoAgentProxy(Proxy):
         greenlets = []
         try:
             for ip in all_ips:
-                greenlets.append(gevent.spawn(test_google_ip, queue, create_sock, ip))
+                greenlets.append(gevent.spawn(test_google_ip, queue, create_tcp_socket, ip))
             deadline = time.time() + 5
             for i in range(min(3, len(all_ips))):
                 try:
@@ -130,13 +130,12 @@ def resolve_google_ips(host):
     return []
 
 
-def test_google_ip(queue, create_sock, ip):
+def test_google_ip(queue, create_tcp_socket, ip):
     try:
-        sock = create_sock()
-        sock.settimeout(5)
+        sock = create_tcp_socket(ip, 443, 5)
         ssl_sock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_TLSv1)
         try:
-            ssl_sock.connect((ip, 443))
+            ssl_sock.do_handshake()
             request = 'GET / HTTP/1.1\r\n'
             request += 'Host: googcloudlabs.appspot.com\r\n'
             request += 'Connection: close\r\n'
@@ -311,7 +310,7 @@ def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry
     def _create_ssl_connection(address, timeout, queue):
         try:
             # create a ipv4/ipv6 socket object
-            sock = client.create_upstream_sock()
+            sock = client.create_tcp_socket(address[0], address[1], timeout or max_timeout)
             # set reuseaddr option to avoid 10048 socket error
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # resize socket recv buffer 8K->32K to improve browser releated application performance
@@ -327,7 +326,7 @@ def create_ssl_connection(client, proxy, timeout=None, max_timeout=16, max_retry
             # start connection time record
             start_time = time.time()
             # TCP connect
-            ssl_sock.connect(address)
+            # ssl_sock.connect(address), connected on create
             connected_time = time.time()
             # SSL handshake
             ssl_sock.do_handshake()

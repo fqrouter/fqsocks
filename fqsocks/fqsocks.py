@@ -19,12 +19,12 @@ import math
 import urllib2
 import traceback
 import time
-import lan_ip
 
 import dpkt
 import gevent.server
 import gevent.monkey
 
+import lan_ip
 import china_ip
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
@@ -70,6 +70,8 @@ NO_DIRECT_PROXY_HOSTS = {
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
 CHECK_ACCESS = True
+SPI = {}
+
 
 class ProxyClient(object):
     def __init__(self, downstream_sock, src_ip, src_port, dst_ip, dst_port):
@@ -89,9 +91,8 @@ class ProxyClient(object):
         self.tried_proxies = {}
         self.forwarding_by = None
 
-    def create_upstream_sock(self, family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
-        upstream_sock = socket.socket(family=family, type=type, **kwargs)
-        upstream_sock.bind((OUTBOUND_IP, 0))
+    def create_tcp_socket(self, server_ip, server_port, connect_timeout):
+        upstream_sock = create_tcp_socket(server_ip, server_port, connect_timeout)
         self.resources.append(upstream_sock)
         return upstream_sock
 
@@ -175,23 +176,39 @@ class ProxyFallBack(Exception):
 
 
 def handle(downstream_sock, address):
-    dst = downstream_sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16)
+    src_ip, src_port = address
+    try:
+        dst_ip, dst_port = get_original_destination(downstream_sock, src_ip, src_port)
+        client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
+        try:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] downstream connected' % repr(client))
+            pick_proxy_and_forward(client)
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] done' % repr(client))
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
+            else:
+                LOGGER.debug('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
+        finally:
+            client.close()
+    except:
+        LOGGER.exception('failed to handle %s:%s' % (src_ip, src_port))
+
+
+def get_original_destination(sock, src_ip, src_port):
+    return SPI['get_original_destination'](sock, src_ip, src_port)
+
+
+def _get_original_destination(sock, src_ip, src_port):
+    dst = sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16)
     dst_port, dst_ip = struct.unpack("!2xH4s8x", dst)
     dst_ip = socket.inet_ntoa(dst_ip)
-    client = ProxyClient(downstream_sock, address[0], address[1], dst_ip, dst_port)
-    try:
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] downstream connected' % repr(client))
-        pick_proxy_and_forward(client)
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] done' % repr(client))
-    except:
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
-        else:
-            LOGGER.debug('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
-    finally:
-        client.close()
+    return dst_ip, dst_port
+
+
+SPI['get_original_destination'] = _get_original_destination
 
 
 def pick_proxy_and_forward(client):
@@ -345,20 +362,13 @@ def refresh_proxies():
     global proxies
     LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
-
-    def create_sock(family=socket.AF_INET, type=socket.SOCK_STREAM, **kwargs):
-        sock = socket.socket(family=family, type=type, **kwargs)
-        sock.bind((OUTBOUND_IP, 0))
-        socks.append(sock)
-        return sock
-
     type_to_proxies = {}
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
     success = True
     for proxy_type, instances in type_to_proxies.items():
         try:
-            success = success and proxy_type.refresh(instances, create_sock)
+            success = success and proxy_type.refresh(instances, create_udp_socket, create_tcp_socket)
         except:
             LOGGER.exception('failed to refresh proxies %s' % instances)
             success = False
@@ -442,7 +452,45 @@ def keep_refreshing_proxies():
         gevent.sleep(REFRESH_INTERVAL)
 
 
-def main():
+def create_tcp_socket(server_ip, server_port, connect_timeout):
+    return SPI['create_tcp_socket'](server_ip, server_port, connect_timeout)
+
+
+def _create_tcp_socket(server_ip, server_port, connect_timeout):
+    sock = create_socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    sock.setblocking(0)
+    sock.settimeout(connect_timeout)
+    try:
+        sock.connect((server_ip, server_port))
+    except:
+        sock.close()
+        raise
+    sock.settimeout(None)
+    return sock
+
+
+SPI['create_tcp_socket'] = _create_tcp_socket
+
+
+def create_udp_socket():
+    return SPI['create_udp_socket']()
+
+
+def _create_udp_socket():
+    return create_socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+
+
+SPI['create_udp_socket'] = _create_udp_socket
+
+
+def create_socket(*args, **kwargs):
+    sock = socket.socket(*args, **kwargs)
+    if OUTBOUND_IP:
+        sock.bind((OUTBOUND_IP, 0))
+    return sock
+
+
+def main(argv):
     global LISTEN_IP, LISTEN_PORT, OUTBOUND_IP, CHINA_PROXY, CHECK_ACCESS
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
@@ -456,7 +504,7 @@ def main():
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
     argument_parser.add_argument('--http-request-mark')
-    args = argument_parser.parse_args()
+    args = argument_parser.parse_args(argv)
     log_level = getattr(logging, args.log_level)
     logging.basicConfig(
         stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
@@ -512,4 +560,4 @@ def main():
 # TODO add vpn as proxy (setup vpn, mark packet, mark based routing)
 
 if '__main__' == __name__:
-    main()
+    main(sys.argv[1:])

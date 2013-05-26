@@ -44,10 +44,10 @@ class DynamicProxy(Proxy):
             pass # ignore
 
     @classmethod
-    def refresh(cls, proxies, create_sock):
+    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
         greenlets = []
         for proxy in proxies:
-            greenlets.append(gevent.spawn(resolve_proxy, proxy))
+            greenlets.append(gevent.spawn(resolve_proxy, proxy, create_udp_socket))
         success_count = 0
         deadline = time.time() + 10
         for greenlet in greenlets:
@@ -69,7 +69,7 @@ class DynamicProxy(Proxy):
                 type_to_proxies.setdefault(proxy.delegated_to.__class__, []).append(proxy.delegated_to)
         for proxy_type, instances in type_to_proxies.items():
             try:
-                success = proxy_type.refresh(instances, create_sock) and success
+                success = proxy_type.refresh(instances, create_udp_socket, create_tcp_socket) and success
             except:
                 LOGGER.exception('failed to refresh proxies %s' % instances)
                 success = False
@@ -85,10 +85,10 @@ class DynamicProxy(Proxy):
         return 'DynamicProxy[%s=>%s]' % (self.dns_record, self.delegated_to or 'UNRESOLVED')
 
 
-def resolve_proxy(proxy):
+def resolve_proxy(proxy, create_udp_socket):
     for i in range(3):
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+            sock = create_udp_socket()
             sock.settimeout(3)
             request = dpkt.dns.DNS(
                 id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])

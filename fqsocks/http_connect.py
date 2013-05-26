@@ -20,17 +20,14 @@ class HttpConnectProxy(Proxy):
             self.flags.add('PUBLIC')
 
     def do_forward(self, client):
-        upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(3)
-        # upstream_sock = ssl.wrap_socket(upstream_sock)
-        # client.add_resource(upstream_sock)
         LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
         try:
-            upstream_sock.connect((self.proxy_ip, self.proxy_port))
+            upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http-connect upstream socket connect timed out' % (repr(client)), exc_info=1)
             self.report_failure(client, 'http-connect upstream socket connect timed out')
+            return
         upstream_sock.settimeout(5)
         if 443 == client.dst_port:
             upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n\r\n' % (client.dst_ip, client.dst_port))

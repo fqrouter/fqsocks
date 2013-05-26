@@ -16,15 +16,14 @@ class HttpTryProxy(Proxy):
         self.http_request_mark = None
 
     def do_forward(self, client):
-        upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(3)
         try:
-            upstream_sock.connect((client.dst_ip, client.dst_port))
+            upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
             client.direct_connection_failed()
             client.fall_back(reason='http try connect failed')
+            return
         client.direct_connection_succeeded()
         response = send_first_request_and_get_response(client, upstream_sock)
         client.forward_started = True

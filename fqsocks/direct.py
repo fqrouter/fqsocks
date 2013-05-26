@@ -23,7 +23,7 @@ class Proxy(object):
         raise NotImplementedError()
 
     @classmethod
-    def refresh(cls, proxies, create_sock):
+    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
         return True
 
     def is_protocol_supported(self, protocol):
@@ -45,15 +45,14 @@ class DirectProxy(Proxy):
         self.connect_timeout = connect_timeout
 
     def do_forward(self, client):
-        upstream_sock = client.create_upstream_sock()
-        upstream_sock.settimeout(self.connect_timeout)
         try:
-            upstream_sock.connect((client.dst_ip, client.dst_port))
+            upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, self.connect_timeout)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] direct connect upstream socket timed out' % (repr(client)), exc_info=1)
             client.direct_connection_failed()
             client.fall_back(reason='direct connect upstream socket timed out')
+            return
         client.direct_connection_succeeded()
         upstream_sock.settimeout(None)
         if LOGGER.isEnabledFor(logging.DEBUG):
