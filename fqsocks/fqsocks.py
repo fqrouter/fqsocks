@@ -43,6 +43,7 @@ proxy_types = {
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 
+mandatory_proxies = []
 proxies = []
 direct_connection_successes = set() # set of (ip, port)
 direct_connection_failures = {} # (ip, port) => failed_at
@@ -99,7 +100,7 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=61, tick=2, bufsize=8192):
+    def forward(self, upstream_sock, timeout=11, tick=2, bufsize=8192):
         buffer_multiplier = 1
         try:
             timecount = timeout
@@ -254,6 +255,11 @@ def pick_proxy_and_forward(client):
 
 
 def pick_proxy(client):
+    if mandatory_proxies:
+        available_mandatory_proxies = [p for p in mandatory_proxies if not p.died and p not in client.tried_proxies]
+        if available_mandatory_proxies:
+            return random.choice(available_mandatory_proxies)
+        raise Exception('[%s] no proxy to handle' % repr(client))
     if not client.peeked_data:
         ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
         if errors:
@@ -490,6 +496,17 @@ def create_socket(*args, **kwargs):
     return sock
 
 
+def setup_logging(log_level, log_file=None):
+    logging.basicConfig(
+        stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
+    if log_file:
+        handler = logging.handlers.RotatingFileHandler(
+            args.log_file, maxBytes=1024 * 512, backupCount=0)
+        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        handler.setLevel(log_level)
+        logging.getLogger('fqsocks').addHandler(handler)
+
+
 def main(argv):
     global LISTEN_IP, LISTEN_PORT, OUTBOUND_IP, CHINA_PROXY, CHECK_ACCESS
     argument_parser = argparse.ArgumentParser()
@@ -506,14 +523,7 @@ def main(argv):
     argument_parser.add_argument('--http-request-mark')
     args = argument_parser.parse_args(argv)
     log_level = getattr(logging, args.log_level)
-    logging.basicConfig(
-        stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
-    if args.log_file:
-        handler = logging.handlers.RotatingFileHandler(
-            args.log_file, maxBytes=1024 * 512, backupCount=0)
-        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-        handler.setLevel(log_level)
-        logging.getLogger('fqsocks').addHandler(handler)
+    setup_logging(log_level, args.log_file)
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
@@ -548,13 +558,14 @@ def main(argv):
     for greenlet in greenlets:
         greenlet.join()
 
-# TODO skip china and white list ip before nat
+# TODO test if connect being blocked by GFW
+# TODO kill fqsock -HUP to reload proxy upon connectivity change
+# TODO add shadowsocks proxy
 # TODO measure the speed of proxy which adds weight to the picking process
 # TODO add http-relay proxy
 # TODO add socks4 proxy
 # TODO add socks5 proxy
 # TODO add ssh proxy
-# TODO add shadowsocks proxy
 # TODO add spdy proxy
 # TODO === future ===
 # TODO add vpn as proxy (setup vpn, mark packet, mark based routing)
