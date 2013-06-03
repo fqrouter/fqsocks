@@ -31,7 +31,7 @@ class HttpConnectProxy(Proxy):
                 LOGGER.debug('[%s] http-connect upstream socket connect timed out' % (repr(client)), exc_info=1)
             self.report_failure(client, 'http-connect upstream socket connect timed out')
             return
-        upstream_sock.settimeout(5)
+        upstream_sock.settimeout(3)
         if 443 == client.dst_port:
             upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n' % (client.dst_ip, client.dst_port))
             if self.username:

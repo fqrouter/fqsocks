@@ -19,6 +19,7 @@ import math
 import urllib2
 import traceback
 import time
+import contextlib
 
 import dpkt
 import gevent.server
@@ -102,10 +103,10 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=11, tick=2, bufsize=8192):
+    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192):
         buffer_multiplier = 1
         try:
-            timecount = 60 * 60 if self.forward_started else timeout
+            timecount = 61 if self.forward_started else timeout
             while 1:
                 timecount -= tick
                 if timecount <= 0:
@@ -122,7 +123,7 @@ class ProxyClient(object):
                             if data:
                                 self.forward_started = True
                                 self.downstream_sock.sendall(data)
-                                timecount = 60 * 60 if self.forward_started else timeout
+                                timecount = 61 if self.forward_started else timeout
                             else:
                                 return
                         else:
@@ -130,7 +131,7 @@ class ProxyClient(object):
                             data = sock.recv(bufsize)
                             if data:
                                 upstream_sock.sendall(data)
-                                timecount = 60 * 60 if self.forward_started else timeout
+                                timecount = 61 if self.forward_started else timeout
                             else:
                                 return
         except socket.error as e:
@@ -391,7 +392,7 @@ def refresh_proxies():
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
     if success and CHECK_ACCESS:
-        check_access_many_times('https://www.twitter.com', len(proxies))
+        check_access_many_times('https://www.twitter.com', 5)
         check_access_many_times('https://plus.google.com', 5)
         check_access_many_times('http://www.youtube.com', 5)
         check_access_many_times('http://www.facebook.com', 5)
@@ -419,7 +420,8 @@ def check_access_many_times(url, times):
 
 def check_access(url):
     try:
-        urllib2.urlopen(url).read()
+        with contextlib.closing(urllib2.urlopen(url)) as response:
+            response.read()
         return True
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
