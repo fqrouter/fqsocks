@@ -33,12 +33,14 @@ from http_try import NotHttp
 from goagent import GoAgentProxy
 from http_connect import HttpConnectProxy
 from dynamic import DynamicProxy
+from shadowsocks import ShadowSocksProxy
 
 
 proxy_types = {
     'http-connect': HttpConnectProxy,
     'goagent': GoAgentProxy,
-    'dynamic': DynamicProxy
+    'dynamic': DynamicProxy,
+    'ss': ShadowSocksProxy
 }
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80

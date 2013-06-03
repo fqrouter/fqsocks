@@ -8,6 +8,7 @@ import time
 from direct import Proxy
 from http_connect import HttpConnectProxy
 from goagent import GoAgentProxy
+from shadowsocks import ShadowSocksProxy
 import sys
 
 
@@ -96,6 +97,9 @@ def resolve_proxy(proxy, create_udp_socket):
             connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].text[0]
             if 'goagent' == proxy.type:
                 proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
+            elif 'ss' == proxy.type:
+                ip, port, password, encrypt_method = connection_info.split(':')
+                proxy.delegated_to = ShadowSocksProxy(ip, port, password, encrypt_method)
             else:
                 proxy_type, ip, port, username, password = connection_info.split(':')
                 assert 'http-connect' == proxy_type # only support one type currently
