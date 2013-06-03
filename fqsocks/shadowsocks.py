@@ -15,6 +15,7 @@ class ShadowSocksProxy(Proxy):
         self.proxy_port = int(proxy_port)
         self.password = password
         self.encrypt_method = encrypt_method
+        self.failed_times = 0
 
     def do_forward(self, client):
         self.encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
@@ -24,6 +25,9 @@ class ShadowSocksProxy(Proxy):
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 5)
         except:
+            self.failed_times += 1
+            if self.failed_times > 3:
+                self.died = True
             client.fall_back(reason='can not connect to proxy')
         upstream_sock.sendall(self.encrypt(addr_to_send))
         upstream_sock.sendall(self.encrypt(client.peeked_data))
