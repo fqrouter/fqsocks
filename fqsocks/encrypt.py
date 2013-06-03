@@ -42,8 +42,8 @@ def get_table(key):
         table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
     return table
 
-encrypt_table = None
-decrypt_table = None
+encrypt_tables = {}
+decrypt_tables = {}
 
 
 def init_table(key, method=None):
@@ -56,10 +56,13 @@ def init_table(key, method=None):
             logging.error('M2Crypto is required to use encryption other than default method')
             sys.exit(1)
     if not method:
-        global encrypt_table, decrypt_table
         encrypt_table = ''.join(get_table(key))
+        encrypt_tables[(key, method)] = encrypt_table
         decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
+        decrypt_tables[(key, method)] = decrypt_table
     else:
+        encrypt_tables[(key, method)] = ''
+        decrypt_tables[(key, method)] = ''
         try:
             Encryptor(key, method)  # make an Encryptor to test if the settings if OK
         except Exception as e:
@@ -147,6 +150,9 @@ class Encryptor(object):
         if len(buf) == 0:
             return buf
         if self.method is None:
+            if self.key not in encrypt_tables:
+                init_table(self.key, self.method)
+            encrypt_table = encrypt_tables[(self.key, self.method)]
             return string.translate(buf, encrypt_table)
         else:
             if self.iv_sent:
@@ -159,6 +165,9 @@ class Encryptor(object):
         if len(buf) == 0:
             return buf
         if self.method is None:
+            if self.key not in decrypt_tables:
+                init_table(self.key, self.method)
+            decrypt_table = decrypt_tables[(self.key, self.method)]
             return string.translate(buf, decrypt_table)
         else:
             if self.decipher is None:

@@ -106,7 +106,7 @@ def resolve_proxy(proxy, create_udp_socket):
             else:
                 proxy_type, ip, port, username, password = connection_info.split(':')
                 assert 'http-connect' == proxy_type # only support one type currently
-                proxy.delegated_to = HttpConnectProxy(ip, port, **proxy.kwargs)
+                proxy.delegated_to = HttpConnectProxy(ip, port, username, password, **proxy.kwargs)
             LOGGER.info('resolved proxy: %s' % repr(proxy))
             return True
         except:

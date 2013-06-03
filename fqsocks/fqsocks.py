@@ -105,7 +105,7 @@ class ProxyClient(object):
     def forward(self, upstream_sock, timeout=11, tick=2, bufsize=8192):
         buffer_multiplier = 1
         try:
-            timecount = timeout
+            timecount = 60 * 60 if self.forward_started else timeout
             while 1:
                 timecount -= tick
                 if timecount <= 0:
@@ -122,7 +122,7 @@ class ProxyClient(object):
                             if data:
                                 self.forward_started = True
                                 self.downstream_sock.sendall(data)
-                                timecount = timeout
+                                timecount = 60 * 60 if self.forward_started else timeout
                             else:
                                 return
                         else:
@@ -130,7 +130,7 @@ class ProxyClient(object):
                             data = sock.recv(bufsize)
                             if data:
                                 upstream_sock.sendall(data)
-                                timecount = timeout
+                                timecount = 60 * 60 if self.forward_started else timeout
                             else:
                                 return
         except socket.error as e:
