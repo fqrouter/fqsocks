@@ -202,7 +202,7 @@ def handle(downstream_sock, address):
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
             else:
-                LOGGER.debug('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
+                LOGGER.info('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
         finally:
             client.close()
     except:
