@@ -97,7 +97,7 @@ def resolve_proxy(proxy, create_udp_socket):
             connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].text[0]
             if not connection_info:
                 LOGGER.info('resolved empty proxy: %s' % repr(proxy))
-                continue
+                return False
             if 'goagent' == proxy.type:
                 proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
             elif 'ss' == proxy.type:

@@ -142,6 +142,9 @@ class ProxyClient(object):
         except socket.error as e:
             if e[0] not in (10053, 10054, 10057, errno.EPIPE):
                 raise
+        finally:
+            if not self.forward_started:
+                self.fall_back(reason='direct connection does not receive any response')
 
     def close(self):
         for res in self.resources:
