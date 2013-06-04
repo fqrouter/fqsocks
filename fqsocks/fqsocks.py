@@ -29,6 +29,7 @@ import lan_ip
 import china_ip
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
+from direct import DirectProxy
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
@@ -103,7 +104,7 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192):
+    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192, encrypt=None, decrypt=None):
         buffer_multiplier = 1
         try:
             timecount = 61 if self.forward_started else timeout
@@ -122,6 +123,8 @@ class ProxyClient(object):
                             buffer_multiplier = min(16, buffer_multiplier + 1)
                             if data:
                                 self.forward_started = True
+                                if decrypt:
+                                    data = decrypt(data)
                                 self.downstream_sock.sendall(data)
                                 timecount = 61 if self.forward_started else timeout
                             else:
@@ -130,6 +133,8 @@ class ProxyClient(object):
                             buffer_multiplier = 1
                             data = sock.recv(bufsize)
                             if data:
+                                if encrypt:
+                                    data = encrypt(data)
                                 upstream_sock.sendall(data)
                                 timecount = 61 if self.forward_started else timeout
                             else:
@@ -239,8 +244,10 @@ def pick_proxy_and_forward(client):
                 break
             proxy = pick_proxy(client)
         proxy = proxy or DIRECT_PROXY
-        if LOGGER.isEnabledFor(logging.DEBUG):
+        if isinstance(proxy, DirectProxy):
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
+        else:
+            LOGGER.info('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
         try:
             proxy.forward(client)
             return
@@ -392,7 +399,7 @@ def refresh_proxies():
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
     if success and CHECK_ACCESS:
-        check_access_many_times('https://www.twitter.com', 5)
+        check_access_many_times('https://www.twitter.com', 10)
         check_access_many_times('https://plus.google.com', 5)
         check_access_many_times('http://www.youtube.com', 5)
         check_access_many_times('http://www.facebook.com', 5)
