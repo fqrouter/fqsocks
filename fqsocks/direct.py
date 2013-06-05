@@ -69,5 +69,17 @@ class DirectProxy(Proxy):
             return 'DirectProxy'
 
 
+class NoneProxy(Proxy):
+    def do_forward(self, client):
+        return
+
+    def is_protocol_supported(self, protocol):
+        return True
+
+    def __repr__(self):
+        return 'NoneProxy'
+
+
 DIRECT_PROXY = DirectProxy()
+NONE_PROXY = NoneProxy()
 HTTPS_TRY_PROXY = DirectProxy(connect_timeout=2)

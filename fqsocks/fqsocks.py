@@ -27,9 +27,11 @@ import gevent.monkey
 
 import lan_ip
 import china_ip
+import fqdns
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
 from direct import DirectProxy
+from direct import NONE_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
@@ -235,6 +237,10 @@ def pick_proxy_and_forward(client):
             CHINA_PROXY.forward(client)
         except ProxyFallBack:
             pass
+        return
+    if client.dst_ip in fqdns.BUILTIN_WRONG_ANSWERS():
+        LOGGER.error('[%s] destination is GFW wrong answer')
+        NONE_PROXY.forward(client)
         return
     for i in range(3):
         proxy = pick_proxy(client)
