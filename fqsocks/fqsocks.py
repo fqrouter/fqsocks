@@ -232,15 +232,15 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
+    if client.dst_ip in fqdns.BUILTIN_WRONG_ANSWERS():
+        LOGGER.error('[%s] destination is GFW wrong answer' % repr(client))
+        NONE_PROXY.forward(client)
+        return
     if CHINA_PROXY and china_ip.is_china_ip(client.dst_ip):
         try:
             CHINA_PROXY.forward(client)
         except ProxyFallBack:
             pass
-        return
-    if client.dst_ip in fqdns.BUILTIN_WRONG_ANSWERS():
-        LOGGER.error('[%s] destination is GFW wrong answer')
-        NONE_PROXY.forward(client)
         return
     for i in range(3):
         proxy = pick_proxy(client)
@@ -253,7 +253,7 @@ def pick_proxy_and_forward(client):
                 break
             proxy = pick_proxy(client)
         proxy = proxy or DIRECT_PROXY
-        if isinstance(proxy, DirectProxy):
+        if 'DIRECT' in proxy.flags:
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
         else:
             LOGGER.info('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
@@ -419,12 +419,18 @@ def check_access_many_times(url, times):
     greenlets = []
     for i in range(times):
         greenlets.append(gevent.spawn(check_access, url))
-        gevent.sleep(1)
+        gevent.sleep(0.1)
+    deadline = time.time() + 10
     success = 0
     for greenlet in greenlets:
         try:
-            if greenlet.get(timeout=10):
-                success += 1
+            timeout = deadline - time.time()
+            if timeout > 0:
+                if greenlet.get(timeout=timeout):
+                    success += 1
+            else:
+                if greenlet.get(block=False):
+                    success += 1
         except gevent.Timeout:
             pass
         except:
