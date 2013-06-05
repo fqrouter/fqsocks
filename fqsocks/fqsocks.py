@@ -416,26 +416,17 @@ def refresh_proxies():
 
 
 def check_access_many_times(url, times):
-    greenlets = []
-    for i in range(times):
-        greenlets.append(gevent.spawn(check_access, url))
-        gevent.sleep(0.1)
-    deadline = time.time() + 10
     success = 0
-    for greenlet in greenlets:
+    for i in range(times):
+        greenlet = gevent.spawn(check_access, url)
         try:
-            timeout = deadline - time.time()
-            if timeout > 0:
-                if greenlet.get(timeout=timeout):
-                    success += 1
-            else:
-                if greenlet.get(block=False):
-                    success += 1
-        except gevent.Timeout:
-            pass
+            if greenlet.get(timeout=10):
+                success += 1
+                LOGGER.info('checking access %s: passed' % url)
         except:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('get check access result failed', exc_info=1)
+            LOGGER.error('checking access %s: failed' % url)
+        finally:
+            greenlet.kill(block=False)
     LOGGER.fatal('checked access %s: %s/%s' % (url, success, times))
     return success
 
