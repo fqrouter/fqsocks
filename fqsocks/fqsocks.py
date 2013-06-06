@@ -367,7 +367,7 @@ def pick_http_proxy(client):
     if http_only_proxies:
         return random.choice(http_only_proxies)
     ss_proxies = [proxy for proxy in proxies if proxy.is_protocol_supported('SHADOWSOCKS')
-                  and not proxy.died and proxy not in client.tried_proxies]
+                                                and not proxy.died and proxy not in client.tried_proxies]
     if ss_proxies:
         return random.choice(ss_proxies)
     http_proxies = [proxy for proxy in proxies if
@@ -379,6 +379,12 @@ def pick_http_proxy(client):
 
 
 def pick_https_proxy(client):
+    private_https_proxies = [proxy for proxy in proxies if
+                            proxy.is_protocol_supported('HTTPS') and
+                            'PUBLIC' not in proxy.flags and
+                            not proxy.died and proxy not in client.tried_proxies]
+    if private_https_proxies:
+        return random.choice(private_https_proxies)
     https_proxies = [proxy for proxy in proxies if
                      proxy.is_protocol_supported('HTTPS') and not proxy.died and proxy not in client.tried_proxies]
     if https_proxies:

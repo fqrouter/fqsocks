@@ -21,7 +21,7 @@ class DynamicProxy(Proxy):
         self.type = type
         self.resolve_at = resolve_at
         self.delegated_to = None
-        self.kwargs = kwargs
+        self.kwargs = {k: False if 'False' == v else v for k, v in kwargs.items()}
         super(DynamicProxy, self).__init__()
 
     def do_forward(self, client):
@@ -43,6 +43,20 @@ class DynamicProxy(Proxy):
             self.delegated_to.died = value
         else:
             pass # ignore
+
+    @property
+    def flags(self):
+        if self.delegated_to:
+            return self.delegated_to.flags
+        else:
+            return ()
+
+    @flags.setter
+    def flags(self, value):
+        if self.delegated_to:
+            self.delegated_to.flags = value
+        else:
+            pass
 
     @classmethod
     def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
