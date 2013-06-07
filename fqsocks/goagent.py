@@ -76,6 +76,9 @@ class GoAgentProxy(Proxy):
 
     @classmethod
     def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
+        _goagent.socket = FakeSocketModule()
+        _goagent.socket.socket = None
+        _goagent.http_util.dns_resolve = lambda *args, **kwargs: cls.GOOGLE_IPS
         cls.proxies = proxies
         return cls.resolve_google_ips(create_tcp_socket)
 
@@ -187,8 +190,6 @@ def forward(client, proxy, appids):
         if proxy.validate:
             kwargs['validate'] = 1
         fetchserver = 'https://%s.appspot.com/2?' % proxy.appid
-        _goagent.socket = FakeSocketModule()
-        _goagent.socket.socket = None
         response = _goagent.gae_urlfetch(
             client.method, client.url, client.headers, client.payload, fetchserver,
             create_tcp_socket=client.create_tcp_socket, **kwargs)
