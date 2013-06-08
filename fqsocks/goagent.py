@@ -57,9 +57,10 @@ class GoAgentProxy(Proxy):
     GOOGLE_IPS = []
     proxies = []
 
-    def __init__(self, appid, password=False, validate=0):
+    def __init__(self, appid, path='/2', password=False, validate=0):
         super(GoAgentProxy, self).__init__()
         self.appid = appid
+        self.path = path
         self.password = password
         self.validate = validate
         if not self.appid:
@@ -189,7 +190,7 @@ def forward(client, proxy, appids):
             kwargs['password'] = proxy.password
         if proxy.validate:
             kwargs['validate'] = 1
-        fetchserver = 'https://%s.appspot.com/2?' % proxy.appid
+        fetchserver = 'https://%s.appspot.com%s?' % (proxy.appid, proxy.path)
         response = _goagent.gae_urlfetch(
             client.method, client.url, client.headers, client.payload, fetchserver,
             create_tcp_socket=client.create_tcp_socket, **kwargs)
