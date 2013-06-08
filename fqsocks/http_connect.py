@@ -5,6 +5,7 @@ from direct import Proxy
 from http_try import recv_till_double_newline
 from http_try import send_first_request_and_get_response
 import base64
+import socket
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,10 +41,15 @@ class HttpConnectProxy(Proxy):
             upstream_sock.sendall('\r\n')
             try:
                 response, _ = recv_till_double_newline('', upstream_sock)
+            except socket.timeout:
+                self.died = True
+                self.report_failure(client, 'http-connect upstream connect command timed out')
             except:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] http-connect upstream connect command failed' % (repr(client)), exc_info=1)
-                self.report_failure(client, 'http-connect upstream connect command failed: %s' % sys.exc_info()[1])
+                self.report_failure(
+                    client, 'http-connect upstream connect command failed: %s,%s'
+                            % (sys.exc_info()[0], sys.exc_info()[1]))
             match = RE_STATUS.search(response)
             if match and '200' == match.group(1):
                 if LOGGER.isEnabledFor(logging.DEBUG):
