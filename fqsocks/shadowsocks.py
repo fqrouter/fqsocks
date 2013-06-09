@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 class ShadowSocksProxy(Proxy):
     def __init__(self, proxy_ip, proxy_port, password, encrypt_method):
         super(ShadowSocksProxy, self).__init__()
-        self.proxy_ip = proxy_ip
+        self.proxy_ip = socket.gethostbyname(proxy_ip)
         self.proxy_port = int(proxy_port)
         self.password = password
         self.encrypt_method = encrypt_method

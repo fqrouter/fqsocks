@@ -15,7 +15,7 @@ RE_STATUS = re.compile(r'HTTP/1.\d (\d+) ')
 class HttpConnectProxy(Proxy):
     def __init__(self, proxy_ip, proxy_port, username=None, password=None, is_public=True):
         super(HttpConnectProxy, self).__init__()
-        self.proxy_ip = proxy_ip
+        self.proxy_ip = socket.gethostbyname(proxy_ip)
         self.proxy_port = proxy_port
         self.username = username
         self.password = password
