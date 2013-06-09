@@ -1,10 +1,14 @@
 import logging
 import socket
 import ssl
+import base64
+import sys
 
 from direct import Proxy
 from http_try import try_receive_response
 from http_try import recv_and_parse_request
+from http_try import HTTP_TRY_PROXY
+from http_try import SO_MARK
 
 
 LOGGER = logging.getLogger(__name__)
@@ -36,11 +40,22 @@ class HttpRelayProxy(Proxy):
             return
         upstream_sock.settimeout(3)
         is_complete_payload = recv_and_parse_request(client)
-        request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.url)
+        request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
+        client.headers['Host'] = client.host
         client.headers['Connection'] = 'close' # no keep-alive
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
+        if self.username and self.password:
+            auth = base64.b64encode('%s:%s' % (self.username, self.password)).strip()
+            request_data += 'Proxy-Authorization: Basic %s\r\n' % auth
         request_data += '\r\n'
-        upstream_sock.sendall(request_data + client.payload)
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
+        try:
+            upstream_sock.sendall(request_data + client.payload)
+        except:
+            client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         if is_complete_payload:
             response = try_receive_response(client, upstream_sock)
             client.forward_started = True

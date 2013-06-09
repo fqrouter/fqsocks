@@ -28,9 +28,9 @@ class HttpTryProxy(Proxy):
             return
         client.direct_connection_succeeded()
 
+        is_payload_complete = recv_and_parse_request(client)
         if HTTP_TRY_PROXY.http_request_mark:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
-        is_payload_complete = recv_and_parse_request(client)
         try:
             upstream_sock.sendall(client.peeked_data)
         except:
@@ -124,14 +124,14 @@ def recv_and_parse_request(client):
             LOGGER.debug('[%s] not http' % (repr(client)))
         raise NotHttp()
     try:
-        client.method, path, client.headers = parse_request(client.peeked_data)
+        client.method, client.path, client.headers = parse_request(client.peeked_data)
         client.host = client.headers.pop('Host', '')
         if not client.host:
             raise Exception('missing host')
-        if path[0] == '/':
-            client.url = 'http://%s%s' % (client.host, path)
+        if client.path[0] == '/':
+            client.url = 'http://%s%s' % (client.host, client.path)
         else:
-            client.url = path
+            client.url = client.path
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] parsed http header: %s %s' % (repr(client), client.method, client.url))
         if 'Content-Length' in client.headers:

@@ -40,7 +40,7 @@ class HttpConnectProxy(Proxy):
             return
         upstream_sock.settimeout(3)
         upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n' % (client.dst_ip, client.dst_port))
-        if self.username:
+        if self.username and self.password:
             auth = base64.b64encode('%s:%s' % (self.username, self.password)).strip()
             upstream_sock.sendall('Proxy-Authorization: Basic %s\r\n' % auth)
         upstream_sock.sendall('\r\n')
