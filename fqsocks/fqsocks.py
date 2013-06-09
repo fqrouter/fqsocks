@@ -60,20 +60,20 @@ RE_HTTP_HOST = re.compile('Host: (.+)')
 LISTEN_IP = None
 LISTEN_PORT = None
 OUTBOUND_IP = None
-NO_PUBLIC_PROXY_HOSTS = {
+NO_PUBLIC_PROXY_HOSTS = set([
     'www.google.com',
     'google.com',
     'www.google.com.hk',
     'google.com.hk'
-}
-NO_DIRECT_PROXY_HOSTS = {
+])
+NO_DIRECT_PROXY_HOSTS = set([
     '*.twitter.com',
     'twitter.com',
     '*.t.co',
     't.co',
     '*.twimg.com',
     'twimg.com'
-}
+])
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
 CHECK_ACCESS = True
