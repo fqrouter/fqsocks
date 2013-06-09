@@ -20,6 +20,7 @@ import urllib2
 import traceback
 import time
 import contextlib
+import fqdns
 
 import dpkt
 import gevent.server
@@ -27,20 +28,20 @@ import gevent.monkey
 
 import lan_ip
 import china_ip
-import fqdns
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
-from direct import DirectProxy
 from direct import NONE_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
+from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 
 
 proxy_types = {
+    'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
     'goagent': GoAgentProxy,
     'dynamic': DynamicProxy,
@@ -366,10 +367,6 @@ def pick_http_proxy(client):
                          and not proxy.died and proxy not in client.tried_proxies]
     if http_only_proxies:
         return random.choice(http_only_proxies)
-    ss_proxies = [proxy for proxy in proxies if proxy.is_protocol_supported('SHADOWSOCKS')
-                                                and not proxy.died and proxy not in client.tried_proxies]
-    if ss_proxies:
-        return random.choice(ss_proxies)
     http_proxies = [proxy for proxy in proxies if
                     proxy.is_protocol_supported('HTTP')
                     and not proxy.died and proxy not in client.tried_proxies]
@@ -379,18 +376,17 @@ def pick_http_proxy(client):
 
 
 def pick_https_proxy(client):
-    private_https_proxies = [proxy for proxy in proxies if
-                            proxy.is_protocol_supported('HTTPS') and
-                            'PUBLIC' not in proxy.flags and
-                            not proxy.died and proxy not in client.tried_proxies]
-    if private_https_proxies:
-        return random.choice(private_https_proxies)
+    https_only_proxies = [proxy for proxy in proxies if
+                          proxy.is_protocol_supported('HTTPS') and not proxy.is_protocol_supported('HTTP')
+                          and not proxy.died and proxy not in client.tried_proxies]
+    if https_only_proxies:
+        return random.choice(https_only_proxies)
     https_proxies = [proxy for proxy in proxies if
-                     proxy.is_protocol_supported('HTTPS') and not proxy.died and proxy not in client.tried_proxies]
+                     proxy.is_protocol_supported('HTTPS')
+                     and not proxy.died and proxy not in client.tried_proxies]
     if https_proxies:
         return random.choice(https_proxies)
-    else:
-        return None
+    return None
 
 
 def refresh_proxies():

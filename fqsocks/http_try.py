@@ -1,6 +1,7 @@
 import logging
 import httplib
 import socket
+import sys
 
 from direct import Proxy
 
@@ -8,6 +9,7 @@ from direct import Proxy
 LOGGER = logging.getLogger(__name__)
 
 SO_MARK = 36
+
 
 class HttpTryProxy(Proxy):
     def __init__(self):
@@ -25,9 +27,20 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
             return
         client.direct_connection_succeeded()
-        response = send_first_request_and_get_response(client, upstream_sock)
-        client.forward_started = True
-        client.downstream_sock.sendall(response)
+
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
+        is_payload_complete = recv_and_parse_request(client)
+        try:
+            upstream_sock.sendall(client.peeked_data)
+        except:
+            client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
+        if is_payload_complete:
+            response = try_receive_response(client, upstream_sock, rejects_error=('GET' == client.method))
+            client.forward_started = True
+            client.downstream_sock.sendall(response)
         client.forward(upstream_sock)
 
     def is_protocol_supported(self, protocol):
@@ -40,13 +53,8 @@ class HttpTryProxy(Proxy):
 HTTP_TRY_PROXY = HttpTryProxy()
 
 
-def send_first_request_and_get_response(client, upstream_sock):
+def try_receive_response(client, upstream_sock, rejects_error=False):
     try:
-        if HTTP_TRY_PROXY.http_request_mark:
-            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
-        if not recv_and_parse_request(client):
-            return ''
-        upstream_sock.sendall(client.peeked_data)
         upstream_rfile = upstream_sock.makefile('rb', 0)
         client.add_resource(upstream_rfile)
         capturing_sock = CapturingSock(upstream_rfile)
@@ -68,12 +76,8 @@ def send_first_request_and_get_response(client, upstream_sock):
                 LOGGER.debug('[%s] skip try reading response due to too large: %s' %
                              (repr(client), http_response.length))
             return capturing_sock.rfile.captured
-        if not (200 <= http_response.status < 400):
+        if rejects_error and not (200 <= http_response.status < 400):
             raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
-        if 'html' not in (http_response.msg.getheader('content-type') or ''):
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] skip try reading response due to not html' % repr(client))
-            return capturing_sock.rfile.captured
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:
@@ -82,9 +86,6 @@ def send_first_request_and_get_response(client, upstream_sock):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] http try read response failed' % (repr(client)), exc_info=1)
         client.fall_back(reason='http try read response failed')
-    finally:
-        if HTTP_TRY_PROXY.http_request_mark:
-            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
 
 
 class CapturingSock(object):
