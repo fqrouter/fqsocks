@@ -300,14 +300,14 @@ def pick_proxy(client):
         LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), dst_color, protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
         if 'BLACK' == dst_color:
-            return pick_http_proxy(client)
+            return pick_proxy_supports(client, 'HTTP')
         else:
-            return pick_http_try_proxy(client) or pick_http_proxy(client)
+            return pick_http_try_proxy(client) or pick_proxy_supports(client, 'HTTP')
     elif protocol == 'HTTPS' or client.dst_port == 443:
         if 'BLACK' == dst_color:
-            return pick_https_proxy(client)
+            return pick_proxy_supports(client, 'HTTPS')
         else:
-            return pick_https_try_proxy(client) or pick_https_proxy(client)
+            return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
     else:
         return None
 
@@ -361,32 +361,17 @@ def pick_https_try_proxy(client):
     return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
 
-def pick_http_proxy(client):
-    http_only_proxies = [proxy for proxy in proxies if
-                         proxy.is_protocol_supported('HTTP') and not proxy.is_protocol_supported('HTTPS')
+def pick_proxy_supports(client, protocol):
+    supported_proxies = [proxy for proxy in proxies if
+                         proxy.is_protocol_supported(protocol)
                          and not proxy.died and proxy not in client.tried_proxies]
-    if http_only_proxies:
-        return random.choice(http_only_proxies)
-    http_proxies = [proxy for proxy in proxies if
-                    proxy.is_protocol_supported('HTTP')
-                    and not proxy.died and proxy not in client.tried_proxies]
-    if http_proxies:
-        return random.choice(http_proxies)
-    return None
-
-
-def pick_https_proxy(client):
-    https_only_proxies = [proxy for proxy in proxies if
-                          proxy.is_protocol_supported('HTTPS') and not proxy.is_protocol_supported('HTTP')
-                          and not proxy.died and proxy not in client.tried_proxies]
-    if https_only_proxies:
-        return random.choice(https_only_proxies)
-    https_proxies = [proxy for proxy in proxies if
-                     proxy.is_protocol_supported('HTTPS')
-                     and not proxy.died and proxy not in client.tried_proxies]
-    if https_proxies:
-        return random.choice(https_proxies)
-    return None
+    if not supported_proxies:
+        return None
+    prioritized_proxies = {}
+    for proxy in supported_proxies:
+        prioritized_proxies.setdefault(proxy.priority, []).append(proxy)
+    highest_priority = sorted(prioritized_proxies.keys())[0]
+    return random.choice(prioritized_proxies[highest_priority])
 
 
 def refresh_proxies():

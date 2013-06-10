@@ -8,6 +8,7 @@ class Proxy(object):
         super(Proxy, self).__init__()
         self.died = False
         self.flags = set()
+        self.priority = 0
 
     def forward(self, client):
         client.forwarding_by = self

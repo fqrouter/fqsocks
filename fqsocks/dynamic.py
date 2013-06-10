@@ -16,13 +16,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DynamicProxy(Proxy):
-    def __init__(self, dns_record, type=None, resolve_at='8.8.8.8', **kwargs):
+    def __init__(self, dns_record, type=None, resolve_at='8.8.8.8', priority=0, **kwargs):
         self.dns_record = dns_record
         self.type = type
         self.resolve_at = resolve_at
         self.delegated_to = None
         self.kwargs = {k: False if 'False' == v else v for k, v in kwargs.items()}
         super(DynamicProxy, self).__init__()
+        self.priority = int(priority)
 
     def do_forward(self, client):
         if self.delegated_to:
