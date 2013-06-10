@@ -54,12 +54,12 @@ class HttpRelayProxy(Proxy):
             upstream_sock.sendall(request_data + client.payload)
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
-        if HTTP_TRY_PROXY.http_request_mark:
-            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         if is_complete_payload:
             response = try_receive_response(client, upstream_sock)
             client.forward_started = True
             client.downstream_sock.sendall(response)
+        if HTTP_TRY_PROXY.http_request_mark:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         client.forward(upstream_sock)
 
     def report_failure(self, client, reason):
