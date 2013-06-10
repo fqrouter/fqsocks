@@ -28,12 +28,25 @@ class HttpTryProxy(Proxy):
             return
         client.direct_connection_succeeded()
         is_payload_complete = recv_and_parse_request(client)
+        do_inject = is_payload_complete and 'youtube.com' in client.host
+        if do_inject:
+            LOGGER.info('GFW injection for youtube video')
+            request_data = 'GET http://www.google.com.hk/ HTTP/1.1\r\n\r\n\r\n'
+            client.headers['Connection'] = 'close'
+        else:
+            request_data = ''
+        request_data += '%s %s HTTP/1.1\r\n' % (client.method, client.path)
+        client.headers['Host'] = client.host
+        request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
+        request_data += '\r\n'
         if HTTP_TRY_PROXY.http_request_mark:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
         try:
-            upstream_sock.sendall(client.peeked_data)
+            upstream_sock.sendall(request_data + client.payload)
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
+        if do_inject:
+            try_receive_response(client, upstream_sock, reads_all=True)
         if is_payload_complete:
             response = try_receive_response(client, upstream_sock, rejects_error=('GET' == client.method))
             client.forward_started = True
@@ -52,31 +65,32 @@ class HttpTryProxy(Proxy):
 HTTP_TRY_PROXY = HttpTryProxy()
 
 
-def try_receive_response(client, upstream_sock, rejects_error=False):
+def try_receive_response(client, upstream_sock, rejects_error=False, reads_all=False):
     try:
         upstream_rfile = upstream_sock.makefile('rb', 0)
         client.add_resource(upstream_rfile)
         capturing_sock = CapturingSock(upstream_rfile)
         http_response = httplib.HTTPResponse(capturing_sock)
         http_response.begin()
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] http try read response header: %s %s' %
-                         (repr(client), http_response.status, http_response.length))
-        if http_response.chunked:
+        if not reads_all:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] skip try reading response due to chunked' % repr(client))
-            return capturing_sock.rfile.captured
-        if not http_response.length:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] skip try reading response due to no content length' % repr(client))
-            return capturing_sock.rfile.captured
-        if http_response.length > 1024 * 1024:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] skip try reading response due to too large: %s' %
-                             (repr(client), http_response.length))
-            return capturing_sock.rfile.captured
-        if rejects_error and not (200 <= http_response.status < 400):
-            raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
+                LOGGER.debug('[%s] http try read response header: %s %s' %
+                             (repr(client), http_response.status, http_response.length))
+            if http_response.chunked:
+                if LOGGER.isEnabledFor(logging.DEBUG):
+                    LOGGER.debug('[%s] skip try reading response due to chunked' % repr(client))
+                return capturing_sock.rfile.captured
+            if not http_response.length:
+                if LOGGER.isEnabledFor(logging.DEBUG):
+                    LOGGER.debug('[%s] skip try reading response due to no content length' % repr(client))
+                return capturing_sock.rfile.captured
+            if http_response.length > 1024 * 1024:
+                if LOGGER.isEnabledFor(logging.DEBUG):
+                    LOGGER.debug('[%s] skip try reading response due to too large: %s' %
+                                 (repr(client), http_response.length))
+                return capturing_sock.rfile.captured
+            if rejects_error and not (200 <= http_response.status < 400):
+                raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
         http_response.read()
         return capturing_sock.rfile.captured
     except NotHttp:

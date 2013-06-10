@@ -39,7 +39,7 @@ class HttpRelayProxy(Proxy):
             self.report_failure(client, 'http-relay upstream socket connect timed out')
             return
         upstream_sock.settimeout(3)
-        is_complete_payload = recv_and_parse_request(client)
+        is_payload_complete = recv_and_parse_request(client)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
         client.headers['Host'] = client.host
         client.headers['Connection'] = 'close' # no keep-alive
@@ -54,7 +54,7 @@ class HttpRelayProxy(Proxy):
             upstream_sock.sendall(request_data + client.payload)
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
-        if is_complete_payload:
+        if is_payload_complete:
             response = try_receive_response(client, upstream_sock)
             client.forward_started = True
             client.downstream_sock.sendall(response)
