@@ -16,6 +16,7 @@ class HttpTryProxy(Proxy):
         super(HttpTryProxy, self).__init__()
         self.flags.add('DIRECT')
         self.http_request_mark = None
+        self.enable_youtube_scrambler = False
 
     def do_forward(self, client):
         try:
@@ -28,9 +29,9 @@ class HttpTryProxy(Proxy):
             return
         client.direct_connection_succeeded()
         is_payload_complete = recv_and_parse_request(client)
-        do_inject = is_payload_complete and 'youtube.com' in client.host
+        do_inject = self.enable_youtube_scrambler and is_payload_complete and 'youtube.com' in client.host
         if do_inject:
-            LOGGER.info('GFW injection for youtube video')
+            LOGGER.info('[%s] scramble youtube traffic' % repr(client))
             request_data = 'GET http://www.google.com.hk/ HTTP/1.1\r\n\r\n\r\n'
             client.headers['Connection'] = 'close'
         else:

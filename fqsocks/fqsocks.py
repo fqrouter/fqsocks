@@ -529,6 +529,7 @@ def main(argv):
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
     argument_parser.add_argument('--http-request-mark')
+    argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
     args = argument_parser.parse_args(argv)
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
@@ -544,6 +545,8 @@ def main(argv):
         CHECK_ACCESS = False
     if args.http_request_mark:
         HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
+    LOGGER.info('youtube scrambler enabled: %s' % args.enable_youtube_scrambler)
+    HTTP_TRY_PROXY.enable_youtube_scrambler = args.enable_youtube_scrambler
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
