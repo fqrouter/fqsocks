@@ -40,8 +40,7 @@ class HttpRelayProxy(Proxy):
             return
         upstream_sock.settimeout(3)
         is_payload_complete = recv_and_parse_request(client)
-        request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
-        client.headers['Host'] = client.host
+        request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.url)
         client.headers['Connection'] = 'close' # no keep-alive
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
         if self.username and self.password:
