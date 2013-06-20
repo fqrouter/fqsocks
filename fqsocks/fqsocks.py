@@ -38,6 +38,7 @@ from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
+from ssh import SshProxy
 
 
 proxy_types = {
@@ -45,7 +46,8 @@ proxy_types = {
     'http-connect': HttpConnectProxy,
     'goagent': GoAgentProxy,
     'dynamic': DynamicProxy,
-    'ss': ShadowSocksProxy
+    'ss': ShadowSocksProxy,
+    'ssh': SshProxy
 }
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
@@ -147,7 +149,7 @@ class ProxyClient(object):
                 raise
         finally:
             if not self.forward_started:
-                self.fall_back(reason='direct connection does not receive any response')
+                self.fall_back(reason='forward does not receive any response')
 
     def close(self):
         for res in self.resources:
@@ -468,6 +470,9 @@ def keep_refreshing_proxies():
 
 def create_tcp_socket(server_ip, server_port, connect_timeout):
     return SPI['create_tcp_socket'](server_ip, server_port, connect_timeout)
+
+
+SshProxy.create_tcp_socket = staticmethod(create_tcp_socket)
 
 
 def _create_tcp_socket(server_ip, server_port, connect_timeout):
