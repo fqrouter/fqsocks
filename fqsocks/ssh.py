@@ -14,7 +14,7 @@ class SshProxy(Proxy):
     def __init__(self, proxy_ip, proxy_port=22, username=None, password=None, key_filename=None):
         super(SshProxy, self).__init__()
         self.proxy_ip = socket.gethostbyname(proxy_ip)
-        self.proxy_port = proxy_port
+        self.proxy_port = int(proxy_port)
         self.username = username
         self.password = password
         self.key_filename = key_filename
@@ -29,7 +29,7 @@ class SshProxy(Proxy):
             sock = SshProxy.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
             self.key_filename = self.key_filename or '/data/data/fq.router/etc/ssh/%s' % self.proxy_ip
             if not os.path.exists(self.key_filename):
-                key_filename = None
+                self.key_filename = None
             self.ssh_client.connect(
                 self.proxy_ip, self.proxy_port,
                 username=self.username, password=self.password,
