@@ -36,6 +36,7 @@ from http_try import NotHttp
 from goagent import GoAgentProxy
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
+from spdy_relay import SpdyRelayProxy
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 from ssh import SshProxy
@@ -44,6 +45,7 @@ from ssh import SshProxy
 proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
+    'spdy-relay': SpdyRelayProxy,
     'goagent': GoAgentProxy,
     'dynamic': DynamicProxy,
     'ss': ShadowSocksProxy,
@@ -473,6 +475,7 @@ def create_tcp_socket(server_ip, server_port, connect_timeout):
 
 
 SshProxy.create_tcp_socket = staticmethod(create_tcp_socket)
+SpdyRelayProxy.create_tcp_socket = staticmethod(create_tcp_socket)
 
 
 def _create_tcp_socket(server_ip, server_port, connect_timeout):
@@ -522,6 +525,7 @@ def setup_logging(log_level, log_file=None):
 
 def main(argv):
     global LISTEN_IP, LISTEN_PORT, OUTBOUND_IP, CHINA_PROXY, CHECK_ACCESS
+    global HTTP_TRY_PROXY, HTTPS_TRY_PROXY
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
@@ -533,6 +537,7 @@ def main(argv):
     argument_parser.add_argument('--google-host', action='append', default=[])
     argument_parser.add_argument('--disable-china-optimization', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
+    argument_parser.add_argument('--disable-try', action='store_true')
     argument_parser.add_argument('--http-request-mark')
     argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
     args = argument_parser.parse_args(argv)
@@ -546,12 +551,16 @@ def main(argv):
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
     if not args.disable_china_optimization:
         CHINA_PROXY = DIRECT_PROXY
+    if args.disable_try:
+        HTTP_TRY_PROXY = None
+        HTTPS_TRY_PROXY = None
+    if HTTP_TRY_PROXY:
+        if args.http_request_mark:
+            HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
+        LOGGER.info('youtube scrambler enabled: %s' % args.enable_youtube_scrambler)
+        HTTP_TRY_PROXY.enable_youtube_scrambler = args.enable_youtube_scrambler
     if args.disable_access_check:
         CHECK_ACCESS = False
-    if args.http_request_mark:
-        HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
-    LOGGER.info('youtube scrambler enabled: %s' % args.enable_youtube_scrambler)
-    HTTP_TRY_PROXY.enable_youtube_scrambler = args.enable_youtube_scrambler
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
