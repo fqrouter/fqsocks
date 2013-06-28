@@ -83,12 +83,12 @@ class SpdyRelayProxy(Proxy):
                         else:
                             break
                     except ssl.SSLError:
-                        select.select([self.upstream_sock], [], [])
-            if self.spdylay_session.want_write():
-                try:
-                    self.spdylay_session.send()
-                except ssl.SSLError:
-                    select.select([], [self.upstream_sock], [])
+                        select.select([self.upstream_sock], [], [], 1)
+                if self.spdylay_session.want_write():
+                    try:
+                        self.spdylay_session.send()
+                    except ssl.SSLError:
+                        select.select([], [self.upstream_sock], [], 1)
         except:
             LOGGER.exception('[%s] spdylay loop failed' % self)
         LOGGER.info('!!! spdylay loop quit !!!')
@@ -96,6 +96,24 @@ class SpdyRelayProxy(Proxy):
 
     def spdylay_send_cb(self, session, data):
         return self.upstream_sock.send(data)
+
+
+    def spdylay_read_cb(self, session, stream_id, length, read_ctrl, source):
+        try:
+            stream_code = self.spdylay_session.get_stream_user_data(stream_id)
+            client, async_result = self.streams[stream_code]
+            if client.remaining_payload_len > 0:
+                if client.payload:
+                    data = client.payload[:length]
+                    client.payload = client.payload[length:]
+                else:
+                    data = client.downstream_sock.recv(length)
+                client.remaining_payload_len -= len(data)
+                return data
+            else:
+                read_ctrl.flags = spdylay.READ_EOF
+        except:
+            LOGGER.exception('[%s] spdylay_read_cb' % self)
 
 
     def spdylay_on_stream_close_cb(self, session, stream_id, status_code):
@@ -153,8 +171,10 @@ class SpdyRelayProxy(Proxy):
         stream_code = str(uuid4())
         async_result = gevent.event.AsyncResult()
         self.streams[stream_code] = (client, async_result)
-        self.spdylay_session.submit_request(0, headers, stream_user_data=stream_code)
-        self.spdylay_session.send()
+        client.remaining_payload_len = int(client.headers.get('Content-Length', 0))
+        client.data_prd = spdylay.DataProvider(None, self.spdylay_read_cb)
+        self.spdylay_session.submit_request(
+            0, headers, data_prd=client.data_prd, stream_user_data=stream_code)
         async_result.wait()
 
 
@@ -170,3 +190,8 @@ class SpdyRelayProxy(Proxy):
     def __repr__(self):
         return 'SpdyRelayProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
 
+
+class DataProvider(object):
+    def __init__(self, read_cb, source=None):
+        self.source = source
+        self.read_cb = read_cb
