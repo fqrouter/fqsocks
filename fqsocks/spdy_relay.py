@@ -72,23 +72,34 @@ class SpdyRelayProxy(Proxy):
         self.spdylay_loop_greenlet = gevent.spawn(self.spdylay_loop)
 
     def spdylay_loop(self):
-        self.upstream_sock.settimeout(0)
+        self.upstream_sock.setblocking(False)
         try:
-            while not self.died:
-                if self.spdylay_session.want_read():
-                    try:
-                        data = self.upstream_sock.recv(4096)
-                        if data:
-                            self.spdylay_session.recv(data)
-                        else:
-                            break
-                    except ssl.SSLError:
-                        select.select([self.upstream_sock], [], [], 1)
-                if self.spdylay_session.want_write():
-                    try:
-                        self.spdylay_session.send()
-                    except ssl.SSLError:
-                        select.select([], [self.upstream_sock], [], 1)
+            while (self.spdylay_session.want_read() or self.spdylay_session.want_write()) and not self.died:
+                want_read = want_write = False
+                try:
+                    data = self.upstream_sock.recv(4096)
+                    if data:
+                        self.spdylay_session.recv(data)
+                    else:
+                        break
+                except ssl.SSLError:
+                    ex = sys.exc_info()[1]
+                    if ex.args[0] == ssl.SSL_ERROR_WANT_READ:
+                        want_read = True
+                    elif ex.args[1] == ssl.SSL_ERROR_WANT_WRITE:
+                        want_write = True
+                try:
+                    self.spdylay_session.send()
+                except ssl.SSLError:
+                    ex = sys.exc_info()[1]
+                    if ex.args[0] == ssl.SSL_ERROR_WANT_READ:
+                        want_read = True
+                    elif ex.args[1] == ssl.SSL_ERROR_WANT_WRITE:
+                        want_write = True
+                if want_read or want_write:
+                    select.select([self.upstream_sock] if want_read else [],
+                                  [self.upstream_sock] if want_write else [],
+                        [])
         except:
             LOGGER.exception('[%s] spdylay loop failed' % self)
         LOGGER.info('!!! spdylay loop quit !!!')
@@ -175,6 +186,7 @@ class SpdyRelayProxy(Proxy):
         client.data_prd = spdylay.DataProvider(None, self.spdylay_read_cb)
         self.spdylay_session.submit_request(
             0, headers, data_prd=client.data_prd, stream_user_data=stream_code)
+        self.spdylay_session.send()
         async_result.wait()
 
 
