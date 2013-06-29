@@ -37,6 +37,7 @@ from goagent import GoAgentProxy
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
 from spdy_relay import SpdyRelayProxy
+from spdy_connect import SpdyConnectProxy
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 from ssh import SshProxy
@@ -46,6 +47,7 @@ proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
     'spdy-relay': SpdyRelayProxy,
+    'spdy-connect': SpdyConnectProxy,
     'goagent': GoAgentProxy,
     'dynamic': DynamicProxy,
     'ss': ShadowSocksProxy,
@@ -476,6 +478,7 @@ def create_tcp_socket(server_ip, server_port, connect_timeout):
 
 SshProxy.create_tcp_socket = staticmethod(create_tcp_socket)
 SpdyRelayProxy.create_tcp_socket = staticmethod(create_tcp_socket)
+SpdyConnectProxy.create_tcp_socket = staticmethod(create_tcp_socket)
 
 
 def _create_tcp_socket(server_ip, server_port, connect_timeout):

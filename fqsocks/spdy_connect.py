@@ -10,7 +10,6 @@ import spdylay
 import gevent
 import gevent.event
 import select
-
 from direct import Proxy
 from http_try import recv_and_parse_request
 
@@ -18,11 +17,11 @@ from http_try import recv_and_parse_request
 LOGGER = logging.getLogger(__name__)
 
 # the ssl module used here is a modified version, does not work on vanilla python 2.7
-class SpdyRelayProxy(Proxy):
+class SpdyConnectProxy(Proxy):
     create_tcp_socket = None
 
     def __init__(self, proxy_ip, proxy_port, username=None, password=None, is_public=False):
-        super(SpdyRelayProxy, self).__init__()
+        super(SpdyConnectProxy, self).__init__()
         assert ssl.HAS_NPN_SUPPORT
         self.proxy_ip = socket.gethostbyname(proxy_ip)
         self.proxy_port = proxy_port
@@ -52,15 +51,15 @@ class SpdyRelayProxy(Proxy):
                 None)
             self.resources.append(self.upstream_sock._sslobj)
         except:
-            LOGGER.exception('[%s] spdy-relay upstream socket connect failed' % self)
+            LOGGER.exception('[%s] spdy-connect upstream socket connect failed' % self)
             self.died = True
             return
         try:
             self.upstream_sock.do_handshake()
             LOGGER.debug(
-                '[%s] spdy-relay selected protocol %s' % (self, self.upstream_sock._sslobj.selected_protocol()))
+                '[%s] spdy-connect selected protocol %s' % (self, self.upstream_sock._sslobj.selected_protocol()))
         except:
-            LOGGER.exception('[%s] spdy-relay upstream socket handshake failed' % self)
+            LOGGER.exception('[%s] spdy-connect upstream socket handshake failed' % self)
             self.died = True
             return
         self.spdylay_session = spdylay.Session(
@@ -113,13 +112,23 @@ class SpdyRelayProxy(Proxy):
         try:
             stream_code = self.spdylay_session.get_stream_user_data(stream_id)
             client, async_result = self.streams[stream_code]
-            if client.remaining_payload_len > 0:
-                if client.payload:
-                    data = client.payload[:length]
-                    client.payload = client.payload[length:]
-                else:
+            if client.peeked_data:
+                data = client.peeked_data[:length]
+                client.peeked_data = client.peeked_data[length:]
+            else:
+                try:
+                    ins, _, _  = select.select([client.downstream_sock], [], [], 0)
+                except:
+                    async_result.set_exception(sys.exc_info()[1])
+                    LOGGER.exception('error')
+                    read_ctrl.flags = spdylay.READ_EOF
+                    return
+                if client.downstream_sock in ins:
                     data = client.downstream_sock.recv(length)
-                client.remaining_payload_len -= len(data)
+                else:
+                    read_ctrl.flags = spdylay.ERR_DEFERRED
+                    return
+            if data:
                 return data
             else:
                 read_ctrl.flags = spdylay.READ_EOF
@@ -146,16 +155,9 @@ class SpdyRelayProxy(Proxy):
     def spdylay_on_ctrl_recv_cb(self, session, frame):
         try:
             if frame.frame_type == spdylay.SYN_REPLY:
+                LOGGER.info('SYN REPLY: %s' % str(frame.nv))
                 headers = dict(frame.nv)
                 status = headers.pop(':status')
-                version = headers.pop(':version')
-                stream_code = self.spdylay_session.get_stream_user_data(frame.stream_id)
-                client, async_result = self.streams[stream_code]
-                client.forward_started = True
-                client.downstream_sock.sendall('%s %s\r\n' % (version, status))
-                for k, v in headers.items():
-                    client.downstream_sock.sendall('%s: %s\r\n' % (k, v))
-                client.downstream_sock.sendall('\r\n')
         except:
             LOGGER.exception('[%s] spdylay_on_ctrl_recv_cb' % self)
 
@@ -170,23 +172,24 @@ class SpdyRelayProxy(Proxy):
 
 
     def do_forward(self, client):
-        is_payload_complete = recv_and_parse_request(client)
-        client.headers['Connection'] = 'close' # no keep-alive
-        headers = [(':method', client.method),
-                   (':scheme', 'http'),
-                   (':path', client.path),
+        headers = [(':method', 'CONNECT'),
+                   (':path', '%s:%s' % (client.dst_ip, client.dst_port)),
                    (':version', 'HTTP/1.1'),
-                   (':host', client.host)]
-        for k, v in client.headers.items():
-            headers.append((k, v))
+                   (':host', '%s:%s' % (client.dst_ip, client.dst_port))]
         stream_code = str(uuid4())
         async_result = gevent.event.AsyncResult()
         self.streams[stream_code] = (client, async_result)
-        client.remaining_payload_len = int(client.headers.get('Content-Length', 0))
         client.data_prd = spdylay.DataProvider(None, self.spdylay_read_cb)
         self.spdylay_session.submit_request(
             0, headers, data_prd=client.data_prd, stream_user_data=stream_code)
-        self.spdylay_session.send()
+        for i in range(3):
+            try:
+                self.spdylay_session.send()
+                LOGGER.info('sent')
+                break
+            except:
+                LOGGER.info('retry sending')
+                gevent.sleep(1)
         async_result.wait()
 
 
@@ -197,7 +200,7 @@ class SpdyRelayProxy(Proxy):
         return True
 
     def is_protocol_supported(self, protocol):
-        return protocol == 'HTTP'
+        return protocol == 'HTTPS'
 
     def __repr__(self):
-        return 'SpdyRelayProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
+        return 'SpdyConnectProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
