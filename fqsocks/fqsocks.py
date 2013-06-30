@@ -37,7 +37,7 @@ from goagent import GoAgentProxy
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
 from spdy_relay import SpdyRelayProxy
-from spdy_relay import SpdyClient
+from spdy_client import SpdyClient
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 from ssh import SshProxy
