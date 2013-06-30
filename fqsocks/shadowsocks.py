@@ -19,7 +19,7 @@ class ShadowSocksProxy(Proxy):
         self.failed_times = 0
 
     def do_forward(self, client):
-        self.encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
+        encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
         addr_to_send = '\x01'
         addr_to_send += socket.inet_aton(client.dst_ip)
         addr_to_send += struct.pack('>H', client.dst_port)
@@ -30,29 +30,13 @@ class ShadowSocksProxy(Proxy):
             if self.failed_times > 3:
                 self.died = True
             client.fall_back(reason='can not connect to proxy')
-        upstream_sock.sendall(self.encryptor.encrypt(addr_to_send))
-        upstream_sock.sendall(self.encryptor.encrypt(client.peeked_data))
-        client.forward(upstream_sock, encrypt=self.encryptor.encrypt, decrypt=self.encryptor.decrypt)
+        upstream_sock.sendall(encryptor.encrypt(addr_to_send))
+        upstream_sock.sendall(encryptor.encrypt(client.peeked_data))
+        client.forward(upstream_sock, encrypt=encryptor.encrypt, decrypt=encryptor.decrypt)
 
-    def encrypt(self, data):
-        return self.encryptor.encrypt(data)
-
-    def decrypt(self, data):
-        return self.encryptor.decrypt(data)
 
     def is_protocol_supported(self, protocol):
         return True
 
     def __repr__(self):
         return 'ShadowSocksProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
-
-
-def send_all(sock, data):
-    bytes_sent = 0
-    while True:
-        r = sock.send(data[bytes_sent:])
-        if r < 0:
-            return r
-        bytes_sent += r
-        if bytes_sent == len(data):
-            return bytes_sent
