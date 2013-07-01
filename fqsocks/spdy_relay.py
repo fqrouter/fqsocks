@@ -11,7 +11,6 @@ import spdy.frames
 from http_try import recv_and_parse_request
 from direct import Proxy
 from spdy_client import SpdyClient
-from spdy_client import WORKING
 
 
 LOGGER = logging.getLogger(__name__)
@@ -78,29 +77,17 @@ class SpdyRelayProxy(Proxy):
         stream_id = self.spdy_client.open_stream(headers, client)
         stream = self.spdy_client.streams[stream_id]
         stream.request_content_length = int(headers.get('content-length', 0))
-        try:
-            while not stream.done:
-                try:
-                    frame = stream.upstream_frames.get(timeout=10)
-                except gevent.queue.Empty:
-                    if client.forward_started:
-                        return
-                    else:
-                        return client.fall_back('no response from proxy')
-                if WORKING == frame:
-                    continue
-                if isinstance(frame, spdy.frames.SynReply):
-                    stream.response_content_length = self.on_syn_reply_frame(client, frame)
-                elif isinstance(frame, spdy.frames.RstStream):
-                    LOGGER.info('[%s] rst: %s' % (repr(client), frame))
-                    return
-                else:
-                    LOGGER.warn('!!! [%s] unknown frame: %s %s !!!'
-                                % (repr(client), frame, getattr(frame, 'frame_type')))
-        finally:
-            self.spdy_client.end_stream(stream_id)
+        self.spdy_client.poll_stream(stream_id, self.on_frame)
 
-    def on_syn_reply_frame(self, client, frame):
+    def on_frame(self, stream, frame):
+        if isinstance(frame, spdy.frames.SynReply):
+            stream.response_content_length = self.on_syn_reply_frame(stream, frame)
+        else:
+            LOGGER.warn('!!! [%s] unknown frame: %s %s !!!'
+                        % (repr(stream.client), frame, getattr(frame, 'frame_type')))
+
+    def on_syn_reply_frame(self, stream, frame):
+        client = stream.client
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] syn reply: %s' % (repr(client), frame.headers))
         headers = dict(frame.headers)

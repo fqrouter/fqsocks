@@ -9,7 +9,6 @@ import spdy.frames
 
 from direct import Proxy
 from spdy_client import SpdyClient
-from spdy_client import WORKING
 
 
 LOGGER = logging.getLogger(__name__)
@@ -71,30 +70,18 @@ class SpdyConnectProxy(Proxy):
             headers['proxy-authorization'] = 'Basic %s\r\n' % auth
         client.payload = client.peeked_data
         stream_id = self.spdy_client.open_stream(headers, client)
-        stream = self.spdy_client.streams[stream_id]
-        try:
-            while not stream.done:
-                try:
-                    frame = stream.upstream_frames.get(timeout=10)
-                except gevent.queue.Empty:
-                    if client.forward_started:
-                        return
-                    else:
-                        return client.fall_back('no response from proxy')
-                if WORKING == frame:
-                    continue
-                if isinstance(frame, spdy.frames.SynReply):
-                    self.on_syn_reply_frame(client, frame)
-                elif isinstance(frame, spdy.frames.RstStream):
-                    LOGGER.info('[%s] rst: %s' % (repr(client), frame))
-                    return
-                else:
-                    LOGGER.warn('!!! [%s] unknown frame: %s %s !!!'
-                                % (repr(client), frame, getattr(frame, 'frame_type')))
-        finally:
-            self.spdy_client.end_stream(stream_id)
+        self.spdy_client.poll_stream(stream_id, self.on_frame)
 
-    def on_syn_reply_frame(self, client, frame):
+    def on_frame(self, stream, frame):
+        if isinstance(frame, spdy.frames.SynReply):
+            self.on_syn_reply_frame(stream, frame)
+            return
+        else:
+            LOGGER.warn('!!! [%s] unknown frame: %s %s !!!'
+                        % (repr(stream.client), frame, getattr(frame, 'frame_type')))
+
+    def on_syn_reply_frame(self, stream, frame):
+        client = stream.client
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] syn reply: %s' % (repr(client), frame.headers))
         headers = dict(frame.headers)

@@ -48,6 +48,27 @@ class SpdyClient(object):
         if stream_id in self.streams:
             del self.streams[stream_id]
 
+    def poll_stream(self, stream_id, on_frame_cb):
+        stream = self.streams[stream_id]
+        try:
+            while not stream.done:
+                try:
+                    frame = stream.upstream_frames.get(timeout=10)
+                except gevent.queue.Empty:
+                    if stream.client.forward_started:
+                        return
+                    else:
+                        return stream.client.fall_back('no response from proxy')
+                if WORKING == frame:
+                    continue
+                elif isinstance(frame, spdy.frames.RstStream):
+                    LOGGER.info('[%s] rst: %s' % (repr(stream.client), frame))
+                    return
+                else:
+                    on_frame_cb(stream, frame)
+        finally:
+            self.end_stream(stream_id)
+
     def loop(self):
         while True:
             select.select([self.sock], [], [])
@@ -172,3 +193,4 @@ class SpdyStream(object):
         if self.received_bytes >= self.response_content_length and self.sent_bytes >= self.request_content_length:
             self._done = True
         return self._done
+
