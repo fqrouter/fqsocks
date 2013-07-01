@@ -159,6 +159,8 @@ class SpdyStream(object):
                     else:
                         self._done = True
                         return
+        except select.error:
+            self._done = True
         except socket.error:
             self._done = True
         except:
