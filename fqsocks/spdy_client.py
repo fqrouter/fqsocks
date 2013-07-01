@@ -6,13 +6,16 @@ import gevent.queue
 import gevent.event
 import spdy.context
 import spdy.frames
+import sys
 import logging
+import socket
 
 
 LOGGER = logging.getLogger(__name__)
 
 LOCAL_INITIAL_WINDOW_SIZE = 65536
 WORKING = 'working'
+
 
 class SpdyClient(object):
     create_tcp_socket = None
@@ -26,8 +29,6 @@ class SpdyClient(object):
         self.remote_initial_window_size = 65536
         self.streams = {}
         self.send(spdy.frames.Settings(1, {spdy.frames.INITIAL_WINDOW_SIZE: (0, LOCAL_INITIAL_WINDOW_SIZE)}))
-        gevent.spawn(self.loop)
-
 
     def open_stream(self, headers, client):
         stream_id = self.spdy_context.next_stream_id
@@ -42,15 +43,17 @@ class SpdyClient(object):
         gevent.spawn(stream.poll_from_downstream)
         return stream_id
 
+    def end_stream(self, stream_id):
+        self.send(spdy.frames.RstStream(stream_id, error_code=spdy.frames.CANCEL))
+        if stream_id in self.streams:
+            del self.streams[stream_id]
+
     def loop(self):
-        try:
-            while True:
-                select.select([self.sock], [], [])
-                data = self.tls_conn.read()
-                self.spdy_context.incoming(data)
-                self.consume_frames()
-        except:
-            LOGGER.exception('spdy loop failed')
+        while True:
+            select.select([self.sock], [], [])
+            data = self.tls_conn.read()
+            self.spdy_context.incoming(data)
+            self.consume_frames()
 
 
     def consume_frames(self):
@@ -58,24 +61,29 @@ class SpdyClient(object):
             frame = self.spdy_context.get_frame()
             if not frame:
                 return
-            if isinstance(frame, spdy.frames.Settings):
-                all_settings = dict(frame.id_value_pairs)
-                LOGGER.info('received spdy settings: %s' % all_settings)
-                initial_window_size_settings = all_settings.get(spdy.frames.INITIAL_WINDOW_SIZE)
-                if initial_window_size_settings:
-                    self.remote_initial_window_size = initial_window_size_settings[1]
-            elif isinstance(frame, spdy.frames.DataFrame):
-                stream = self.streams[frame.stream_id]
-                stream.send_to_downstream(frame.data)
-            elif isinstance(frame, spdy.frames.WindowUpdate):
-                stream = self.streams[frame.stream_id]
-                stream.update_upstream_window(frame.delta_window_size)
-            elif hasattr(frame, 'stream_id'):
-                stream = self.streams[frame.stream_id]
-                stream.upstream_frames.put(frame)
-            else:
-                raise NotImplementedError()
-
+            try:
+                if isinstance(frame, spdy.frames.Settings):
+                    all_settings = dict(frame.id_value_pairs)
+                    LOGGER.info('received spdy settings: %s' % all_settings)
+                    initial_window_size_settings = all_settings.get(spdy.frames.INITIAL_WINDOW_SIZE)
+                    if initial_window_size_settings:
+                        self.remote_initial_window_size = initial_window_size_settings[1]
+                elif isinstance(frame, spdy.frames.DataFrame):
+                    if frame.stream_id in self.streams:
+                        stream = self.streams[frame.stream_id]
+                        stream.send_to_downstream(frame.data)
+                elif isinstance(frame, spdy.frames.WindowUpdate):
+                    if frame.stream_id in self.streams:
+                        stream = self.streams[frame.stream_id]
+                        stream.update_upstream_window(frame.delta_window_size)
+                elif hasattr(frame, 'stream_id'):
+                    if frame.stream_id in self.streams:
+                        stream = self.streams[frame.stream_id]
+                        stream.upstream_frames.put(frame)
+                else:
+                    LOGGER.warn('!!! unknown frame: %s %s !!!' % (frame, getattr(frame, 'frame_type')))
+            except:
+                LOGGER.exception('failed to handle frame: %s' % frame)
 
     def send(self, frame):
         self.spdy_context.put_frame(frame)
@@ -107,17 +115,25 @@ class SpdyStream(object):
         self.send_cb = send_cb
         self.sent_bytes = len(client.payload)
         self.received_bytes = 0
-        self.request_completed = False
+        self.request_content_length = sys.maxint
+        self.response_content_length = sys.maxint
+        self._done = False
 
     def send_to_downstream(self, data):
-        self.client.forward_started = True
-        self.client.downstream_sock.sendall(data)
-        self.upstream_frames.put(WORKING)
-        self.received_bytes += len(data)
-        self.downstream_window_size -= len(data)
-        if self.downstream_window_size < 65536 / 2:
-            self.send_cb(spdy.frames.WindowUpdate(self.stream_id, 65536 - self.downstream_window_size))
-            self.downstream_window_size = 65536
+        try:
+            self.client.forward_started = True
+            self.client.downstream_sock.sendall(data)
+            self.upstream_frames.put(WORKING)
+            self.received_bytes += len(data)
+            self.downstream_window_size -= len(data)
+            if self.downstream_window_size < 65536 / 2:
+                self.send_cb(spdy.frames.WindowUpdate(self.stream_id, 65536 - self.downstream_window_size))
+                self.downstream_window_size = 65536
+        except socket.error:
+            self._done = True
+        except:
+            self._done = True
+            LOGGER.exception('[%s] failed to send to downstream' % repr(self.client))
 
     def update_upstream_window(self, delta_window_size):
         self.upstream_window_size += delta_window_size
@@ -125,17 +141,32 @@ class SpdyStream(object):
             self.remote_ready.set()
 
     def poll_from_downstream(self):
-        while not self.request_completed:
-            ins, _, _ = select.select([self.client.downstream_sock], [], [])
-            if self.client.downstream_sock in ins:
-                data = self.client.downstream_sock.recv(8192)
-                self.upstream_frames.put(WORKING)
-                if data:
-                    self.send_cb(spdy.frames.DataFrame(self.stream_id, data, flags=0))
-                    self.sent_bytes += len(data)
-                    self.upstream_window_size -= len(data)
-                    if self.upstream_window_size <= 0:
-                        self.remote_ready.clear()
-                        self.remote_ready.wait()
-                else:
+        try:
+            while not self.done:
+                ins, _, _ = select.select([self.client.downstream_sock], [], [], 2)
+                if self.done:
                     return
+                if self.client.downstream_sock in ins:
+                    data = self.client.downstream_sock.recv(8192)
+                    if data:
+                        self.upstream_frames.put(WORKING)
+                        self.send_cb(spdy.frames.DataFrame(self.stream_id, data, flags=0))
+                        self.sent_bytes += len(data)
+                        self.upstream_window_size -= len(data)
+                        if self.upstream_window_size <= 0:
+                            self.remote_ready.clear()
+                            self.remote_ready.wait()
+                    else:
+                        self._done = True
+                        return
+        except socket.error:
+            self._done = True
+        except:
+            self._done = True
+            LOGGER.exception('[%s] failed to poll from downstream' % repr(self.client))
+
+    @property
+    def done(self):
+        if self.received_bytes >= self.response_content_length and self.sent_bytes >= self.request_content_length:
+            self._done = True
+        return self._done

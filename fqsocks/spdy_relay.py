@@ -27,18 +27,38 @@ class SpdyRelayProxy(Proxy):
         self.spdy_client = None
         if is_public:
             self.flags.add('PUBLIC')
+        self.died = True
+        self.loop_greenlet = None
 
     def connect(self):
         try:
-            self.close()
-            self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port)
+            if self.loop_greenlet:
+                self.loop_greenlet.kill()
+            self.loop_greenlet = gevent.spawn(self.loop)
         except:
             LOGGER.exception('failed to connect spdy-relay proxy: %s' % self)
             self.died = True
 
+    def loop(self):
+        try:
+            while True:
+                self.close()
+                self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port)
+                self.died = False
+                try:
+                    self.spdy_client.loop()
+                except:
+                    LOGGER.exception('spdy client loop failed')
+                finally:
+                    LOGGER.info('spdy client loop quit')
+                self.died = True
+        except:
+            LOGGER.exception('spdy relay loop failed')
+
     def close(self):
         if self.spdy_client:
             self.spdy_client.close()
+            self.spdy_client = None
 
     def do_forward(self, client):
         recv_and_parse_request(client)
@@ -54,25 +74,31 @@ class SpdyRelayProxy(Proxy):
             headers['proxy-authorization'] = 'Basic %s\r\n' % auth
         for k, v in client.headers.items():
             headers[k.lower()] = v
-        request_content_length = int(headers.get('content-length', 0))
-        response_content_length = sys.maxint
+        headers['connection'] = 'close'
         stream_id = self.spdy_client.open_stream(headers, client)
         stream = self.spdy_client.streams[stream_id]
-        while stream.received_bytes < response_content_length or stream.sent_bytes < request_content_length:
-            stream.request_completed = stream.sent_bytes >= request_content_length
-            try:
-                frame = stream.upstream_frames.get(timeout=10)
-            except gevent.queue.Empty:
-                if client.forward_started:
+        stream.request_content_length = int(headers.get('content-length', 0))
+        try:
+            while not stream.done:
+                try:
+                    frame = stream.upstream_frames.get(timeout=10)
+                except gevent.queue.Empty:
+                    if client.forward_started:
+                        return
+                    else:
+                        return client.fall_back('no response from proxy')
+                if WORKING == frame:
+                    continue
+                if isinstance(frame, spdy.frames.SynReply):
+                    stream.response_content_length = self.on_syn_reply_frame(client, frame)
+                elif isinstance(frame, spdy.frames.RstStream):
+                    LOGGER.info('[%s] rst: %s' % (repr(client), frame))
                     return
                 else:
-                    return client.fall_back('no response from proxy')
-            if WORKING == frame:
-                continue
-            if isinstance(frame, spdy.frames.SynReply):
-                response_content_length = self.on_syn_reply_frame(client, frame)
-            else:
-                LOGGER.warn('[%s] unknown frame: %s %s' % (repr(client), frame, getattr(frame, 'frame_type')))
+                    LOGGER.warn(
+                        '!!! [%s] unknown frame: %s %s !!!' % (repr(client), frame, getattr(frame, 'frame_type')))
+        finally:
+            self.spdy_client.end_stream(stream_id)
 
     def on_syn_reply_frame(self, client, frame):
         if LOGGER.isEnabledFor(logging.DEBUG):
