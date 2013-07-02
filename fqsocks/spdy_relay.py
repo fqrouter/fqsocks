@@ -4,13 +4,13 @@ import sys
 import base64
 
 import gevent
-import gevent.queue
 import spdy.context
 import spdy.frames
 
 from http_try import recv_and_parse_request
 from direct import Proxy
 from spdy_client import SpdyClient
+from spdy_client import SPDY_3
 
 
 LOGGER = logging.getLogger(__name__)
@@ -61,16 +61,25 @@ class SpdyRelayProxy(Proxy):
 
     def do_forward(self, client):
         recv_and_parse_request(client)
-        headers = {
-            ':method': client.method,
-            ':scheme': 'http',
-            ':path': client.path,
-            ':version': 'HTTP/1.1',
-            ':host': client.host
-        }
+        if SPDY_3 == self.spdy_client.spdy_version:
+            headers = {
+                ':method': client.method,
+                ':scheme': 'http',
+                ':path': client.path,
+                ':version': 'HTTP/1.1',
+                ':host': client.host
+            }
+        else:
+            headers = {
+                'method': client.method,
+                'scheme': 'http',
+                'url': client.url,
+                'version': 'HTTP/1.1',
+                'host': client.host
+            }
         if self.username and self.password:
             auth = base64.b64encode('%s:%s' % (self.username, self.password)).strip()
-            headers['proxy-authorization'] = 'Basic %s\r\n' % auth
+            headers['proxy-authorization'] = 'Basic %s' % auth
         for k, v in client.headers.items():
             headers[k.lower()] = v
         headers['connection'] = 'close'
@@ -91,8 +100,12 @@ class SpdyRelayProxy(Proxy):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] syn reply: %s' % (repr(client), frame.headers))
         headers = dict(frame.headers)
-        http_version = headers.pop(':version')
-        status = headers.pop(':status')
+        if SPDY_3 == self.spdy_client.spdy_version:
+            http_version = headers.pop(':version')
+            status = headers.pop(':status')
+        else:
+            http_version = headers.pop('version')
+            status = headers.pop('status')
         client.forward_started = True
         client.downstream_sock.sendall('%s %s\r\n' % (http_version, status))
         for k, v in headers.items():

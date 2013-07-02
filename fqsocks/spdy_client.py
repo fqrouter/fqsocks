@@ -15,6 +15,8 @@ LOGGER = logging.getLogger(__name__)
 
 LOCAL_INITIAL_WINDOW_SIZE = 65536
 WORKING = 'working'
+SPDY_3 = 3
+SPDY_2 = 2
 
 
 class SpdyClient(object):
@@ -24,8 +26,14 @@ class SpdyClient(object):
         self.sock = self.create_tcp_socket(ip, port, 3)
         self.tls_conn = tlslite.TLSConnection(self.sock)
         self.tls_conn.handshakeClientCert(nextProtos=['spdy/3'])
-        assert 'spdy/3' == self.tls_conn.next_proto
-        self.spdy_context = spdy.context.Context(spdy.context.CLIENT, version=3)
+        LOGGER.info('negotiated protocol: %s' % self.tls_conn.next_proto)
+        if 'spdy/2' == self.tls_conn.next_proto:
+            self.spdy_version = SPDY_2
+        elif 'spdy/3' == self.tls_conn.next_proto:
+            self.spdy_version = SPDY_3
+        else:
+            raise Exception('not spdy')
+        self.spdy_context = spdy.context.Context(spdy.context.CLIENT, version=self.spdy_version)
         self.remote_initial_window_size = 65536
         self.streams = {}
         self.send(spdy.frames.Settings(1, {spdy.frames.INITIAL_WINDOW_SIZE: (0, LOCAL_INITIAL_WINDOW_SIZE)}))
@@ -36,15 +44,16 @@ class SpdyClient(object):
             stream_id, client,
             upstream_window_size=self.remote_initial_window_size,
             downstream_window_size=LOCAL_INITIAL_WINDOW_SIZE,
-            send_cb=self.send)
+            send_cb=self.send,
+            spdy_version=self.spdy_version)
         self.streams[stream_id] = stream
-        self.send(spdy.frames.SynStream(stream_id, headers, version=3, flags=0))
+        self.send(spdy.frames.SynStream(stream_id, headers, version=self.spdy_version, flags=0))
         self.send(spdy.frames.DataFrame(stream_id, client.payload, flags=0))
         gevent.spawn(stream.poll_from_downstream)
         return stream_id
 
     def end_stream(self, stream_id):
-        self.send(spdy.frames.RstStream(stream_id, error_code=spdy.frames.CANCEL))
+        self.send(spdy.frames.RstStream(stream_id, error_code=spdy.frames.CANCEL, version=self.spdy_version))
         if stream_id in self.streams:
             del self.streams[stream_id]
 
@@ -126,7 +135,7 @@ class SpdyClient(object):
 
 
 class SpdyStream(object):
-    def __init__(self, stream_id, client, upstream_window_size, downstream_window_size, send_cb):
+    def __init__(self, stream_id, client, upstream_window_size, downstream_window_size, send_cb, spdy_version):
         self.stream_id = stream_id
         self.upstream_frames = gevent.queue.Queue()
         self.client = client
@@ -138,6 +147,7 @@ class SpdyStream(object):
         self.received_bytes = 0
         self.request_content_length = sys.maxint
         self.response_content_length = sys.maxint
+        self.spdy_version = spdy_version
         self._done = False
 
     def send_to_downstream(self, data):
@@ -146,10 +156,12 @@ class SpdyStream(object):
             self.client.downstream_sock.sendall(data)
             self.upstream_frames.put(WORKING)
             self.received_bytes += len(data)
-            self.downstream_window_size -= len(data)
-            if self.downstream_window_size < 65536 / 2:
-                self.send_cb(spdy.frames.WindowUpdate(self.stream_id, 65536 - self.downstream_window_size))
-                self.downstream_window_size = 65536
+            if self.spdy_version == SPDY_3:
+                self.downstream_window_size -= len(data)
+                if self.downstream_window_size < 65536 / 2:
+                    self.send_cb(spdy.frames.WindowUpdate(
+                        self.stream_id, 65536 - self.downstream_window_size, version=SPDY_3))
+                    self.downstream_window_size = 65536
         except socket.error:
             self._done = True
         except:
@@ -157,9 +169,10 @@ class SpdyStream(object):
             LOGGER.exception('[%s] failed to send to downstream' % repr(self.client))
 
     def update_upstream_window(self, delta_window_size):
-        self.upstream_window_size += delta_window_size
-        if self.upstream_window_size > 0:
-            self.remote_ready.set()
+        if self.spdy_version == SPDY_3:
+            self.upstream_window_size += delta_window_size
+            if self.upstream_window_size > 0:
+                self.remote_ready.set()
 
     def poll_from_downstream(self):
         try:
@@ -173,10 +186,11 @@ class SpdyStream(object):
                         self.upstream_frames.put(WORKING)
                         self.send_cb(spdy.frames.DataFrame(self.stream_id, data, flags=0))
                         self.sent_bytes += len(data)
-                        self.upstream_window_size -= len(data)
-                        if self.upstream_window_size <= 0:
-                            self.remote_ready.clear()
-                            self.remote_ready.wait()
+                        if self.spdy_version == SPDY_3:
+                            self.upstream_window_size -= len(data)
+                            if self.upstream_window_size <= 0:
+                                self.remote_ready.clear()
+                                self.remote_ready.wait()
                     else:
                         self._done = True
                         return

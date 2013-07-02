@@ -3,12 +3,12 @@ import socket
 import base64
 
 import gevent
-import gevent.queue
 import spdy.context
 import spdy.frames
 
 from direct import Proxy
 from spdy_client import SpdyClient
+from spdy_client import SPDY_3
 
 
 LOGGER = logging.getLogger(__name__)
@@ -58,16 +58,25 @@ class SpdyConnectProxy(Proxy):
             self.spdy_client = None
 
     def do_forward(self, client):
-        headers = {
-            ':method': 'CONNECT',
-            ':scheme': 'https',
-            ':path': '%s:%s' % (client.dst_ip, client.dst_port),
-            ':version': 'HTTP/1.1',
-            ':host': '%s:%s' % (client.dst_ip, client.dst_port)
-        }
+        if SPDY_3 == self.spdy_client.spdy_version:
+            headers = {
+                ':method': 'CONNECT',
+                ':scheme': 'https',
+                ':path': '%s:%s' % (client.dst_ip, client.dst_port),
+                ':version': 'HTTP/1.1',
+                ':host': '%s:%s' % (client.dst_ip, client.dst_port)
+            }
+        else:
+            headers = {
+                'method': 'CONNECT',
+                'scheme': 'https',
+                'url': '%s:%s' % (client.dst_ip, client.dst_port),
+                'version': 'HTTP/1.1',
+                'host': '%s:%s' % (client.dst_ip, client.dst_port)
+            }
         if self.username and self.password:
             auth = base64.b64encode('%s:%s' % (self.username, self.password)).strip()
-            headers['proxy-authorization'] = 'Basic %s\r\n' % auth
+            headers['proxy-authorization'] = 'Basic %s' % auth
         client.payload = client.peeked_data
         stream_id = self.spdy_client.open_stream(headers, client)
         self.spdy_client.poll_stream(stream_id, self.on_frame)
@@ -85,7 +94,10 @@ class SpdyConnectProxy(Proxy):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] syn reply: %s' % (repr(client), frame.headers))
         headers = dict(frame.headers)
-        status = headers.pop(':status')
+        if SPDY_3 == self.spdy_client.spdy_version:
+            status = headers.pop(':status')
+        else:
+            status = headers.pop('status')
         if not status.startswith('200'):
             LOGGER.error('[%s] proxy rejected CONNECT: %s' % (repr(client), status))
             self.died = True
