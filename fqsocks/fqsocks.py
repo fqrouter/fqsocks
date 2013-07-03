@@ -581,7 +581,11 @@ def main(argv):
         signal.signal(signal.SIGINT, lambda signum, fame: teardown_development_env())
         atexit.register(teardown_development_env)
         setup_development_env()
-    gevent.monkey.patch_all()
+    gevent.monkey.patch_all(ssl=False)
+    try:
+        gevent.monkey.patch_ssl()
+    except:
+        LOGGER.exception('failed to patch ssl')
     greenlets = [gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies)]
     for greenlet in greenlets:
         greenlet.join()
