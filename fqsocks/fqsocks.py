@@ -28,6 +28,7 @@ import gevent.monkey
 
 import lan_ip
 import china_ip
+from direct import DirectProxy
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
 from direct import NONE_PROXY
@@ -261,6 +262,9 @@ def pick_proxy_and_forward(client):
                 break
             proxy = pick_proxy(client)
         proxy = proxy or DIRECT_PROXY
+        if is_direct_access_disabled() and isinstance(proxy, DirectProxy): # try disabled
+            LOGGER.info('[%s] no proxy available, and DIRECT has been disabled' % repr(client))
+            return
         if 'DIRECT' in proxy.flags:
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
         else:
@@ -274,12 +278,15 @@ def pick_proxy_and_forward(client):
         except NotHttp:
             client.tried_proxies[proxy] = 'not http'
             continue
-    LOGGER.error('[%s] fall back to direct after too many retries: %s' % (repr(client), client.tried_proxies))
-    try:
-        DIRECT_PROXY.forward(client)
-    except ProxyFallBack:
-        pass
+    if not is_direct_access_disabled():
+        LOGGER.error('[%s] fall back to direct after too many retries: %s' % (repr(client), client.tried_proxies))
+        try:
+            DIRECT_PROXY.forward(client)
+        except ProxyFallBack:
+            pass
 
+def is_direct_access_disabled():
+    return not HTTP_TRY_PROXY
 
 def pick_proxy(client):
     if mandatory_proxies:
@@ -538,9 +545,9 @@ def main(argv):
     argument_parser.add_argument(
         '--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
     argument_parser.add_argument('--google-host', action='append', default=[])
-    argument_parser.add_argument('--disable-china-optimization', action='store_true')
+    argument_parser.add_argument('--disable-china-shortcut', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
-    argument_parser.add_argument('--disable-try', action='store_true')
+    argument_parser.add_argument('--disable-direct-access', action='store_true')
     argument_parser.add_argument('--http-request-mark')
     argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
     args = argument_parser.parse_args(argv)
@@ -552,9 +559,9 @@ def main(argv):
     OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
-    if not args.disable_china_optimization:
+    if not args.disable_china_shortcut:
         CHINA_PROXY = DIRECT_PROXY
-    if args.disable_try:
+    if args.disable_direct_access:
         HTTP_TRY_PROXY = None
         HTTPS_TRY_PROXY = None
     if HTTP_TRY_PROXY:
