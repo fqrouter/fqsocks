@@ -22,10 +22,18 @@ SPDY_2 = 2
 class SpdyClient(object):
     create_tcp_socket = None
 
-    def __init__(self, ip, port):
+    def __init__(self, ip, port, requested_spdy_version):
         self.sock = self.create_tcp_socket(ip, port, 3)
         self.tls_conn = tlslite.TLSConnection(self.sock)
-        self.tls_conn.handshakeClientCert(nextProtos=['spdy/3'])
+        if 'auto' == requested_spdy_version:
+            nextProtos=['spdy/3', 'spdy/2']
+        elif 'spdy/2' == requested_spdy_version:
+            nextProtos=['spdy/2']
+        elif 'spdy/3' == requested_spdy_version:
+            nextProtos=['spdy/3']
+        else:
+            raise Exception('unknown requested spdy version: %s' % requested_spdy_version)
+        self.tls_conn.handshakeClientCert(nextProtos=nextProtos)
         LOGGER.info('negotiated protocol: %s' % self.tls_conn.next_proto)
         if 'spdy/2' == self.tls_conn.next_proto:
             self.spdy_version = SPDY_2

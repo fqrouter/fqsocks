@@ -15,13 +15,15 @@ LOGGER = logging.getLogger(__name__)
 
 
 class SpdyConnectProxy(Proxy):
-    def __init__(self, proxy_ip, proxy_port, username=None, password=None, is_public=False):
+    def __init__(self, proxy_ip, proxy_port, requested_spdy_version='auto',
+                 username=None, password=None, is_public=False):
         super(SpdyConnectProxy, self).__init__()
         self.proxy_ip = socket.gethostbyname(proxy_ip)
         self.proxy_port = proxy_port
         self.username = username
         self.password = password
         self.spdy_client = None
+        self.requested_spdy_version = requested_spdy_version
         if is_public:
             self.flags.add('PUBLIC')
         self.died = True
@@ -29,8 +31,11 @@ class SpdyConnectProxy(Proxy):
 
     def connect(self):
         try:
-            if self.loop_greenlet:
-                self.loop_greenlet.kill()
+            try:
+                if self.loop_greenlet:
+                    self.loop_greenlet.kill()
+            except:
+                pass
             self.loop_greenlet = gevent.spawn(self.loop)
         except:
             LOGGER.exception('failed to connect spdy-connect proxy: %s' % self)
@@ -40,7 +45,7 @@ class SpdyConnectProxy(Proxy):
         try:
             while True:
                 self.close()
-                self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port)
+                self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
                 self.died = False
                 try:
                     self.spdy_client.loop()
