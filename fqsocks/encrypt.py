@@ -42,32 +42,14 @@ def get_table(key):
         table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
     return table
 
-encrypt_tables = {}
-decrypt_tables = {}
+tables = {}
 
-
-def init_table(key, method=None):
-    if method == 'table':
-        method = None
-    if method:
-        try:
-            __import__('M2Crypto')
-        except ImportError:
-            logging.error('M2Crypto is required to use encryption other than default method')
-            sys.exit(1)
-    if not method:
+def init_table(key):
+    if key not in tables:
         encrypt_table = ''.join(get_table(key))
-        encrypt_tables[(key, method)] = encrypt_table
         decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
-        decrypt_tables[(key, method)] = decrypt_table
-    else:
-        encrypt_tables[(key, method)] = ''
-        decrypt_tables[(key, method)] = ''
-        try:
-            Encryptor(key, method)  # make an Encryptor to test if the settings if OK
-        except Exception as e:
-            logging.error(e)
-            sys.exit(1)
+        tables[key] = (encrypt_table, decrypt_table)
+    return tables[key]
 
 
 def EVP_BytesToKey(password, key_len, iv_len):
@@ -117,10 +99,12 @@ class Encryptor(object):
         self.iv_sent = False
         self.cipher_iv = ''
         self.decipher = None
-        if method is not None:
+        if method:
             self.cipher = self.get_cipher(key, method, 1, iv=random_string(32))
+            self.encrypt_table, self.decrypt_table = None, None
         else:
             self.cipher = None
+            self.encrypt_table, self.decrypt_table = init_table(key)
 
     def get_cipher_len(self, method):
         method = method.lower()
@@ -149,27 +133,19 @@ class Encryptor(object):
     def encrypt(self, buf):
         if len(buf) == 0:
             return buf
-        if self.method is None:
-            if self.key not in encrypt_tables:
-                init_table(self.key, self.method)
-            encrypt_table = encrypt_tables[(self.key, self.method)]
-            return string.translate(buf, encrypt_table)
-        else:
+        if self.cipher:
             if self.iv_sent:
                 return self.cipher.update(buf)
             else:
                 self.iv_sent = True
                 return self.cipher_iv + self.cipher.update(buf)
+        else:
+            return string.translate(buf, self.encrypt_table)
 
     def decrypt(self, buf):
         if len(buf) == 0:
             return buf
-        if self.method is None:
-            if self.key not in decrypt_tables:
-                init_table(self.key, self.method)
-            decrypt_table = decrypt_tables[(self.key, self.method)]
-            return string.translate(buf, decrypt_table)
-        else:
+        if self.cipher:
             if self.decipher is None:
                 decipher_iv_len = self.get_cipher_len(self.method)[1]
                 decipher_iv = buf[:decipher_iv_len]
@@ -178,3 +154,5 @@ class Encryptor(object):
                 if len(buf) == 0:
                     return buf
             return self.decipher.update(buf)
+        else:
+            return string.translate(buf, self.decrypt_table)
