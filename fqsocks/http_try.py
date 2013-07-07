@@ -50,6 +50,8 @@ class HttpTryProxy(Proxy):
             try_receive_response(client, upstream_sock, reads_all=True)
         if is_payload_complete:
             response = try_receive_response(client, upstream_sock, rejects_error=('GET' == client.method))
+            if do_inject and len(response) < 10:
+                client.fall_back('response is too small: %s' % response)
             client.forward_started = True
             client.downstream_sock.sendall(response)
         if HTTP_TRY_PROXY.http_request_mark:
