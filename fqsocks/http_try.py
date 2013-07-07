@@ -29,10 +29,10 @@ class HttpTryProxy(Proxy):
             return
         client.direct_connection_succeeded()
         is_payload_complete = recv_and_parse_request(client)
-        do_inject = self.enable_youtube_scrambler and is_payload_complete and 'youtube.com' in client.host
+        do_inject = self.enable_youtube_scrambler and is_payload_complete and ('youtube.com' in client.host or 'ytimg.com' in client.host)
         if do_inject:
             LOGGER.info('[%s] scramble youtube traffic' % repr(client))
-            request_data = 'GET http://www.google.com.hk/ HTTP/1.1\r\n\r\n\r\n'
+            request_data = 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n'
             client.headers['Connection'] = 'close'
         else:
             request_data = ''
