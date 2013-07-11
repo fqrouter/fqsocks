@@ -43,6 +43,8 @@ from spdy_client import SpdyClient
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 from ssh import SshProxy
+import httpd
+import httplib
 
 
 proxy_types = {
@@ -87,6 +89,15 @@ REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
 CHECK_ACCESS = True
 SPI = {}
+dns_polluted_at = 0
+
+
+def get_dns_polluted_at(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    yield str(dns_polluted_at)
+
+
+httpd.HANDLERS[('GET', 'dns-polluted-at')] = get_dns_polluted_at
 
 
 class ProxyClient(object):
@@ -235,6 +246,7 @@ SPI['get_original_destination'] = _get_original_destination
 
 
 def pick_proxy_and_forward(client):
+    global dns_polluted_at
     if lan_ip.is_lan_traffic(client.src_ip, client.dst_ip):
         try:
             DIRECT_PROXY.forward(client)
@@ -243,6 +255,7 @@ def pick_proxy_and_forward(client):
         return
     if client.dst_ip in fqdns.BUILTIN_WRONG_ANSWERS():
         LOGGER.error('[%s] destination is GFW wrong answer' % repr(client))
+        dns_polluted_at = time.time()
         NONE_PROXY.forward(client)
         return
     if CHINA_PROXY and china_ip.is_china_ip(client.dst_ip):
@@ -593,7 +606,7 @@ def main(argv):
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
-    greenlets = [gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies)]
+    greenlets = [gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies), gevent.spawn(httpd.serve_forever)]
     for greenlet in greenlets:
         greenlet.join()
 
