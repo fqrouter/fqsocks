@@ -81,7 +81,11 @@ class GoAgentProxy(Proxy):
         _goagent.socket.socket = None
         _goagent.http_util.dns_resolve = lambda *args, **kwargs: cls.GOOGLE_IPS
         cls.proxies = proxies
-        return cls.resolve_google_ips(create_tcp_socket)
+        resolved_google_ips = cls.resolve_google_ips(create_tcp_socket)
+        if not resolved_google_ips:
+            for proxy in proxies:
+                proxy.died = True
+        return resolved_google_ips
 
     @classmethod
     def resolve_google_ips(cls, create_tcp_socket):
