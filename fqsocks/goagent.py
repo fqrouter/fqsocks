@@ -10,8 +10,9 @@ import fnmatch
 import ssl
 import urllib
 import _goagent # local/proxy.py from goagent
-
+import dpkt
 import gevent.queue
+import random
 
 from direct import Proxy
 from http_try import recv_and_parse_request
@@ -81,14 +82,14 @@ class GoAgentProxy(Proxy):
         _goagent.socket.socket = None
         _goagent.http_util.dns_resolve = lambda *args, **kwargs: cls.GOOGLE_IPS
         cls.proxies = proxies
-        resolved_google_ips = cls.resolve_google_ips(create_tcp_socket)
+        resolved_google_ips = cls.resolve_google_ips(create_udp_socket, create_tcp_socket)
         if not resolved_google_ips:
             for proxy in proxies:
                 proxy.died = True
         return resolved_google_ips
 
     @classmethod
-    def resolve_google_ips(cls, create_tcp_socket):
+    def resolve_google_ips(cls, create_udp_socket, create_tcp_socket):
         if cls.GOOGLE_IPS:
             return True
         LOGGER.info('resolving google ips from %s' % cls.GOOGLE_HOSTS)
@@ -98,7 +99,7 @@ class GoAgentProxy(Proxy):
             if re.match(r'\d+\.\d+\.\d+\.\d+', host):
                 selected_ips.add(host)
             else:
-                ips = resolve_google_ips(host)
+                ips = resolve_google_ips(host, create_udp_socket)
                 if len(ips) > 1:
                     all_ips |= set(ips)
         if not selected_ips and not all_ips:
@@ -134,10 +135,16 @@ class GoAgentProxy(Proxy):
         return 'GoAgentProxy[%s]' % self.appid
 
 
-def resolve_google_ips(host):
+def resolve_google_ips(host, create_udp_socket):
     for i in range(3):
         try:
-            return gevent.spawn(socket.gethostbyname_ex, host).get(timeout=3)[-1]
+            sock = create_udp_socket()
+            sock.settimeout(3)
+            request = dpkt.dns.DNS(
+                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=host, type=dpkt.dns.DNS_A)])
+            sock.sendto(str(request), ('8.8.8.8', 53))
+            resposne = dpkt.dns.DNS(sock.recv(1024))
+            return [socket.inet_ntoa(an.ip) for an in resposne.an]
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('failed to resolve google ips', exc_info=1)
