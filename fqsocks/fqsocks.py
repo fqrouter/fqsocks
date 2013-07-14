@@ -35,6 +35,7 @@ from direct import NONE_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
+from goagent import resolve_ips
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
 from spdy_relay import SpdyRelayProxy
@@ -298,8 +299,10 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
 
+
 def is_direct_access_disabled():
     return not HTTP_TRY_PROXY
+
 
 def pick_proxy(client):
     if mandatory_proxies:
@@ -340,6 +343,8 @@ def pick_proxy(client):
 
 
 def get_dst_color(ip, port):
+    if ip in ip_black_list:
+        return 'BLACK'
     dst = (ip, port)
     if dst in direct_connection_successes:
         return 'WHITE'
@@ -427,6 +432,21 @@ def refresh_proxies():
         check_access_many_times('http://www.youtube.com', 5)
         check_access_many_times('http://www.facebook.com', 5)
     return success
+
+
+def resolve_black_ips(black_ip_or_domains):
+    for black_ip_or_domain in black_ip_or_domains:
+        try:
+            if re.match(r'\d+\.\d+\.\d+\.\d+', black_ip_or_domain):
+                LOGGER.info('black ip: %s' % black_ip_or_domain)
+                ip_black_list.add(black_ip_or_domain)
+            else:
+                ips = resolve_ips('android.clients.google.com', create_udp_socket)
+                LOGGER.info('black domain: %s => %s' % (black_ip_or_domain, ips))
+                for ip in ips:
+                    ip_black_list.add(ip)
+        except:
+            LOGGER.exception('failed to resolve black ips: %s' % black_ip_or_domain)
 
 
 def check_access_many_times(url, times):
@@ -563,6 +583,7 @@ def main(argv):
     argument_parser.add_argument('--disable-direct-access', action='store_true')
     argument_parser.add_argument('--http-request-mark')
     argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
+    argument_parser.add_argument('--black-ip', action='append', default=[])
     args = argument_parser.parse_args(argv)
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
@@ -606,7 +627,9 @@ def main(argv):
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
-    greenlets = [gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies), gevent.spawn(httpd.serve_forever)]
+    greenlets = [
+        gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
+        gevent.spawn(httpd.serve_forever), gevent.spawn(resolve_black_ips, args.black_ip)]
     for greenlet in greenlets:
         greenlet.join()
 

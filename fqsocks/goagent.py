@@ -85,7 +85,7 @@ class GoAgentProxy(Proxy):
         resolved_google_ips = cls.resolve_google_ips(create_udp_socket, create_tcp_socket)
         if not resolved_google_ips:
             for proxy in proxies:
-                proxy.died = True
+                proxy.died = not resolved_google_ips
         return resolved_google_ips
 
     @classmethod
@@ -99,7 +99,7 @@ class GoAgentProxy(Proxy):
             if re.match(r'\d+\.\d+\.\d+\.\d+', host):
                 selected_ips.add(host)
             else:
-                ips = resolve_google_ips(host, create_udp_socket)
+                ips = resolve_ips(host, create_udp_socket)
                 if len(ips) > 1:
                     all_ips |= set(ips)
         if not selected_ips and not all_ips:
@@ -135,7 +135,7 @@ class GoAgentProxy(Proxy):
         return 'GoAgentProxy[%s]' % self.appid
 
 
-def resolve_google_ips(host, create_udp_socket):
+def resolve_ips(host, create_udp_socket):
     for i in range(3):
         try:
             sock = create_udp_socket()
@@ -144,7 +144,7 @@ def resolve_google_ips(host, create_udp_socket):
                 id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=host, type=dpkt.dns.DNS_A)])
             sock.sendto(str(request), ('8.8.8.8', 53))
             response = dpkt.dns.DNS(sock.recv(1024))
-            return [socket.inet_ntoa(an.ip) for an in response.an]
+            return [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('failed to resolve google ips', exc_info=1)
