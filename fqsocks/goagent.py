@@ -143,8 +143,8 @@ def resolve_google_ips(host, create_udp_socket):
             request = dpkt.dns.DNS(
                 id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=host, type=dpkt.dns.DNS_A)])
             sock.sendto(str(request), ('8.8.8.8', 53))
-            resposne = dpkt.dns.DNS(sock.recv(1024))
-            return [socket.inet_ntoa(an.ip) for an in resposne.an]
+            response = dpkt.dns.DNS(sock.recv(1024))
+            return [socket.inet_ntoa(an.ip) for an in response.an]
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('failed to resolve google ips', exc_info=1)
