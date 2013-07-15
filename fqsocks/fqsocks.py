@@ -81,7 +81,11 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.t.co',
     't.co',
     '*.twimg.com',
-    'twimg.com'
+    'twimg.com',
+    'hulu.com',
+    '*.hulu.com'
+    'netflix.com',
+    '*.netflix.com'
 }
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
