@@ -35,17 +35,16 @@ from direct import NONE_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from goagent import GoAgentProxy
-from goagent import resolve_ips
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
 from spdy_relay import SpdyRelayProxy
 from spdy_connect import SpdyConnectProxy
-from spdy_client import SpdyClient
 from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 from ssh import SshProxy
 import httpd
 import httplib
+import networking
 
 
 proxy_types = {
@@ -59,7 +58,6 @@ proxy_types = {
     'ssh': SshProxy
 }
 LOGGER = logging.getLogger(__name__)
-SO_ORIGINAL_DST = 80
 
 mandatory_proxies = []
 proxies = []
@@ -71,7 +69,6 @@ TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
 LISTEN_IP = None
 LISTEN_PORT = None
-OUTBOUND_IP = None
 NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com',
     'google.com',
@@ -89,7 +86,6 @@ NO_DIRECT_PROXY_HOSTS = {
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
 CHECK_ACCESS = True
-SPI = {}
 dns_polluted_at = 0
 
 
@@ -120,7 +116,7 @@ class ProxyClient(object):
         self.forwarding_by = None
 
     def create_tcp_socket(self, server_ip, server_port, connect_timeout):
-        upstream_sock = create_tcp_socket(server_ip, server_port, connect_timeout)
+        upstream_sock = networking.create_tcp_socket(server_ip, server_port, connect_timeout)
         self.resources.append(upstream_sock)
         return upstream_sock
 
@@ -213,7 +209,7 @@ class ProxyFallBack(Exception):
 def handle(downstream_sock, address):
     src_ip, src_port = address
     try:
-        dst_ip, dst_port = get_original_destination(downstream_sock, src_ip, src_port)
+        dst_ip, dst_port = networking.get_original_destination(downstream_sock, src_ip, src_port)
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
         try:
             if LOGGER.isEnabledFor(logging.DEBUG):
@@ -231,19 +227,6 @@ def handle(downstream_sock, address):
     except:
         LOGGER.exception('failed to handle %s:%s' % (src_ip, src_port))
 
-
-def get_original_destination(sock, src_ip, src_port):
-    return SPI['get_original_destination'](sock, src_ip, src_port)
-
-
-def _get_original_destination(sock, src_ip, src_port):
-    dst = sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16)
-    dst_port, dst_ip = struct.unpack("!2xH4s8x", dst)
-    dst_ip = socket.inet_ntoa(dst_ip)
-    return dst_ip, dst_port
-
-
-SPI['get_original_destination'] = _get_original_destination
 
 
 def pick_proxy_and_forward(client):
@@ -416,7 +399,7 @@ def refresh_proxies():
     success = True
     for proxy_type, instances in type_to_proxies.items():
         try:
-            success = success and proxy_type.refresh(instances, create_udp_socket, create_tcp_socket)
+            success = success and proxy_type.refresh(instances)
         except:
             LOGGER.exception('failed to refresh proxies %s' % instances)
             success = False
@@ -441,7 +424,7 @@ def resolve_black_ips(black_ip_or_domains):
                 LOGGER.info('black ip: %s' % black_ip_or_domain)
                 ip_black_list.add(black_ip_or_domain)
             else:
-                ips = resolve_ips('android.clients.google.com', create_udp_socket)
+                ips = networking.resolve_ips('android.clients.google.com')
                 LOGGER.info('black domain: %s => %s' % (black_ip_or_domain, ips))
                 for ip in ips:
                     ip_black_list.add(ip)
@@ -481,13 +464,13 @@ def check_access(url):
 def setup_development_env():
     subprocess.check_call(
         'iptables -t nat -I OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
-        (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
+        (networking.OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
 
 def teardown_development_env():
     subprocess.check_call(
         'iptables -t nat -D OUTPUT -p tcp ! -s %s -j DNAT --to-destination %s:%s' %
-        (OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
+        (networking.OUTBOUND_IP, LISTEN_IP, LISTEN_PORT), shell=True)
 
 
 def start_server():
@@ -513,46 +496,6 @@ def keep_refreshing_proxies():
         gevent.sleep(REFRESH_INTERVAL)
 
 
-def create_tcp_socket(server_ip, server_port, connect_timeout):
-    return SPI['create_tcp_socket'](server_ip, server_port, connect_timeout)
-
-
-SshProxy.create_tcp_socket = staticmethod(create_tcp_socket)
-SpdyClient.create_tcp_socket = staticmethod(create_tcp_socket)
-
-
-def _create_tcp_socket(server_ip, server_port, connect_timeout):
-    sock = create_socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-    sock.setblocking(0)
-    sock.settimeout(connect_timeout)
-    try:
-        sock.connect((server_ip, server_port))
-    except:
-        sock.close()
-        raise
-    sock.settimeout(None)
-    return sock
-
-
-SPI['create_tcp_socket'] = _create_tcp_socket
-
-
-def create_udp_socket():
-    return SPI['create_udp_socket']()
-
-
-def _create_udp_socket():
-    return create_socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-
-SPI['create_udp_socket'] = _create_udp_socket
-
-
-def create_socket(*args, **kwargs):
-    sock = socket.socket(*args, **kwargs)
-    if OUTBOUND_IP:
-        sock.bind((OUTBOUND_IP, 0))
-    return sock
 
 
 def setup_logging(log_level, log_file=None):
@@ -567,7 +510,7 @@ def setup_logging(log_level, log_file=None):
 
 
 def main(argv):
-    global LISTEN_IP, LISTEN_PORT, OUTBOUND_IP, CHINA_PROXY, CHECK_ACCESS
+    global LISTEN_IP, LISTEN_PORT, CHINA_PROXY, CHECK_ACCESS
     global HTTP_TRY_PROXY, HTTPS_TRY_PROXY
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
@@ -590,7 +533,7 @@ def main(argv):
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
-    OUTBOUND_IP = args.outbound_ip
+    networking.OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
     if not args.disable_china_shortcut:

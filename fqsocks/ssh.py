@@ -4,13 +4,12 @@ import socket
 import logging
 import sys
 import os
+import networking
 
 LOGGER = logging.getLogger(__name__)
 
 
 class SshProxy(Proxy):
-    create_tcp_socket = None
-
     def __init__(self, proxy_ip, proxy_port=22, username=None, password=None, key_filename=None):
         super(SshProxy, self).__init__()
         self.proxy_ip = proxy_ip
@@ -26,7 +25,7 @@ class SshProxy(Proxy):
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.load_system_host_keys()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            sock = SshProxy.create_tcp_socket(socket.gethostbyname(self.proxy_ip), self.proxy_port, 3)
+            sock = networking.create_tcp_socket(socket.gethostbyname(self.proxy_ip), self.proxy_port, 3)
             self.key_filename = self.key_filename or '/data/data/fq.router2/etc/ssh/%s' % self.proxy_ip
             if not os.path.exists(self.key_filename):
                 self.key_filename = None
@@ -65,7 +64,7 @@ class SshProxy(Proxy):
             'direct-tcpip', (client.dst_ip, client.dst_port), (client.src_ip, client.src_port))
 
     @classmethod
-    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
+    def refresh(cls, proxies):
         for proxy in proxies:
             proxy.connect()
         return True

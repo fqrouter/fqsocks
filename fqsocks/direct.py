@@ -23,7 +23,7 @@ class Proxy(object):
         raise NotImplementedError()
 
     @classmethod
-    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
+    def refresh(cls, proxies):
         return True
 
     def is_protocol_supported(self, protocol):

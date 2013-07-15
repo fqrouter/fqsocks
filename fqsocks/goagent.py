@@ -7,13 +7,13 @@ import sys
 import re
 import functools
 import fnmatch
-import ssl
 import urllib
 import _goagent # local/proxy.py from goagent
-import dpkt
-import gevent.queue
-import random
 
+import ssl
+import gevent.queue
+
+import networking
 from direct import Proxy
 from http_try import recv_and_parse_request
 
@@ -77,19 +77,19 @@ class GoAgentProxy(Proxy):
         return 'HTTP' == protocol
 
     @classmethod
-    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
+    def refresh(cls, proxies):
         _goagent.socket = FakeSocketModule()
         _goagent.socket.socket = None
         _goagent.http_util.dns_resolve = lambda *args, **kwargs: cls.GOOGLE_IPS
         cls.proxies = proxies
-        resolved_google_ips = cls.resolve_google_ips(create_udp_socket, create_tcp_socket)
+        resolved_google_ips = cls.resolve_google_ips()
         if not resolved_google_ips:
             for proxy in proxies:
                 proxy.died = not resolved_google_ips
         return resolved_google_ips
 
     @classmethod
-    def resolve_google_ips(cls, create_udp_socket, create_tcp_socket):
+    def resolve_google_ips(cls):
         if cls.GOOGLE_IPS:
             return True
         LOGGER.info('resolving google ips from %s' % cls.GOOGLE_HOSTS)
@@ -99,7 +99,7 @@ class GoAgentProxy(Proxy):
             if re.match(r'\d+\.\d+\.\d+\.\d+', host):
                 selected_ips.add(host)
             else:
-                ips = resolve_ips(host, create_udp_socket)
+                ips = networking.resolve_ips(host)
                 if len(ips) > 1:
                     all_ips |= set(ips)
         if not selected_ips and not all_ips:
@@ -109,7 +109,7 @@ class GoAgentProxy(Proxy):
         greenlets = []
         try:
             for ip in all_ips:
-                greenlets.append(gevent.spawn(test_google_ip, queue, create_tcp_socket, ip))
+                greenlets.append(gevent.spawn(test_google_ip, queue, ip))
             deadline = time.time() + 5
             for i in range(min(3, len(all_ips))):
                 try:
@@ -135,25 +135,10 @@ class GoAgentProxy(Proxy):
         return 'GoAgentProxy[%s]' % self.appid
 
 
-def resolve_ips(host, create_udp_socket):
-    for i in range(3):
-        try:
-            sock = create_udp_socket()
-            sock.settimeout(3)
-            request = dpkt.dns.DNS(
-                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=host, type=dpkt.dns.DNS_A)])
-            sock.sendto(str(request), ('8.8.8.8', 53))
-            response = dpkt.dns.DNS(sock.recv(1024))
-            return [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
-        except:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('failed to resolve google ips', exc_info=1)
-    return []
 
-
-def test_google_ip(queue, create_tcp_socket, ip):
+def test_google_ip(queue, ip):
     try:
-        sock = create_tcp_socket(ip, 443, 5)
+        sock = networking.create_tcp_socket(ip, 443, 5)
         ssl_sock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_TLSv1)
         try:
             ssl_sock.do_handshake()

@@ -123,7 +123,7 @@ class SpdyRelayProxy(Proxy):
 
 
     @classmethod
-    def refresh(cls, proxies, create_udp_socket, create_tcp_socket):
+    def refresh(cls, proxies):
         for proxy in proxies:
             proxy.connect()
         return True

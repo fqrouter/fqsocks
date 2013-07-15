@@ -9,6 +9,7 @@ import spdy.frames
 import sys
 import logging
 import socket
+import networking
 
 
 LOGGER = logging.getLogger(__name__)
@@ -20,10 +21,8 @@ SPDY_2 = 2
 
 
 class SpdyClient(object):
-    create_tcp_socket = None
-
     def __init__(self, ip, port, requested_spdy_version):
-        self.sock = self.create_tcp_socket(ip, port, 3)
+        self.sock = networking.create_tcp_socket(ip, port, 3)
         self.tls_conn = tlslite.TLSConnection(self.sock)
         if 'auto' == requested_spdy_version:
             nextProtos=['spdy/3', 'spdy/2']
