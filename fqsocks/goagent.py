@@ -225,6 +225,9 @@ def forward(client, proxy, appids):
         if response.app_status == 302:
             proxy.died = True
             client.fall_back('goagent server 302 moved')
+        if response.app_status == 403 and 'youtube.com' in client.url:
+            proxy.died = True
+            client.fall_back('goagent server %s banned youtube' % proxy)
         if response.app_status != 200:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
