@@ -326,7 +326,10 @@ def pick_proxy(client):
         else:
             return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
     else:
-        return None
+        if 'BLACK' == dst_color:
+            return pick_proxy_supports(client, 'TCP')
+        else:
+            return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
 
 
 def get_dst_color(ip, port):

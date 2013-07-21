@@ -102,11 +102,11 @@ class DynamicProxy(Proxy):
 
 
 def resolve_proxy(proxy):
-    for i in range(3):
+    for i in range(10):
         try:
             sock = networking.create_udp_socket()
             with contextlib.closing(sock):
-                sock.settimeout(3)
+                sock.settimeout(2)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
                 sock.sendto(str(request), networking.pick_dns_server())
@@ -130,7 +130,7 @@ def resolve_proxy(proxy):
                 LOGGER.debug('failed to resolve proxy: %s' % repr(proxy), exc_info=1)
             else:
                 LOGGER.info('failed to resolve proxy: %s %s' % (repr(proxy), sys.exc_info()[1]))
-        gevent.sleep(1)
+        gevent.sleep(0.5)
     LOGGER.error('give up resolving proxy: %s' % repr(proxy))
     return False
 
