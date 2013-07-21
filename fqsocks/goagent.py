@@ -9,18 +9,22 @@ import functools
 import fnmatch
 import urllib
 import _goagent # local/proxy.py from goagent
-
+import httplib
 import ssl
 import gevent.queue
+import random
 
 import networking
 from direct import Proxy
 from http_try import recv_and_parse_request
+import contextlib
+import re
 
 
 LOGGER = logging.getLogger(__name__)
 _goagent.logging = LOGGER
 
+RE_VERSION = re.compile(r'\d+\.\d+\.\d+')
 SKIP_HEADERS = frozenset(
     ['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization', 'Proxy-Connection', 'Upgrade', 'X-Chrome-Variations',
      'Connection', 'Cache-Control'])
@@ -66,6 +70,23 @@ class GoAgentProxy(Proxy):
         self.validate = validate
         if not self.appid:
             self.died = True
+        self.version = 'UNKNOWN'
+
+    def query_version(self):
+        try:
+            sock = networking.create_tcp_socket(random.choice(list(self.GOOGLE_IPS)), 443, 3)
+            sock.settimeout(3)
+            with contextlib.closing(sock):
+                sock = ssl.wrap_socket(sock)
+                with contextlib.closing(sock):
+                    sock.sendall('GET https://%s.appspot.com/2 HTTP/1.1\r\n\r\n\r\n' % self.appid)
+                    # sock.sendall('GET /2 HTTP/1.1\r\nHost: %s.appspot.com\r\nContent-Length: 0\r\n\r\n' % self.appid)
+                    match = RE_VERSION.search(sock.recv(8192))
+                    if match:
+                        self.version = match.group(0)
+                        LOGGER.info('resolved appid version: %s' % self)
+        except:
+            LOGGER.exception('failed to query goagent %s version' % self.appid)
 
     def do_forward(self, client):
         recv_and_parse_request(client)
@@ -83,7 +104,10 @@ class GoAgentProxy(Proxy):
         _goagent.http_util.dns_resolve = lambda *args, **kwargs: cls.GOOGLE_IPS
         cls.proxies = proxies
         resolved_google_ips = cls.resolve_google_ips()
-        if not resolved_google_ips:
+        if resolved_google_ips:
+            for proxy in proxies:
+                proxy.query_version()
+        else:
             for proxy in proxies:
                 proxy.died = not resolved_google_ips
         return resolved_google_ips
@@ -132,7 +156,7 @@ class GoAgentProxy(Proxy):
                 greenlet.kill(block=False)
 
     def __repr__(self):
-        return 'GoAgentProxy[%s]' % self.appid
+        return 'GoAgentProxy[%s ver %s]' % (self.appid, self.version)
 
 
 
@@ -228,7 +252,11 @@ def forward(client, proxy, appids):
         else:
             start, end, length = 0, content_length-1, content_length
         while 1:
-            data = response.read(8192)
+            try:
+                data = response.read(8192)
+            except httplib.IncompleteRead as e:
+                LOGGER.error('incomplete read: %s' % e.partial)
+                raise
             if not data:
                 response.close()
                 return
