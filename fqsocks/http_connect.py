@@ -68,6 +68,7 @@ class HttpConnectProxy(Proxy):
                          (repr(client), response.splitlines()[0] if response.splitlines() else 'unknown'))
             self.died = True
             client.fall_back(response.splitlines()[0] if response.splitlines() else 'unknown')
+        self.failed_times = 0
 
     def report_failure(self, client, reason):
         self.failed_times += 1

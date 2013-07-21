@@ -60,6 +60,7 @@ class HttpRelayProxy(Proxy):
         if HTTP_TRY_PROXY.http_request_mark:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         client.forward(upstream_sock)
+        self.failed_times = 0
 
     def report_failure(self, client, reason):
         self.failed_times += 1

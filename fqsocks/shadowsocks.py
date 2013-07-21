@@ -33,6 +33,7 @@ class ShadowSocksProxy(Proxy):
         upstream_sock.sendall(encryptor.encrypt(addr_to_send))
         upstream_sock.sendall(encryptor.encrypt(client.peeked_data))
         client.forward(upstream_sock, encrypt=encryptor.encrypt, decrypt=encryptor.decrypt)
+        self.failed_times = 0
 
 
     def is_protocol_supported(self, protocol):
