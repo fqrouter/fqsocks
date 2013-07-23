@@ -85,7 +85,9 @@ NO_DIRECT_PROXY_HOSTS = {
     'hulu.com',
     '*.hulu.com'
     'netflix.com',
-    '*.netflix.com'
+    '*.netflix.com',
+    'skype.com',
+    '*.skype.com'
 }
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
