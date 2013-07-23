@@ -64,8 +64,9 @@ class DynamicProxy(Proxy):
         greenlets = []
         for proxy in proxies:
             greenlets.append(gevent.spawn(resolve_proxy, proxy))
+            gevent.sleep(0.1)
         success_count = 0
-        deadline = time.time() + 10
+        deadline = time.time() + 30
         for greenlet in greenlets:
             try:
                 timeout = deadline - time.time()
@@ -102,11 +103,11 @@ class DynamicProxy(Proxy):
 
 
 def resolve_proxy(proxy):
-    for i in range(10):
+    for i in range(5):
         try:
             sock = networking.create_udp_socket()
             with contextlib.closing(sock):
-                sock.settimeout(2)
+                sock.settimeout(1.5)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
                 sock.sendto(str(request), networking.pick_dns_server())
