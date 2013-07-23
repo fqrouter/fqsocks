@@ -333,6 +333,8 @@ def pick_proxy(client):
 
 
 def get_dst_color(ip, port):
+    if 53 == port:
+        return 'BLACK'
     if ip in ip_black_list:
         return 'BLACK'
     dst = (ip, port)
