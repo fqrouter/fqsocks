@@ -19,7 +19,9 @@ class Proxy(object):
         LOGGER.info('resolving proxy host: %s' % self.proxy_host)
         ips = networking.resolve_ips(self.proxy_host)
         if not ips:
-            raise Exception('failed to resolve: %s' % self.proxy_host)
+            LOGGER.error('failed to resolve: %s' % self.proxy_host)
+            self._proxy_ip = '0.0.0.0'
+            return self._proxy_ip
         self._proxy_ip = ips[0]
         return self._proxy_ip
 
