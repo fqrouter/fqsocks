@@ -64,7 +64,6 @@ class DynamicProxy(Proxy):
         greenlets = []
         for proxy in proxies:
             greenlets.append(gevent.spawn(resolve_proxy, proxy))
-            gevent.sleep(0.1)
         success_count = 0
         deadline = time.time() + 30
         for greenlet in greenlets:

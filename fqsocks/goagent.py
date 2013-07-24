@@ -106,7 +106,7 @@ class GoAgentProxy(Proxy):
         resolved_google_ips = cls.resolve_google_ips()
         if resolved_google_ips:
             for proxy in proxies:
-                proxy.query_version()
+                gevent.spawn(proxy.query_version)
         else:
             for proxy in proxies:
                 proxy.died = not resolved_google_ips
