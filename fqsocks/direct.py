@@ -1,4 +1,5 @@
 import logging
+import networking
 
 LOGGER = logging.getLogger(__name__)
 
@@ -9,6 +10,18 @@ class Proxy(object):
         self.died = False
         self.flags = set()
         self.priority = 0
+        self._proxy_ip = None
+
+    @property
+    def proxy_ip(self):
+        if self._proxy_ip:
+            return self._proxy_ip
+        LOGGER.info('resolving proxy host: %s' % self.proxy_host)
+        ips = networking.resolve_ips(self.proxy_host)
+        if not ips:
+            raise Exception('failed to resolve: %s' % self.proxy_host)
+        self._proxy_ip = ips[0]
+        return self._proxy_ip
 
     def forward(self, client):
         client.forwarding_by = self

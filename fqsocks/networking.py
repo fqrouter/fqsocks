@@ -5,6 +5,7 @@ import logging
 import random
 import contextlib
 import gevent
+import re
 
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
@@ -30,10 +31,6 @@ DNS_SERVERS = [
 
 def create_tcp_socket(server_ip, server_port, connect_timeout):
     return SPI['create_tcp_socket'](server_ip, server_port, connect_timeout)
-
-
-# SshProxy.create_tcp_socket = staticmethod(create_tcp_socket)
-# SpdyClient.create_tcp_socket = staticmethod(create_tcp_socket)
 
 
 def _create_tcp_socket(server_ip, server_port, connect_timeout):
@@ -85,6 +82,8 @@ SPI['get_original_destination'] = _get_original_destination
 
 
 def resolve_ips(host):
+    if re.match(r'\d+\.\d+\.\d+\.\d+', host):
+        return [host]
     for i in range(3):
         try:
             sock = create_udp_socket()

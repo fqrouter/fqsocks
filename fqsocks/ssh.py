@@ -10,9 +10,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class SshProxy(Proxy):
-    def __init__(self, proxy_ip, proxy_port=22, username=None, password=None, key_filename=None):
+    def __init__(self, proxy_host, proxy_port=22, username=None, password=None, key_filename=None):
         super(SshProxy, self).__init__()
-        self.proxy_ip = proxy_ip
+        self.proxy_host = proxy_host
         self.proxy_port = int(proxy_port)
         self.username = username
         self.password = password

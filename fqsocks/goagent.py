@@ -76,12 +76,11 @@ class GoAgentProxy(Proxy):
         try:
             gevent.sleep(float(random.randint(1, 10)) / 10)
             sock = networking.create_tcp_socket(random.choice(list(self.GOOGLE_IPS)), 443, 3)
-            sock.settimeout(3)
             with contextlib.closing(sock):
                 sock = ssl.wrap_socket(sock)
+                sock.settimeout(3)
                 with contextlib.closing(sock):
                     sock.sendall('GET https://%s.appspot.com/2 HTTP/1.1\r\n\r\n\r\n' % self.appid)
-                    # sock.sendall('GET /2 HTTP/1.1\r\nHost: %s.appspot.com\r\nContent-Length: 0\r\n\r\n' % self.appid)
                     match = RE_VERSION.search(sock.recv(8192))
                     if match:
                         self.version = match.group(0)

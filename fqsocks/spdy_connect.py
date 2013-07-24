@@ -15,10 +15,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class SpdyConnectProxy(Proxy):
-    def __init__(self, proxy_ip, proxy_port, requested_spdy_version='auto',
+    def __init__(self, proxy_host, proxy_port, requested_spdy_version='auto',
                  username=None, password=None, is_public=False):
         super(SpdyConnectProxy, self).__init__()
-        self.proxy_ip = socket.gethostbyname(proxy_ip)
+        self.proxy_host = proxy_host
         self.proxy_port = proxy_port
         self.username = username
         self.password = password
