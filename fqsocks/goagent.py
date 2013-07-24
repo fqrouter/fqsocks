@@ -74,17 +74,23 @@ class GoAgentProxy(Proxy):
 
     def query_version(self):
         try:
-            gevent.sleep(float(random.randint(1, 10)) / 10)
             sock = networking.create_tcp_socket(random.choice(list(self.GOOGLE_IPS)), 443, 3)
             with contextlib.closing(sock):
                 sock = ssl.wrap_socket(sock)
                 sock.settimeout(3)
                 with contextlib.closing(sock):
                     sock.sendall('GET https://%s.appspot.com/2 HTTP/1.1\r\n\r\n\r\n' % self.appid)
-                    match = RE_VERSION.search(sock.recv(8192))
+                    response = sock.recv(8192)
+                    match = RE_VERSION.search(response)
+                    if 'Over Quota' in response:
+                        self.died = True
+                        LOGGER.info('%s over quota' % self)
+                        return
                     if match:
                         self.version = match.group(0)
-                        LOGGER.info('resolved appid version: %s' % self)
+                        LOGGER.info('queried appid version: %s' % self)
+                    else:
+                        LOGGER.info('failed to query appid version: %s' % response)
         except:
             LOGGER.exception('failed to query goagent %s version' % self.appid)
 
