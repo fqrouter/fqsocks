@@ -74,6 +74,7 @@ class GoAgentProxy(Proxy):
 
     def query_version(self):
         try:
+            gevent.sleep(float(random.randint(1, 10)) / 10)
             sock = networking.create_tcp_socket(random.choice(list(self.GOOGLE_IPS)), 443, 3)
             sock.settimeout(3)
             with contextlib.closing(sock):
