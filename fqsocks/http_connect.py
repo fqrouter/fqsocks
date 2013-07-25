@@ -47,7 +47,6 @@ class HttpConnectProxy(Proxy):
         try:
             response, _ = recv_till_double_newline('', upstream_sock)
         except socket.timeout:
-            self.died = True
             self.report_failure(client, 'http-connect upstream connect command timed out')
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
@@ -73,6 +72,7 @@ class HttpConnectProxy(Proxy):
     def report_failure(self, client, reason):
         self.failed_times += 1
         if self.failed_times > 3:
+            LOGGER.error('%s failed more than 3 times, died' % self)
             self.died = True
         client.fall_back(reason=reason)
 
