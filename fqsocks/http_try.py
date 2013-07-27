@@ -53,6 +53,8 @@ class HttpTryProxy(Proxy):
         if is_payload_complete:
             response, http_response = try_receive_response(
                 client, upstream_sock, rejects_error=('GET' == client.method))
+            if do_inject or HTTP_TRY_PROXY.http_request_mark:
+                response = response.replace('Connection: keep-alive', 'Connection: close')
             if do_inject:
                 try:
                     if len(response) < 10:
@@ -63,7 +65,6 @@ class HttpTryProxy(Proxy):
                         content_length = http_response.msg.dict.get('content-length')
                         if content_length and 0 < int(content_length) < 10:
                             client.fall_back('content length is too small: %s' % http_response.msg.dict)
-                        response = response.replace('Connection: keep-alive', 'Connection: close')
                         if http_response.body and 'gzip' == http_response.msg.dict.get('content-encoding'):
                             stream = StringIO.StringIO(http_response.body)
                             gzipper = gzip.GzipFile(fileobj=stream)
