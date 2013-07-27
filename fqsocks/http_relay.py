@@ -54,7 +54,7 @@ class HttpRelayProxy(Proxy):
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
         if is_payload_complete:
-            response = try_receive_response(client, upstream_sock)
+            response, _ = try_receive_response(client, upstream_sock)
             client.forward_started = True
             client.downstream_sock.sendall(response)
         if HTTP_TRY_PROXY.http_request_mark:

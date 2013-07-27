@@ -211,6 +211,7 @@ class ProxyFallBack(Exception):
         super(ProxyFallBack, self).__init__(reason)
         self.reason = reason
 
+ProxyClient.ProxyFallBack = ProxyFallBack
 
 def handle(downstream_sock, address):
     src_ip, src_port = address

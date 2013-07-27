@@ -2,6 +2,8 @@ import logging
 import httplib
 import socket
 import sys
+import StringIO
+import gzip
 
 from direct import Proxy
 
@@ -29,14 +31,14 @@ class HttpTryProxy(Proxy):
             return
         client.direct_connection_succeeded()
         is_payload_complete = recv_and_parse_request(client)
+        request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
         do_inject = self.enable_youtube_scrambler and is_payload_complete and ('youtube.com' in client.host or 'ytimg.com' in client.host)
         if do_inject:
             LOGGER.info('[%s] scramble youtube traffic' % repr(client))
-            request_data = 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n'
-            client.headers['Connection'] = 'close'
-        else:
+            request_data = 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n' + request_data
+            upstream_sock.sendall(request_data)
             request_data = ''
-        request_data += '%s %s HTTP/1.1\r\n' % (client.method, client.path)
+            client.headers['Connection'] = 'close'
         client.headers['Host'] = client.host
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
         request_data += '\r\n'
@@ -49,9 +51,29 @@ class HttpTryProxy(Proxy):
         if do_inject:
             try_receive_response(client, upstream_sock, reads_all=True)
         if is_payload_complete:
-            response = try_receive_response(client, upstream_sock, rejects_error=('GET' == client.method))
-            if do_inject and len(response) < 10:
-                client.fall_back('response is too small: %s' % response)
+            response, http_response = try_receive_response(
+                client, upstream_sock, rejects_error=('GET' == client.method))
+            if do_inject:
+                try:
+                    if len(response) < 10:
+                        client.fall_back('response is too small: %s' % response)
+                    if http_response:
+                        if httplib.FORBIDDEN == http_response.status:
+                            client.fall_back(reason='403 forbidden')
+                        content_length = http_response.msg.dict.get('content-length')
+                        if content_length and 0 < int(content_length) < 10:
+                            client.fall_back('content length is too small: %s' % http_response.msg.dict)
+                        response = response.replace('Connection: keep-alive', 'Connection: close')
+                        if http_response.body and 'gzip' == http_response.msg.dict.get('content-encoding'):
+                            stream = StringIO.StringIO(http_response.body)
+                            gzipper = gzip.GzipFile(fileobj=stream)
+                            http_response.body = gzipper.read()
+                        if http_response.body and 'Sorry about that' in http_response.body:
+                            client.fall_back(reason='youtube player not available in China')
+                except client.ProxyFallBack:
+                    raise
+                except:
+                    LOGGER.exception('analyze injected response failed')
             client.forward_started = True
             client.downstream_sock.sendall(response)
         if HTTP_TRY_PROXY.http_request_mark:
@@ -74,7 +96,10 @@ def try_receive_response(client, upstream_sock, rejects_error=False, reads_all=F
         client.add_resource(upstream_rfile)
         capturing_sock = CapturingSock(upstream_rfile)
         http_response = httplib.HTTPResponse(capturing_sock)
+        http_response.body = None
         http_response.begin()
+        if 'text/html' in capturing_sock.rfile.captured:
+            reads_all = True
         if not reads_all:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try read response header: %s %s' %
@@ -82,20 +107,20 @@ def try_receive_response(client, upstream_sock, rejects_error=False, reads_all=F
             if http_response.chunked:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] skip try reading response due to chunked' % repr(client))
-                return capturing_sock.rfile.captured
+                return capturing_sock.rfile.captured, http_response
             if not http_response.length:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] skip try reading response due to no content length' % repr(client))
-                return capturing_sock.rfile.captured
+                return capturing_sock.rfile.captured, http_response
             if http_response.length > 1024 * 1024:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] skip try reading response due to too large: %s' %
                                  (repr(client), http_response.length))
-                return capturing_sock.rfile.captured
+                return capturing_sock.rfile.captured, http_response
             if rejects_error and not (200 <= http_response.status < 400):
                 raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
-        http_response.read()
-        return capturing_sock.rfile.captured
+        http_response.body = http_response.read()
+        return capturing_sock.rfile.captured, http_response
     except NotHttp:
         raise
     except:
