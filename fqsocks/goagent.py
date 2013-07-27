@@ -192,6 +192,24 @@ def test_google_ip(queue, ip):
 
 
 def forward(client, proxy, appids):
+    parsed_url = urllib.parse.urlparse(client.url)
+    range_in_query = 'range=' in parsed_url.query
+    special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
+        AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH)
+    if 'Range' in client.headers:
+        m = re.search('bytes=(\d+)-', client.headers['Range'])
+        start = int(m.group(1) if m else 0)
+        LOGGER.info('[%s] original range: %s' % (repr(client), client.headers['Range']))
+        client.headers['Range'] = 'bytes=%d-%d' % (start, start + 8192)
+        LOGGER.info('[%s] range adjusted to: %s' % (repr(client), client.headers['Range']))
+    elif not range_in_query and special_range:
+        try:
+            m = re.search('bytes=(\d+)-', client.headers.get('Range', ''))
+            start = int(m.group(1) if m else 0)
+            client.headers['Range'] = 'bytes=%d-%d' % (start, start + 8192)
+            LOGGER.info('[%s] auto range headers: %s' % (repr(client), client.headers['Range']))
+        except StopIteration:
+            pass
     response = None
     try:
         kwargs = {}
@@ -224,6 +242,15 @@ def forward(client, proxy, appids):
                 LOGGER.debug(response.read())
             client.fall_back('urlfetch failed: %s' % response.app_status)
         client.forward_started = True
+        if response.status == 206:
+            LOGGER.info('[%s] start range fetch' % repr(client))
+            fetchservers = [fetchserver]
+            fetchservers += ['https://%s.appspot.com/2?' % appid for appid in appids]
+            rangefetch = _goagent.RangeFetch(
+                client.downstream_wfile, response, client.method, client.url, client.headers, client.payload,
+                fetchservers, proxy.password, maxsize=AUTORANGE_MAXSIZE, bufsize=AUTORANGE_BUFSIZE,
+                waitsize=AUTORANGE_WAITSIZE, threads=AUTORANGE_THREADS, create_tcp_socket=client.create_tcp_socket)
+            return rangefetch.fetch()
         if 'Set-Cookie' in response.msg:
             response.msg['Set-Cookie'] = normcookie(response.msg['Set-Cookie'])
         client.downstream_wfile.write('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
