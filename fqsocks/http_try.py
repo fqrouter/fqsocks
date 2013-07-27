@@ -69,7 +69,7 @@ class HttpTryProxy(Proxy):
                             stream = StringIO.StringIO(http_response.body)
                             gzipper = gzip.GzipFile(fileobj=stream)
                             http_response.body = gzipper.read()
-                        if http_response.body and 'Sorry about that' in http_response.body:
+                        if http_response.body and 'id="unavailable-message" class="message"' in http_response.body:
                             client.fall_back(reason='youtube player not available in China')
                 except client.ProxyFallBack:
                     raise
