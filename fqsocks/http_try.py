@@ -4,6 +4,7 @@ import socket
 import sys
 import StringIO
 import gzip
+import fnmatch
 
 from direct import Proxy
 
@@ -11,6 +12,27 @@ from direct import Proxy
 LOGGER = logging.getLogger(__name__)
 
 SO_MARK = 36
+
+
+NO_DIRECT_PROXY_HOSTS = {
+    '*.twitter.com',
+    'twitter.com',
+    '*.t.co',
+    't.co',
+    '*.twimg.com',
+    'twimg.com',
+    'hulu.com',
+    '*.hulu.com',
+    'huluim.com',
+    '*.huluim.com',
+    'netflix.com',
+    '*.netflix.com',
+    'skype.com',
+    '*.skype.com'
+}
+
+def is_no_direct_host(client_host):
+    return any(fnmatch.fnmatch(client_host, host) for host in NO_DIRECT_PROXY_HOSTS)
 
 
 class HttpTryProxy(Proxy):
@@ -31,6 +53,8 @@ class HttpTryProxy(Proxy):
             return
         client.direct_connection_succeeded()
         is_payload_complete = recv_and_parse_request(client)
+        if is_no_direct_host(client.host):
+            client.fall_back(reason='%s blacklisted for direct access' % client.host)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
         do_inject = self.enable_youtube_scrambler and is_payload_complete and ('youtube.com' in client.host or 'ytimg.com' in client.host)
         if do_inject:

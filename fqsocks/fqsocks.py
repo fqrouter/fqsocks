@@ -34,6 +34,7 @@ from direct import HTTPS_TRY_PROXY
 from direct import NONE_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
+from http_try import is_no_direct_host
 from goagent import GoAgentProxy
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
@@ -74,20 +75,6 @@ NO_PUBLIC_PROXY_HOSTS = {
     'google.com',
     'www.google.com.hk',
     'google.com.hk'
-}
-NO_DIRECT_PROXY_HOSTS = {
-    '*.twitter.com',
-    'twitter.com',
-    '*.t.co',
-    't.co',
-    '*.twimg.com',
-    'twimg.com',
-    'hulu.com',
-    '*.hulu.com'
-    'netflix.com',
-    '*.netflix.com',
-    'skype.com',
-    '*.skype.com'
 }
 REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
@@ -313,7 +300,7 @@ def pick_proxy(client):
     protocol, domain = analyze_protocol(client.peeked_data)
     if domain:
         client.host = domain
-        if any(fnmatch.fnmatch(client.host, host) for host in NO_DIRECT_PROXY_HOSTS):
+        if is_no_direct_host(client.host):
             ip_black_list.add(client.dst_ip)
     dst_color = get_dst_color(client.dst_ip, client.dst_port)
     if LOGGER.isEnabledFor(logging.DEBUG):
