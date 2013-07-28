@@ -71,6 +71,7 @@ class GoAgentProxy(Proxy):
         if not self.appid:
             self.died = True
         self.version = 'UNKNOWN'
+        self.flags.add('PUBLIC')
 
     def query_version(self):
         try:
