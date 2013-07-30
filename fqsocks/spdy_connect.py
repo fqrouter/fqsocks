@@ -45,6 +45,8 @@ class SpdyConnectProxy(Proxy):
         try:
             while True:
                 self.close()
+                if '0.0.0.0' == self.proxy_ip:
+                    return
                 self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
                 self.died = False
                 try:
@@ -119,5 +121,5 @@ class SpdyConnectProxy(Proxy):
         return protocol == 'HTTPS'
 
     def __repr__(self):
-        return 'SpdyConnectProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
+        return 'SpdyConnectProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
 

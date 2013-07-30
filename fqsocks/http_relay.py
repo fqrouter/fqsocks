@@ -72,5 +72,5 @@ class HttpRelayProxy(Proxy):
         return protocol == 'HTTP'
 
     def __repr__(self):
-        return 'HttpRelayProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
+        return 'HttpRelayProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
 

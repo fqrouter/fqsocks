@@ -5,6 +5,7 @@ import logging
 import random
 import contextlib
 import gevent
+import sys
 import re
 
 LOGGER = logging.getLogger(__name__)
@@ -50,14 +51,7 @@ SPI['create_tcp_socket'] = _create_tcp_socket
 
 
 def create_udp_socket():
-    return SPI['create_udp_socket']()
-
-
-def _create_udp_socket():
     return create_socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-
-SPI['create_udp_socket'] = _create_udp_socket
 
 
 def create_socket(*args, **kwargs):
@@ -90,13 +84,16 @@ def resolve_ips(host):
             with contextlib.closing(sock):
                 sock.settimeout(3)
                 request = dpkt.dns.DNS(
-                    id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=host, type=dpkt.dns.DNS_A)])
+                    id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
                 sock.sendto(str(request), pick_dns_server())
-                response = dpkt.dns.DNS(sock.recv(1024))
+                gevent.sleep(0)
+                response = dpkt.dns.DNS(sock.recv(8192))
                 return [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('failed to resolve google ips', exc_info=1)
+                LOGGER.debug('failed to resolve %s' % host, exc_info=1)
+            else:
+                LOGGER.info('failed to resolve %s: %s' % (host, sys.exc_info()[1]), exc_info=1)
         gevent.sleep(1)
     return []
 

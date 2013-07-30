@@ -73,4 +73,4 @@ class SshProxy(Proxy):
         return True
 
     def __repr__(self):
-        return 'SshProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
+        return 'SshProxy[%s:%s]' % (self.proxy_host, self.proxy_port)

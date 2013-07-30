@@ -80,5 +80,5 @@ class HttpConnectProxy(Proxy):
         return protocol == 'HTTPS'
 
     def __repr__(self):
-        return 'HttpConnectProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
+        return 'HttpConnectProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
 

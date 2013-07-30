@@ -40,4 +40,4 @@ class ShadowSocksProxy(Proxy):
         return True
 
     def __repr__(self):
-        return 'ShadowSocksProxy[%s:%s]' % (self.proxy_ip, self.proxy_port)
+        return 'ShadowSocksProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
