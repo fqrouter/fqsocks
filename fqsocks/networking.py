@@ -35,7 +35,9 @@ def create_tcp_socket(server_ip, server_port, connect_timeout):
 
 
 def _create_tcp_socket(server_ip, server_port, connect_timeout):
-    sock = create_socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    if OUTBOUND_IP:
+        sock.bind((OUTBOUND_IP, 0))
     sock.setblocking(0)
     sock.settimeout(connect_timeout)
     try:
@@ -51,14 +53,7 @@ SPI['create_tcp_socket'] = _create_tcp_socket
 
 
 def create_udp_socket():
-    return create_socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-
-def create_socket(*args, **kwargs):
-    sock = socket.socket(*args, **kwargs)
-    if OUTBOUND_IP:
-        sock.bind((OUTBOUND_IP, 0))
-    return sock
+    return socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
 
 def get_original_destination(sock, src_ip, src_port):
