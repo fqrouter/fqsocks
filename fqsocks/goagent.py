@@ -197,20 +197,21 @@ def forward(client, proxy, appids):
     range_in_query = 'range=' in parsed_url.query
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
         AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH)
+    range_end = 0
+    auto_ranged = False
     if 'Range' in client.headers:
-        m = re.search('bytes=(\d+)-', client.headers['Range'])
-        start = int(m.group(1) if m else 0)
-        LOGGER.info('[%s] original range: %s' % (repr(client), client.headers['Range']))
-        client.headers['Range'] = 'bytes=%d-%d' % (start, start + 8192)
-        LOGGER.info('[%s] range adjusted to: %s' % (repr(client), client.headers['Range']))
+        LOGGER.info('[%s] range present: %s' % (repr(client), client.headers['Range']))
+        m = re.search('bytes=(\d+)-(\d*)', client.headers['Range'])
+        if m:
+            range_start = int(m.group(1))
+            range_end = int(m.group(2)) if m.group(2) else 0
+            if not range_end or range_end - range_start > AUTORANGE_MAXSIZE:
+                client.headers['Range'] = 'bytes=%d-%d' % (range_start, range_start + AUTORANGE_MAXSIZE)
+                LOGGER.info('[%s] adjusted range: %s' % (repr(client), client.headers['Range']))
     elif not range_in_query and special_range:
-        try:
-            m = re.search('bytes=(\d+)-', client.headers.get('Range', ''))
-            start = int(m.group(1) if m else 0)
-            client.headers['Range'] = 'bytes=%d-%d' % (start, start + 8192)
-            LOGGER.info('[%s] auto range headers: %s' % (repr(client), client.headers['Range']))
-        except StopIteration:
-            pass
+        client.headers['Range'] = 'bytes=%d-%d' % (0, AUTORANGE_MAXSIZE)
+        auto_ranged = True
+        LOGGER.info('[%s] auto range: %s' % (repr(client), client.headers['Range']))
     response = None
     try:
         kwargs = {}
@@ -248,7 +249,7 @@ def forward(client, proxy, appids):
             fetchservers = [fetchserver]
             fetchservers += ['https://%s.appspot.com/2?' % appid for appid in appids]
             rangefetch = _goagent.RangeFetch(
-                client.downstream_wfile, response, client.method, client.url, client.headers, client.payload,
+                range_end, auto_ranged, client.downstream_wfile, response, client.method, client.url, client.headers, client.payload,
                 fetchservers, proxy.password, maxsize=AUTORANGE_MAXSIZE, bufsize=AUTORANGE_BUFSIZE,
                 waitsize=AUTORANGE_WAITSIZE, threads=AUTORANGE_THREADS, create_tcp_socket=client.create_tcp_socket)
             return rangefetch.fetch()

@@ -58,8 +58,10 @@ class HttpTryProxy(Proxy):
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
-        do_inject = self.enable_youtube_scrambler and is_payload_complete and ('youtube.com' in client.host or 'ytimg.com' in client.host)
-        if do_inject:
+        scrambles_youtube = self.enable_youtube_scrambler and is_payload_complete and \
+                            ('youtube.com' in client.host or 'ytimg.com' in client.host) and \
+                            not HTTP_TRY_PROXY.http_request_mark
+        if scrambles_youtube:
             LOGGER.info('[%s] scramble youtube traffic' % repr(client))
             request_data = 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n' + request_data
             upstream_sock.sendall(request_data)
@@ -74,33 +76,32 @@ class HttpTryProxy(Proxy):
             upstream_sock.sendall(request_data + client.payload)
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
-        if do_inject:
+        if scrambles_youtube:
             try_receive_response(client, upstream_sock, reads_all=True)
         if is_payload_complete:
             response, http_response = try_receive_response(
                 client, upstream_sock, rejects_error=('GET' == client.method))
-            if do_inject or HTTP_TRY_PROXY.http_request_mark:
+            if scrambles_youtube or HTTP_TRY_PROXY.http_request_mark:
                 response = response.replace('Connection: keep-alive', 'Connection: close')
-            if do_inject:
                 try:
-                    if len(response) < 10:
+                    if scrambles_youtube and len(response) < 10:
                         client.fall_back('response is too small: %s' % response)
                     if http_response:
-                        if httplib.FORBIDDEN == http_response.status:
+                        if scrambles_youtube and httplib.FORBIDDEN == http_response.status:
                             client.fall_back(reason='403 forbidden')
                         content_length = http_response.msg.dict.get('content-length')
-                        if content_length and 0 < int(content_length) < 10:
+                        if scrambles_youtube and content_length and httplib.PARTIAL_CONTENT != http_response.status and 0 < int(content_length) < 10:
                             client.fall_back('content length is too small: %s' % http_response.msg.dict)
                         if http_response.body and 'gzip' == http_response.msg.dict.get('content-encoding'):
                             stream = StringIO.StringIO(http_response.body)
                             gzipper = gzip.GzipFile(fileobj=stream)
                             http_response.body = gzipper.read()
-                        if http_response.body and 'id="unavailable-message" class="message"' in http_response.body:
+                        if http_response.body and ('id="unavailable-message" class="message"' in http_response.body or 'UNPLAYABLE' in http_response.body):
                             client.fall_back(reason='youtube player not available in China')
                 except client.ProxyFallBack:
                     raise
                 except:
-                    LOGGER.exception('analyze injected response failed')
+                    LOGGER.exception('analyze response failed')
             client.forward_started = True
             client.downstream_sock.sendall(response)
         if HTTP_TRY_PROXY.http_request_mark:
