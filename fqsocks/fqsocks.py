@@ -4,7 +4,6 @@
 import logging
 import logging.handlers
 import sys
-import struct
 import socket
 import errno
 import select
@@ -28,7 +27,6 @@ import gevent.monkey
 
 import lan_ip
 import china_ip
-from direct import DirectProxy
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
 from direct import NONE_PROXY
@@ -252,9 +250,7 @@ def pick_proxy_and_forward(client):
             else:
                 break
             proxy = pick_proxy(client)
-        proxy = proxy or DIRECT_PROXY
-        if is_direct_access_disabled() and isinstance(proxy, DirectProxy): # try disabled
-            LOGGER.info('[%s] no proxy available, and DIRECT has been disabled' % repr(client))
+        if not proxy:
             return
         if 'DIRECT' in proxy.flags:
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
@@ -269,12 +265,6 @@ def pick_proxy_and_forward(client):
         except NotHttp:
             client.tried_proxies[proxy] = 'not http'
             continue
-    if not is_direct_access_disabled():
-        LOGGER.error('[%s] fall back to direct after too many retries: %s' % (repr(client), client.tried_proxies))
-        try:
-            DIRECT_PROXY.forward(client)
-        except ProxyFallBack:
-            pass
 
 
 def is_direct_access_disabled():

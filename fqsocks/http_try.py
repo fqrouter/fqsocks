@@ -36,6 +36,10 @@ NO_DIRECT_PROXY_HOSTS = {
 def is_no_direct_host(client_host):
     return any(fnmatch.fnmatch(client_host, host) for host in NO_DIRECT_PROXY_HOSTS)
 
+def is_youtube_host(client_host):
+    if not client_host:
+        return False
+    return 'youtube.com' in client_host or 'ytimg.com' in client_host
 
 class HttpTryProxy(Proxy):
     def __init__(self):
@@ -58,8 +62,9 @@ class HttpTryProxy(Proxy):
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
-        scrambles_youtube = self.enable_youtube_scrambler and is_payload_complete and \
-                            ('youtube.com' in client.host or 'ytimg.com' in client.host) and \
+        scrambles_youtube = self.enable_youtube_scrambler and \
+                            is_payload_complete and \
+                            is_youtube_host(client.host) and \
                             not HTTP_TRY_PROXY.http_request_mark
         if scrambles_youtube:
             LOGGER.info('[%s] scramble youtube traffic' % repr(client))
