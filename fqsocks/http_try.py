@@ -30,7 +30,9 @@ NO_DIRECT_PROXY_HOSTS = {
     'skype.com',
     '*.skype.com',
     'pandora.com',
-    '*.pandora.com'
+    '*.pandora.com',
+    'radiotime.com',
+    '*.radiotime.com'
 }
 
 def is_no_direct_host(client_host):
