@@ -182,6 +182,13 @@ class ProxyClient(object):
     def dump_proxies(self):
         LOGGER.info('dump proxies: %s' % [p for p in proxies if not p.died])
 
+    def has_tried(self, proxy):
+        if proxy in self.tried_proxies:
+            return True
+        if isinstance(proxy, DynamicProxy):
+            return proxy.delegated_to in self.tried_proxies
+        return False
+
     def __repr__(self):
         description = self.description
         if self.host:
@@ -368,7 +375,7 @@ def pick_https_try_proxy(client):
 def pick_proxy_supports(client, protocol):
     supported_proxies = [proxy for proxy in proxies if
                          proxy.is_protocol_supported(protocol)
-                         and not proxy.died and proxy not in client.tried_proxies]
+                         and not proxy.died and not client.has_tried(proxy)]
     if not supported_proxies:
         return None
     prioritized_proxies = {}

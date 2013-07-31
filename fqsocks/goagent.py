@@ -96,7 +96,16 @@ class GoAgentProxy(Proxy):
             LOGGER.exception('failed to query goagent %s version' % self.appid)
 
     def do_forward(self, client):
-        recv_and_parse_request(client)
+        try:
+            if not recv_and_parse_request(client):
+                raise Exception('payload is too large')
+            if client.method.upper() not in ('GET', 'POST'):
+                raise Exception('unsupported method: %s' % client.method)
+        except:
+            for proxy in self.proxies:
+                client.tried_proxies[proxy] = 'skip goagent'
+            LOGGER.exception('[%s] failed to recv and parse request' % repr(client))
+            client.fall_back(reason='failed to recv and parse request, %s' % sys.exc_info()[1])
         LOGGER.info('[%s] urlfetch %s %s' % (repr(client), client.method, client.url))
         forward(client, self, [p.appid for p in self.proxies if not p.died])
 

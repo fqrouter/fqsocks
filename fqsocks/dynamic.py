@@ -97,6 +97,15 @@ class DynamicProxy(Proxy):
         else:
             return False
 
+    def __eq__(self, other):
+        if hasattr(other, 'dns_record'):
+            return self.dns_record == other.dns_record
+        else:
+            return False
+
+    def __hash__(self):
+        return hash(self.dns_record)
+
     def __repr__(self):
         return 'DynamicProxy[%s=>%s]' % (self.dns_record, self.delegated_to or 'UNRESOLVED')
 
