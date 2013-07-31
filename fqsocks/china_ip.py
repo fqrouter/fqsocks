@@ -3583,6 +3583,7 @@ apnic|CN|ipv4|223.255.236.0|1024|20110311|allocated
 apnic|CN|ipv4|223.255.252.0|512|20110414|allocated
 """
 
+
 def load_ip_ranges():
     for line in DELEGATED_APNIC_LATEST_TXT.splitlines():
         line = line.strip()
@@ -3609,6 +3610,100 @@ def ip_to_int(ip):
 
 
 ip_ranges = list(load_ip_ranges())
+not_us_ip_ranges = [
+    translate_ip_range('0.0.0.0', 7),
+    translate_ip_range('14.0.0.0', 8),
+    translate_ip_range('27.0.0.0', 8),
+    translate_ip_range('36.0.0.0', 8),
+    translate_ip_range('39.0.0.0', 8),
+    translate_ip_range('42.0.0.0', 7),
+    translate_ip_range('49.0.0.0', 8),
+    translate_ip_range('54.216.0.0', 13),
+    translate_ip_range('58.0.0.0', 7),
+    translate_ip_range('60.0.0.0', 7),
+    translate_ip_range('91.192.0.0', 13),
+    translate_ip_range('91.232.0.0', 13),
+    translate_ip_range('101.0.0.0', 8),
+    translate_ip_range('102.0.0.0', 7),
+    translate_ip_range('106.0.0.0', 8),
+    translate_ip_range('110.0.0.0', 7),
+    translate_ip_range('112.0.0.0', 4),
+    translate_ip_range('134.196.0.0', 16),
+    translate_ip_range('139.0.0.0', 12),
+    translate_ip_range('139.128.0.0', 15),
+    translate_ip_range('139.148.0.0', 15),
+    translate_ip_range('139.152.0.0', 13),
+    translate_ip_range('139.170.0.0', 16),
+    translate_ip_range('139.176.0.0', 16),
+    translate_ip_range('139.183.0.0', 16),
+    translate_ip_range('139.186.0.0', 16),
+    translate_ip_range('139.188.0.0', 14),
+    translate_ip_range('139.192.0.0', 11),
+    translate_ip_range('139.224.0.0', 16),
+    translate_ip_range('139.226.0.0', 15),
+    translate_ip_range('140.75.0.0', 16),
+    translate_ip_range('140.143.0.0', 16),
+    translate_ip_range('140.205.0.0', 16),
+    translate_ip_range('140.206.0.0', 15),
+    translate_ip_range('140.210.0.0', 16),
+    translate_ip_range('140.224.0.0', 16),
+    translate_ip_range('140.237.0.0', 16),
+    translate_ip_range('140.240.0.0', 16),
+    translate_ip_range('140.243.0.0', 16),
+    translate_ip_range('140.246.0.0', 16),
+    translate_ip_range('140.249.0.0', 16),
+    translate_ip_range('140.250.0.0', 16),
+    translate_ip_range('140.255.0.0', 16),
+    translate_ip_range('144.0.0.0', 15),
+    translate_ip_range('144.6.0.0', 15),
+    translate_ip_range('144.12.0.0', 16),
+    translate_ip_range('144.52.0.0', 14),
+    translate_ip_range('144.122.0.0', 15),
+    translate_ip_range('144.255.0.0', 16),
+    translate_ip_range('150.0.0.0', 10),
+    translate_ip_range('150.115.0.0', 16),
+    translate_ip_range('150.121.0.0', 16),
+    translate_ip_range('150.122.0.0', 16),
+    translate_ip_range('150.138.0.0', 15),
+    translate_ip_range('150.223.0.0', 16),
+    translate_ip_range('150.254.0.0', 15),
+    translate_ip_range('153.0.0.0', 15),
+    translate_ip_range('153.3.0.0', 16),
+    translate_ip_range('153.34.0.0', 15),
+    translate_ip_range('153.36.0.0', 15),
+    translate_ip_range('153.96.0.0', 14),
+    translate_ip_range('153.100.0.0', 15),
+    translate_ip_range('153.116.0.0', 14),
+    translate_ip_range('157.0.0.0', 12),
+    translate_ip_range('157.16.0.0', 14),
+    translate_ip_range('157.60.0.0', 15),
+    translate_ip_range('157.122.0.0', 16),
+    translate_ip_range('157.148.0.0', 16),
+    translate_ip_range('157.156.0.0', 14),
+    translate_ip_range('157.255.0.0', 16),
+    translate_ip_range('159.226.0.0', 16),
+    translate_ip_range('161.207.0.0', 16),
+    translate_ip_range('162.105.0.0', 16),
+    translate_ip_range('163.0.0.0', 15),
+    translate_ip_range('163.125.0.0', 16),
+    translate_ip_range('163.136.0.0', 13),
+    translate_ip_range('163.177.0.0', 16),
+    translate_ip_range('163.178.0.0', 15),
+    translate_ip_range('163.204.0.0', 16),
+    translate_ip_range('166.110.0.0', 15),
+    translate_ip_range('167.139.0.0', 16),
+    translate_ip_range('168.160.0.0', 16),
+    translate_ip_range('171.0.0.0', 9),
+    translate_ip_range('171.192.0.0', 10),
+    translate_ip_range('175.0.0.0', 8),
+    translate_ip_range('180.0.0.0', 6),
+    translate_ip_range('192.124.154.0', 23),
+    translate_ip_range('192.188.168.0', 21),
+    translate_ip_range('202.0.0.0', 7),
+    translate_ip_range('210.0.0.0', 7),
+    translate_ip_range('218.0.0.0', 7),
+    translate_ip_range('220.0.0.0', 6)
+]
 
 
 def is_china_ip(ip):
@@ -3617,6 +3712,14 @@ def is_china_ip(ip):
         if start_ip_as_int <= ip_as_int <= end_ip_as_int:
             return True
     return False
+
+
+def is_us_ip(ip):
+    ip_as_int = ip_to_int(ip)
+    for start_ip_as_int, end_ip_as_int in not_us_ip_ranges:
+        if start_ip_as_int <= ip_as_int <= end_ip_as_int:
+            return False
+    return True
 
 
 if '__main__' == __name__:

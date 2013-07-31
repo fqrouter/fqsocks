@@ -105,6 +105,7 @@ class ProxyClient(object):
         self.host = ''
         self.tried_proxies = {}
         self.forwarding_by = None
+        self.us_ip_only = False
 
     def create_tcp_socket(self, server_ip, server_port, connect_timeout):
         upstream_sock = networking.create_tcp_socket(server_ip, server_port, connect_timeout)
@@ -186,8 +187,12 @@ class ProxyClient(object):
         if proxy in self.tried_proxies:
             return True
         if isinstance(proxy, DynamicProxy):
-            return proxy.delegated_to in self.tried_proxies
-        return False
+            proxy = proxy.delegated_to
+        if self.us_ip_only:
+            if hasattr(proxy, 'proxy_ip') and not china_ip.is_us_ip(proxy.proxy_ip):
+                LOGGER.info('skip %s' % proxy.proxy_ip)
+                return True
+        return proxy in self.tried_proxies
 
     def __repr__(self):
         description = self.description
@@ -406,10 +411,10 @@ def refresh_proxies():
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
     if success and CHECK_ACCESS:
-        check_access_many_times('https://www.twitter.com', 10)
-        check_access_many_times('https://plus.google.com', 5)
-        check_access_many_times('http://www.youtube.com', 5)
-        check_access_many_times('http://www.facebook.com', 5)
+        check_access_many_times('https://www.twitter.com', 5)
+        check_access_many_times('https://plus.google.com', 3)
+        check_access_many_times('http://www.youtube.com', 3)
+        check_access_many_times('http://www.facebook.com', 3)
     return success
 
 
