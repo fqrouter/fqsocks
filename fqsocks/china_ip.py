@@ -3707,6 +3707,8 @@ not_us_ip_ranges = [
 
 
 def is_china_ip(ip):
+    if ip.startswith('203.208.46.'): # guxiang
+        return False
     ip_as_int = ip_to_int(ip)
     for start_ip_as_int, end_ip_as_int in ip_ranges:
         if start_ip_as_int <= ip_as_int <= end_ip_as_int:
