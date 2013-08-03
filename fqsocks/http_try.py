@@ -8,12 +8,12 @@ import fnmatch
 
 from direct import Proxy
 from direct import DIRECT_PROXY
-
+import gevent
+import urllib2
 
 LOGGER = logging.getLogger(__name__)
 
 SO_MARK = 36
-
 
 NO_DIRECT_PROXY_HOSTS = {
     '*.twitter.com',
@@ -36,13 +36,16 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.radiotime.com'
 }
 
+
 def is_no_direct_host(client_host):
     return any(fnmatch.fnmatch(client_host, host) for host in NO_DIRECT_PROXY_HOSTS)
+
 
 def is_youtube_host(client_host):
     if not client_host:
         return False
     return 'youtube.com' in client_host or 'ytimg.com' in client_host
+
 
 class HttpTryProxy(Proxy):
     def __init__(self):
@@ -101,13 +104,15 @@ class HttpTryProxy(Proxy):
                         if scrambles_youtube and httplib.FORBIDDEN == http_response.status:
                             client.fall_back(reason='403 forbidden')
                         content_length = http_response.msg.dict.get('content-length')
-                        if scrambles_youtube and content_length and httplib.PARTIAL_CONTENT != http_response.status and 0 < int(content_length) < 10:
+                        if scrambles_youtube and content_length and httplib.PARTIAL_CONTENT != http_response.status and 0 < int(
+                                content_length) < 10:
                             client.fall_back('content length is too small: %s' % http_response.msg.dict)
                         if http_response.body and 'gzip' == http_response.msg.dict.get('content-encoding'):
                             stream = StringIO.StringIO(http_response.body)
                             gzipper = gzip.GzipFile(fileobj=stream)
                             http_response.body = gzipper.read()
-                        if http_response.body and ('id="unavailable-message" class="message"' in http_response.body or 'UNPLAYABLE' in http_response.body):
+                        if http_response.body and (
+                                    'id="unavailable-message" class="message"' in http_response.body or 'UNPLAYABLE' in http_response.body):
                             client.fall_back(reason='youtube player not available in China')
                 except client.ProxyFallBack:
                     raise
@@ -258,3 +263,20 @@ def parse_request(request):
         if keyword and value:
             headers[keyword] = value
     return method, path, headers
+
+
+def detect_400_bad_request():
+    gevent.sleep(5)
+    for i in range(3):
+        try:
+            urllib2.urlopen('http://www.google.com/')
+        except urllib2.HTTPError as e:
+            if httplib.BAD_REQUEST == e.code:
+                HTTP_TRY_PROXY.http_request_mark = None
+                LOGGER.error('access google 400 error, disable fqting')
+                return
+            else:
+                LOGGER.exception('access google failed')
+        except:
+            LOGGER.exception('access google failed')
+        gevent.sleep(10)
