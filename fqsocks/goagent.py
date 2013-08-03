@@ -15,10 +15,9 @@ import gevent.queue
 import random
 
 import networking
-from direct import Proxy
-from http_try import recv_and_parse_request
+from direct import Proxy, DIRECT_PROXY
+from http_try import recv_and_parse_request, NotHttp
 import contextlib
-import re
 
 
 LOGGER = logging.getLogger(__name__)
@@ -104,6 +103,10 @@ class GoAgentProxy(Proxy):
             if 'pandora.com' in client.host:
                 client.us_ip_only = True
                 raise Exception('pandora does not support goagent')
+        except NotHttp:
+            for proxy in self.proxies:
+                client.tried_proxies[proxy] = 'skip goagent'
+            return DIRECT_PROXY.forward(client)
         except:
             for proxy in self.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'

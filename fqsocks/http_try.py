@@ -7,6 +7,7 @@ import gzip
 import fnmatch
 
 from direct import Proxy
+from direct import DIRECT_PROXY
 
 
 LOGGER = logging.getLogger(__name__)
@@ -60,7 +61,10 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
             return
         client.direct_connection_succeeded()
-        is_payload_complete = recv_and_parse_request(client)
+        try:
+            is_payload_complete = recv_and_parse_request(client)
+        except NotHttp:
+            return DIRECT_PROXY.forward(client)
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
