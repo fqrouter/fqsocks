@@ -112,11 +112,11 @@ class DynamicProxy(Proxy):
 
 
 def resolve_proxy(proxy):
-    for i in range(5):
+    for i in range(3):
         try:
             sock = networking.create_udp_socket()
             with contextlib.closing(sock):
-                sock.settimeout(3)
+                sock.settimeout(10)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
                 sock.sendto(str(request), ('8.8.8.8', 53))

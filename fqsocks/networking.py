@@ -61,7 +61,7 @@ def resolve_ips(host):
         try:
             sock = create_udp_socket()
             with contextlib.closing(sock):
-                sock.settimeout(3)
+                sock.settimeout(10)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
                 sock.sendto(str(request), ('8.8.8.8', 53))
