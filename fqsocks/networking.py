@@ -13,22 +13,6 @@ SO_ORIGINAL_DST = 80
 OUTBOUND_IP = None
 SPI = {}
 
-DNS_SERVERS = [
-    # http://www.privacyfoundation.ch/de/service/server.html
-    ('77.109.138.45', 110),
-    ('77.109.139.29', 110),
-    ('87.118.85.241', 110),
-    # http://www.privacyfoundation.de/service/serveruebersicht
-    ('87.118.100.175 ', 110),
-    # http://dns.v2ex.com
-    ('199.91.73.222', 3389),
-    # http://www.opendns.com
-    ('208.67.222.222', 443),
-    ('208.67.220.220', 443),
-    # google dns
-    ('8.8.8.8', 53)
-]
-
 
 def create_tcp_socket(server_ip, server_port, connect_timeout):
     return SPI['create_tcp_socket'](server_ip, server_port, connect_timeout)
@@ -80,7 +64,7 @@ def resolve_ips(host):
                 sock.settimeout(3)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
-                sock.sendto(str(request), pick_dns_server())
+                sock.sendto(str(request), ('8.8.8.8', 53))
                 gevent.sleep(0)
                 response = dpkt.dns.DNS(sock.recv(8192))
                 return [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
@@ -91,7 +75,3 @@ def resolve_ips(host):
                 LOGGER.info('failed to resolve %s: %s' % (host, sys.exc_info()[1]), exc_info=1)
         gevent.sleep(1)
     return []
-
-
-def pick_dns_server():
-    return random.choice(DNS_SERVERS)

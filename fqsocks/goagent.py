@@ -106,7 +106,10 @@ class GoAgentProxy(Proxy):
         except NotHttp:
             for proxy in self.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
-            return DIRECT_PROXY.forward(client)
+            try:
+                return DIRECT_PROXY.forward(client)
+            except client.ProxyFallBack:
+                return # give up
         except:
             for proxy in self.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'

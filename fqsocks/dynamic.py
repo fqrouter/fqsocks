@@ -63,6 +63,7 @@ class DynamicProxy(Proxy):
     def refresh(cls, proxies):
         greenlets = []
         for proxy in proxies:
+            gevent.sleep(0.1)
             greenlets.append(gevent.spawn(resolve_proxy, proxy))
         success_count = 0
         deadline = time.time() + 30
@@ -111,15 +112,14 @@ class DynamicProxy(Proxy):
 
 
 def resolve_proxy(proxy):
-    dns_server = ('8.8.8.8', 53)
     for i in range(5):
         try:
             sock = networking.create_udp_socket()
             with contextlib.closing(sock):
-                sock.settimeout(1.5)
+                sock.settimeout(3)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
-                sock.sendto(str(request), dns_server)
+                sock.sendto(str(request), ('8.8.8.8', 53))
                 connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].text[0]
                 if not connection_info:
                     LOGGER.info('resolved empty proxy: %s' % repr(proxy))
@@ -140,8 +140,7 @@ def resolve_proxy(proxy):
                 LOGGER.debug('failed to resolve proxy: %s' % repr(proxy), exc_info=1)
             else:
                 LOGGER.info('failed to resolve proxy: %s %s' % (repr(proxy), sys.exc_info()[1]))
-        dns_server = networking.pick_dns_server()
-        gevent.sleep(0.5)
+        gevent.sleep(1)
     LOGGER.error('give up resolving proxy: %s' % repr(proxy))
     return False
 

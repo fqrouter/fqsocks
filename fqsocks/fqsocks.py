@@ -326,8 +326,6 @@ def pick_proxy(client):
 
 
 def get_dst_color(ip, port):
-    if 53 == port:
-        return 'BLACK'
     if ip in ip_black_list:
         return 'BLACK'
     dst = (ip, port)
@@ -411,11 +409,11 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
-    if success and CHECK_ACCESS:
-        check_access_many_times('https://www.twitter.com', 5)
-        check_access_many_times('https://plus.google.com', 3)
-        check_access_many_times('http://www.youtube.com', 3)
-        check_access_many_times('http://www.facebook.com', 3)
+    # if success and CHECK_ACCESS:
+    #     check_access_many_times('https://www.twitter.com', 5)
+    #     check_access_many_times('https://plus.google.com', 3)
+    #     check_access_many_times('http://www.youtube.com', 3)
+    #     check_access_many_times('http://www.facebook.com', 3)
     return success
 
 

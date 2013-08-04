@@ -67,7 +67,10 @@ class HttpTryProxy(Proxy):
         try:
             is_payload_complete = recv_and_parse_request(client)
         except NotHttp:
-            return DIRECT_PROXY.forward(client)
+            try:
+                return DIRECT_PROXY.forward(client)
+            except client.ProxyFallBack:
+                return # give up
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
