@@ -409,11 +409,11 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
-    # if success and CHECK_ACCESS:
-    #     check_access_many_times('https://www.twitter.com', 5)
-    #     check_access_many_times('https://plus.google.com', 3)
-    #     check_access_many_times('http://www.youtube.com', 3)
-    #     check_access_many_times('http://www.facebook.com', 3)
+    if success and CHECK_ACCESS:
+        check_access_many_times('https://www.twitter.com', 5)
+        check_access_many_times('https://plus.google.com', 3)
+        check_access_many_times('http://www.youtube.com', 3)
+        check_access_many_times('http://www.facebook.com', 3)
     return success
 
 
@@ -574,6 +574,7 @@ def main(argv):
         gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
         gevent.spawn(httpd.serve_forever), gevent.spawn(resolve_black_ips, args.black_ip),
         gevent.spawn(detect_400_bad_request)]
+    gevent.signal(signal.SIGHUP, refresh_proxies)
     for greenlet in greenlets:
         greenlet.join()
 
