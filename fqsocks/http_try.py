@@ -273,7 +273,7 @@ def detect_400_bad_request():
     for i in range(3):
         try:
             urllib2.urlopen('http://www.google.com/')
-            LOGGER.info('detect_400_bad_request passed %s time' % i)
+            LOGGER.info('detect_400_bad_request passed %s time' % (i + 1))
         except urllib2.HTTPError as e:
             if httplib.BAD_REQUEST == e.code:
                 HTTP_TRY_PROXY.http_request_mark = None
@@ -282,5 +282,7 @@ def detect_400_bad_request():
             else:
                 LOGGER.exception('access google failed')
         except:
+            HTTP_TRY_PROXY.http_request_mark = None
             LOGGER.exception('access google failed')
+            return
         gevent.sleep(10)

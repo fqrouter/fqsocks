@@ -238,9 +238,15 @@ def forward(client, proxy, appids):
         if proxy.validate:
             kwargs['validate'] = 1
         fetchserver = 'https://%s.appspot.com%s?' % (proxy.appid, proxy.path)
-        response = _goagent.gae_urlfetch(
-            client.method, client.url, client.headers, client.payload, fetchserver,
-            create_tcp_socket=client.create_tcp_socket, **kwargs)
+        try:
+            response = _goagent.gae_urlfetch(
+                client.method, client.url, client.headers, client.payload, fetchserver,
+                create_tcp_socket=client.create_tcp_socket, **kwargs)
+        except:
+            LOGGER.error('[%s] failed to gae_urlfetch: %s' % (repr(client), sys.exc_info()[1]))
+            for proxy in GoAgentProxy.proxies:
+                client.tried_proxies[proxy] = 'skip goagent'
+            client.fall_back(reason='failed to gae_urlfetch, %s' % sys.exc_info()[1])
         if response is None:
             client.fall_back('urlfetch empty response')
         if response.app_status == 503:
