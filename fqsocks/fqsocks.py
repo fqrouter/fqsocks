@@ -574,7 +574,6 @@ def main(argv):
         gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
         gevent.spawn(httpd.serve_forever), gevent.spawn(resolve_black_ips, args.black_ip),
         gevent.spawn(detect_400_bad_request)]
-    gevent.signal(signal.SIGHUP, refresh_proxies)
     for greenlet in greenlets:
         greenlet.join()
 
