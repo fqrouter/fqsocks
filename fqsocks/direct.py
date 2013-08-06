@@ -11,6 +11,7 @@ class Proxy(object):
         self.flags = set()
         self.priority = 0
         self._proxy_ip = None
+        self.shown_as = self
 
     @property
     def proxy_ip(self):
@@ -26,7 +27,7 @@ class Proxy(object):
         return self._proxy_ip
 
     def forward(self, client):
-        client.forwarding_by = self
+        client.forwarding_by = self.shown_as
         try:
             self.do_forward(client)
         finally:
@@ -72,6 +73,7 @@ class DirectProxy(Proxy):
         upstream_sock.settimeout(None)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] direct upstream connected' % repr(client))
+        upstream_sock.counter.sending(len(client.peeked_data))
         upstream_sock.sendall(client.peeked_data)
         client.forward(upstream_sock)
 
