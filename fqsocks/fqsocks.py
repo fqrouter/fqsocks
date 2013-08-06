@@ -20,6 +20,7 @@ import traceback
 import time
 import contextlib
 import fqdns
+import httplib
 
 import dpkt
 import gevent.server
@@ -43,7 +44,6 @@ from dynamic import DynamicProxy
 from shadowsocks import ShadowSocksProxy
 from ssh import SshProxy
 import httpd
-import httplib
 import networking
 
 
@@ -78,14 +78,38 @@ REFRESH_INTERVAL = 60 * 30
 CHINA_PROXY = None
 CHECK_ACCESS = True
 dns_polluted_at = 0
+dns_pollution_ignored = False
+force_us_ip = False
 
 
 def get_dns_polluted_at(environ, start_response):
+    global dns_pollution_ignored
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
-    yield str(dns_polluted_at)
+    if not dns_pollution_ignored and dns_polluted_at > 0:
+        dns_pollution_ignored = True
+        yield str(dns_polluted_at)
+    else:
+        yield '0'
+
+
+def start_force_us_ip(environ, start_response):
+    global force_us_ip
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    gevent.spawn(reset_force_us_ip)
+    LOGGER.info('force_us_ip set to True')
+    force_us_ip = True
+    yield 'OK'
+
+
+def reset_force_us_ip():
+    global force_us_ip
+    gevent.sleep(10)
+    LOGGER.info('force_us_ip reset to False')
+    force_us_ip = False
 
 
 httpd.HANDLERS[('GET', 'dns-polluted-at')] = get_dns_polluted_at
+httpd.HANDLERS[('POST', 'force-us-ip')] = start_force_us_ip
 
 
 class ProxyClient(object):
@@ -208,13 +232,17 @@ class ProxyFallBack(Exception):
         super(ProxyFallBack, self).__init__(reason)
         self.reason = reason
 
+
 ProxyClient.ProxyFallBack = ProxyFallBack
+
 
 def handle(downstream_sock, address):
     src_ip, src_port = address
     try:
         dst_ip, dst_port = networking.get_original_destination(downstream_sock, src_ip, src_port)
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
+        if force_us_ip:
+            client.us_ip_only = True
         try:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] downstream connected' % repr(client))
@@ -230,7 +258,6 @@ def handle(downstream_sock, address):
             client.close()
     except:
         LOGGER.exception('failed to handle %s:%s' % (src_ip, src_port))
-
 
 
 def pick_proxy_and_forward(client):
@@ -366,10 +393,16 @@ def pick_direct_proxy(client):
 
 
 def pick_http_try_proxy(client):
+    if client.us_ip_only:
+        client.tried_proxies[HTTP_TRY_PROXY] = 'us ip only'
+        return None
     return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
 
 def pick_https_try_proxy(client):
+    if client.us_ip_only:
+        client.tried_proxies[HTTPS_TRY_PROXY] = 'us ip only'
+        return None
     return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
 
@@ -476,8 +509,6 @@ def keep_refreshing_proxies():
             gevent.sleep(retry_interval)
         LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
         gevent.sleep(REFRESH_INTERVAL)
-
-
 
 
 def setup_logging(log_level, log_file=None):
