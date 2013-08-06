@@ -103,7 +103,7 @@ def start_force_us_ip(environ, start_response):
 
 def reset_force_us_ip():
     global force_us_ip
-    gevent.sleep(10)
+    gevent.sleep(30)
     LOGGER.info('force_us_ip reset to False')
     force_us_ip = False
 
