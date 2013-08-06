@@ -120,6 +120,7 @@ def resolve_proxy(proxy):
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
                 sock.sendto(str(request), ('8.8.8.8', 53))
+                gevent.sleep(0)
                 connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].text[0]
                 if not connection_info:
                     LOGGER.info('resolved empty proxy: %s' % repr(proxy))

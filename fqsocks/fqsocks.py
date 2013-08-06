@@ -63,7 +63,6 @@ mandatory_proxies = []
 proxies = []
 direct_connection_successes = set() # set of (ip, port)
 direct_connection_failures = {} # (ip, port) => failed_at
-ip_black_list = set() # always go through proxy
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -303,9 +302,7 @@ def pick_proxy(client):
     protocol, domain = analyze_protocol(client.peeked_data)
     if domain:
         client.host = domain
-        if is_no_direct_host(client.host):
-            ip_black_list.add(client.dst_ip)
-    dst_color = get_dst_color(client.dst_ip, client.dst_port)
+    dst_color = get_dst_color(client.host, client.dst_ip, client.dst_port)
     if LOGGER.isEnabledFor(logging.DEBUG):
         LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), dst_color, protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
@@ -325,8 +322,8 @@ def pick_proxy(client):
             return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
 
 
-def get_dst_color(ip, port):
-    if ip in ip_black_list:
+def get_dst_color(host, ip, port):
+    if is_no_direct_host(host):
         return 'BLACK'
     dst = (ip, port)
     if dst in direct_connection_successes:
@@ -415,21 +412,6 @@ def refresh_proxies():
         check_access_many_times('http://www.youtube.com', 3)
         check_access_many_times('http://www.facebook.com', 3)
     return success
-
-
-def resolve_black_ips(black_ip_or_domains):
-    for black_ip_or_domain in black_ip_or_domains:
-        try:
-            if re.match(r'\d+\.\d+\.\d+\.\d+', black_ip_or_domain):
-                LOGGER.info('black ip: %s' % black_ip_or_domain)
-                ip_black_list.add(black_ip_or_domain)
-            else:
-                ips = networking.resolve_ips('android.clients.google.com')
-                LOGGER.info('black domain: %s => %s' % (black_ip_or_domain, ips))
-                for ip in ips:
-                    ip_black_list.add(ip)
-        except:
-            LOGGER.exception('failed to resolve black ips: %s' % black_ip_or_domain)
 
 
 def check_access_many_times(url, times):
@@ -526,7 +508,6 @@ def main(argv):
     argument_parser.add_argument('--disable-direct-access', action='store_true')
     argument_parser.add_argument('--http-request-mark')
     argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
-    argument_parser.add_argument('--black-ip', action='append', default=[])
     args = argument_parser.parse_args(argv)
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
@@ -572,7 +553,7 @@ def main(argv):
         LOGGER.exception('failed to patch ssl')
     greenlets = [
         gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
-        gevent.spawn(httpd.serve_forever), gevent.spawn(resolve_black_ips, args.black_ip),
+        gevent.spawn(httpd.serve_forever),
         gevent.spawn(detect_400_bad_request)]
     for greenlet in greenlets:
         greenlet.join()
