@@ -595,15 +595,9 @@ def main(argv):
     for greenlet in greenlets:
         greenlet.join()
 
-# TODO test if connect being blocked by GFW
-# TODO kill fqsock -HUP to reload proxy upon connectivity change
-# TODO add shadowsocks proxy
 # TODO measure the speed of proxy which adds weight to the picking process
-# TODO add http-relay proxy
 # TODO add socks4 proxy
 # TODO add socks5 proxy
-# TODO add ssh proxy
-# TODO add spdy proxy
 # TODO === future ===
 # TODO add vpn as proxy (setup vpn, mark packet, mark based routing)
 
