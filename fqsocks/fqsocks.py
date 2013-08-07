@@ -34,7 +34,7 @@ from direct import NONE_PROXY
 from http_try import HTTP_TRY_PROXY
 from http_try import NotHttp
 from http_try import is_no_direct_host
-from http_try import detect_400_bad_request
+from http_try import detect_if_ttl_being_ignored
 from goagent import GoAgentProxy
 from http_relay import HttpRelayProxy
 from http_connect import HttpConnectProxy
@@ -589,8 +589,9 @@ def main(argv):
         LOGGER.exception('failed to patch ssl')
     greenlets = [
         gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
-        gevent.spawn(httpd.serve_forever),
-        gevent.spawn(detect_400_bad_request)]
+        gevent.spawn(httpd.serve_forever)]
+    if HTTP_TRY_PROXY.http_request_mark:
+        greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
         greenlet.join()
 

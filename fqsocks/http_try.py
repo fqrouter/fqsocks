@@ -8,8 +8,7 @@ import fnmatch
 
 from direct import Proxy
 from direct import DIRECT_PROXY
-import gevent
-import urllib2
+import networking
 
 LOGGER = logging.getLogger(__name__)
 
@@ -268,21 +267,21 @@ def parse_request(request):
     return method, path, headers
 
 
-def detect_400_bad_request():
-    gevent.sleep(5)
-    for i in range(3):
+def detect_if_ttl_being_ignored():
+    try:
+        LOGGER.info('detecting if ttl being ignored')
+        baidu_ip = networking.resolve_ips('www.baidu.com')[0]
+        sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        if networking.OUTBOUND_IP:
+            sock.bind((networking.OUTBOUND_IP, 0))
+        sock.setblocking(0)
+        sock.settimeout(2)
+        sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 3)
         try:
-            urllib2.urlopen('http://www.google.com/')
-            LOGGER.info('detect_400_bad_request passed %s time' % (i + 1))
-        except urllib2.HTTPError as e:
-            if httplib.BAD_REQUEST == e.code:
-                HTTP_TRY_PROXY.http_request_mark = None
-                LOGGER.error('access google 400 error, disable fqting')
-                return
-            else:
-                LOGGER.exception('access google failed')
-        except:
-            HTTP_TRY_PROXY.http_request_mark = None
-            LOGGER.exception('access google failed')
-            return
-        gevent.sleep(10)
+            sock.connect((baidu_ip, 80))
+        finally:
+            sock.close()
+        LOGGER.info('ttl 3 should not connect baidu, disable fqting')
+        HTTP_TRY_PROXY.http_request_mark = None
+    except:
+        LOGGER.exception('detected if ttl being ignored')
