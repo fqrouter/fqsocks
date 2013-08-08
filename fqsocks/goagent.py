@@ -54,7 +54,7 @@ AUTORANGE_THREADS = 2
 tcp_connection_time = {}
 ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
-
+auto_range_black_list = set()
 
 class GoAgentProxy(Proxy):
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
@@ -230,6 +230,11 @@ def forward(client, proxy, appids):
         client.headers['Range'] = 'bytes=%d-%d' % (0, AUTORANGE_MAXSIZE)
         auto_ranged = True
         LOGGER.info('[%s] auto range: %s' % (repr(client), client.headers['Range']))
+    if auto_ranged and client.host in auto_range_black_list:
+        for proxy in GoAgentProxy.proxies:
+            client.tried_proxies[proxy] = 'skip goagent'
+        LOGGER.info('[%s] host %s is in auto range black list' % (repr(client), client.host))
+        client.fall_back(reason='host %s is in auto range black list' % client.host)
     response = None
     try:
         kwargs = {}
@@ -302,6 +307,9 @@ def forward(client, proxy, appids):
                 response.close()
                 return
     finally:
+        if auto_ranged and sys.exc_info()[0]:
+            LOGGER.info('[%s] black list %s due to auto range failure' % (repr(client), client.host))
+            auto_range_black_list.add(client.host)
         if response:
             response.close()
 
