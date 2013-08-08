@@ -91,8 +91,8 @@ class Counter(object):
         self.closed_at = None
         self.rx_events = []
         self.tx_events = []
-        if '127.0.0.1' != self.ip:
-            counters.append(self)
+        # if '127.0.0.1' != self.ip:
+        #     counters.append(self)
         proxy_stats.setdefault(self.proxy, {'tx':0, 'rx': 0})
 
     def sending(self, bytes_count):
