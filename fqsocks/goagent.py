@@ -306,10 +306,12 @@ def forward(client, proxy, appids):
             if start >= end:
                 response.close()
                 return
-    finally:
-        if auto_ranged and sys.exc_info()[0]:
+    except:
+        if auto_ranged:
             LOGGER.info('[%s] black list %s due to auto range failure' % (repr(client), client.host))
             auto_range_black_list.add(client.host)
+        raise
+    finally:
         if response:
             response.close()
 
