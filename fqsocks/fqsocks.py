@@ -75,7 +75,7 @@ NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com.hk',
     'google.com.hk'
 }
-REFRESH_INTERVAL = 60 * 30
+REFRESH_INTERVAL = 60 * 15
 last_refreshed_at = 0
 CHINA_PROXY = None
 CHECK_ACCESS = True
@@ -287,6 +287,7 @@ def pick_proxy_and_forward(client):
         return
     if not client.us_ip_only and (not pick_proxy_supports(client, 'http') or not pick_proxy_supports(client, 'https')):
         LOGGER.info('proxies all died: %s' % proxies)
+        DynamicProxy.refresh_all = True
         gevent.spawn(refresh_proxies)
     for i in range(3):
         proxy = pick_proxy(client)
