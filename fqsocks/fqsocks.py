@@ -76,6 +76,7 @@ NO_PUBLIC_PROXY_HOSTS = {
     'google.com.hk'
 }
 REFRESH_INTERVAL = 60 * 30
+last_refreshed_at = 0
 CHINA_PROXY = None
 CHECK_ACCESS = True
 dns_polluted_at = 0
@@ -284,6 +285,9 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
+    if not client.us_ip_only and (not pick_proxy_supports(client, 'http') or not pick_proxy_supports(client, 'https')):
+        LOGGER.info('proxies all died: %s' % proxies)
+        gevent.spawn(refresh_proxies)
     for i in range(3):
         proxy = pick_proxy(client)
         while proxy:
@@ -426,6 +430,11 @@ def pick_proxy_supports(client, protocol):
 
 def refresh_proxies():
     global proxies
+    global last_refreshed_at
+    if time.time() - last_refreshed_at < 60:
+        LOGGER.info('skip refresh proxy within in %s seconds' % (time.time() - last_refreshed_at))
+        return False
+    last_refreshed_at = time.time()
     LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
     type_to_proxies = {}
