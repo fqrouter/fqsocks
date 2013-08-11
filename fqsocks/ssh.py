@@ -13,6 +13,8 @@ class SshProxy(Proxy):
     def __init__(self, proxy_host, proxy_port=22, username=None, password=None, key_filename=None):
         super(SshProxy, self).__init__()
         self.proxy_host = proxy_host
+        if not self.proxy_host:
+            self.died = True
         self.proxy_port = int(proxy_port)
         self.username = username
         self.password = password

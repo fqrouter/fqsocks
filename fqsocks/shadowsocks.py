@@ -13,6 +13,8 @@ class ShadowSocksProxy(Proxy):
     def __init__(self, proxy_host, proxy_port, password, encrypt_method):
         super(ShadowSocksProxy, self).__init__()
         self.proxy_host = proxy_host
+        if not self.proxy_host:
+            self.died = True
         self.proxy_port = int(proxy_port)
         self.password = password
         self.encrypt_method = encrypt_method

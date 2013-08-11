@@ -18,6 +18,8 @@ class HttpRelayProxy(Proxy):
     def __init__(self, proxy_host, proxy_port, username=None, password=None, is_public=False, is_secured=False):
         super(HttpRelayProxy, self).__init__()
         self.proxy_host = proxy_host
+        if not self.proxy_host:
+            self.died = True
         self.proxy_port = proxy_port
         self.username = username
         self.password = password
