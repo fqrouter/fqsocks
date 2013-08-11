@@ -602,7 +602,7 @@ def main(argv):
     greenlets = [
         gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
         gevent.spawn(httpd.serve_forever)]
-    if HTTP_TRY_PROXY.http_request_mark:
+    if HTTP_TRY_PROXY and HTTP_TRY_PROXY.http_request_mark:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
         greenlet.join()
