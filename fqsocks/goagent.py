@@ -54,7 +54,6 @@ AUTORANGE_THREADS = 2
 tcp_connection_time = {}
 ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
-auto_range_black_list = set()
 general_black_list = set()
 
 class GoAgentProxy(Proxy):
@@ -233,11 +232,6 @@ def forward(client, proxy, appids):
         client.headers['Range'] = 'bytes=%d-%d' % (0, AUTORANGE_MAXSIZE)
         auto_ranged = True
         LOGGER.info('[%s] auto range: %s' % (repr(client), client.headers['Range']))
-    if auto_ranged and client.host in auto_range_black_list:
-        for proxy in GoAgentProxy.proxies:
-            client.tried_proxies[proxy] = 'skip goagent'
-        LOGGER.info('[%s] host %s is in auto range black list' % (repr(client), client.host))
-        client.fall_back(reason='host %s is in auto range black list' % client.host)
     response = None
     try:
         kwargs = {}
@@ -252,9 +246,10 @@ def forward(client, proxy, appids):
                 create_tcp_socket=client.create_tcp_socket, **kwargs)
         except:
             LOGGER.error('[%s] failed to gae_urlfetch: %s' % (repr(client), sys.exc_info()[1]))
-            general_black_list.add(client.host)
-            for proxy in GoAgentProxy.proxies:
-                client.tried_proxies[proxy] = 'skip goagent'
+            if 'youtube.com' not in client.host: # can not afford youtube traffic
+                general_black_list.add(client.host)
+                for proxy in GoAgentProxy.proxies:
+                    client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back(reason='failed to gae_urlfetch, %s' % sys.exc_info()[1])
         if response is None:
             client.fall_back('urlfetch empty response')
@@ -310,11 +305,6 @@ def forward(client, proxy, appids):
             if start >= end:
                 response.close()
                 return
-    except:
-        if auto_ranged:
-            LOGGER.info('[%s] black list %s due to auto range failure' % (repr(client), client.host))
-            auto_range_black_list.add(client.host)
-        raise
     finally:
         if response:
             response.close()
