@@ -185,8 +185,6 @@ class ProxyClient(object):
                 raise
         finally:
             if not self.forward_started:
-                if sys.exc_info()[0]:
-                    LOGGER.exception('forward failed, fallback due to forward not started yet')
                 self.fall_back(reason='forward does not receive any response')
 
     def close(self):
