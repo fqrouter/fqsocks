@@ -75,7 +75,8 @@ NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com.hk',
     'google.com.hk'
 }
-last_refreshed_at = 0
+last_refresh_started_at = 0
+last_success_refresh = 0
 CHINA_PROXY = None
 CHECK_ACCESS = True
 dns_polluted_at = 0
@@ -286,7 +287,7 @@ def pick_proxy_and_forward(client):
         return
     http_proxies_died = not pick_proxy_supports(client, 'HTTP')
     https_proxies_died = not pick_proxy_supports(client, 'HTTPS')
-    goagent_proxies_died = not pick_proxy_supports(client, 'GOAGENT')
+    goagent_proxies_died = all(p.died for p in GoAgentProxy.proxies) if GoAgentProxy.proxies else False
     if not client.us_ip_only and (http_proxies_died or https_proxies_died or goagent_proxies_died):
         LOGGER.info('http %s https %s goagent %s, refresh proxies: %s' %
                     (http_proxies_died, https_proxies_died, goagent_proxies_died, proxies))
@@ -433,17 +434,22 @@ def pick_proxy_supports(client, protocol):
 
 def refresh_proxies():
     global proxies
-    global last_refreshed_at
-    if time.time() - last_refreshed_at < 60:
-        LOGGER.info('skip refresh proxy within in %s seconds' % (time.time() - last_refreshed_at))
+    global last_refresh_started_at
+    global last_success_refresh
+    if time.time() - last_refresh_started_at < 60:
+        LOGGER.debug('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
         return False
-    last_refreshed_at = time.time()
+    if time.time() - last_success_refresh < 60 * 15:
+        LOGGER.debug('skip refreshing proxy after last success %s seconds' % (time.time() - last_success_refresh))
+        return False
+    last_refresh_started_at = time.time()
     LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
     type_to_proxies = {}
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
     success = True
+    last_success_refresh = time.time()
     for proxy_type, instances in type_to_proxies.items():
         try:
             success = success and proxy_type.refresh(instances)
