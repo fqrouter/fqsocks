@@ -132,6 +132,7 @@ class ProxyClient(object):
         self.tried_proxies = {}
         self.forwarding_by = None
         self.us_ip_only = False
+        self.delayed_penalties = []
 
     def create_tcp_socket(self, server_ip, server_port, connect_timeout):
         upstream_sock = networking.create_tcp_socket(server_ip, server_port, connect_timeout)
@@ -143,7 +144,7 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192, encrypt=None, decrypt=None):
+    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192, encrypt=None, decrypt=None, delayed_penalty=None):
         buffer_multiplier = 1
         try:
             timecount = 61 if self.forward_started else timeout
@@ -168,6 +169,8 @@ class ProxyClient(object):
                                 self.downstream_sock.sendall(data)
                                 timecount = 61 if self.forward_started else timeout
                             else:
+                                if self.forward_started:
+                                    self.apply_delayed_penalties()
                                 return
                         else:
                             buffer_multiplier = 1
@@ -179,13 +182,24 @@ class ProxyClient(object):
                                 upstream_sock.sendall(data)
                                 timecount = 61 if self.forward_started else timeout
                             else:
+                                if self.forward_started:
+                                    self.apply_delayed_penalties()
                                 return
         except socket.error as e:
             if e[0] not in (10053, 10054, 10057, errno.EPIPE):
                 raise
         finally:
             if not self.forward_started:
-                self.fall_back(reason='forward does not receive any response')
+                self.fall_back(reason='forward does not receive any response', delayed_penalty=delayed_penalty)
+
+
+    def apply_delayed_penalties(self):
+        for delayed_penalty in self.delayed_penalties:
+            try:
+                delayed_penalty()
+            except:
+                LOGGER.exception('failed to apply delayed penalty: %s' % delayed_penalty)
+
 
     def close(self):
         for res in self.resources:
@@ -194,11 +208,13 @@ class ProxyClient(object):
             except:
                 pass
 
-    def fall_back(self, reason):
+    def fall_back(self, reason, delayed_penalty=None):
         if self.forward_started:
             LOGGER.fatal('[%s] fall back can not happen after forward started:\n%s' %
                          (repr(self), traceback.format_stack()))
             raise Exception('!!! fall back can not happen after forward started !!!')
+        if delayed_penalty:
+            self.delayed_penalties.append(delayed_penalty)
         raise ProxyFallBack(reason)
 
     def direct_connection_succeeded(self):

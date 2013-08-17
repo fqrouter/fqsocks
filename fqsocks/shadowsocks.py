@@ -28,15 +28,20 @@ class ShadowSocksProxy(Proxy):
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 5)
         except:
-            self.failed_times += 1
-            if self.failed_times > 3:
-                self.died = True
+            self.increase_failed_time()
             client.fall_back(reason='can not connect to proxy')
         upstream_sock.sendall(encryptor.encrypt(addr_to_send))
         upstream_sock.sendall(encryptor.encrypt(client.peeked_data))
-        client.forward(upstream_sock, encrypt=encryptor.encrypt, decrypt=encryptor.decrypt)
+        client.forward(
+            upstream_sock, encrypt=encryptor.encrypt, decrypt=encryptor.decrypt,
+            delayed_penalty=self.increase_failed_time)
         self.failed_times = 0
 
+    def increase_failed_time(self):
+        self.failed_times += 1
+        if self.failed_times > 3:
+            self.died = True
+            LOGGER.fatal('!!! proxy died !!!: %s' % self)
 
     def is_protocol_supported(self, protocol):
         return True
