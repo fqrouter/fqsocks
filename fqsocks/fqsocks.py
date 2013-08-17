@@ -285,7 +285,7 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    if not client.us_ip_only and (not pick_proxy_supports(client, 'http') or not pick_proxy_supports(client, 'https')):
+    if not client.us_ip_only and (not pick_proxy_supports(client, 'HTTP') or not pick_proxy_supports(client, 'HTTPS')):
         LOGGER.info('proxies all died: %s' % proxies)
         DynamicProxy.refresh_all = True
         gevent.spawn(refresh_proxies)
