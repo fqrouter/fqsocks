@@ -48,6 +48,7 @@ import networking
 import stat
 
 
+proxy_directories = []
 proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
@@ -540,15 +541,63 @@ def start_server():
         LOGGER.info('server stopped')
 
 
+def add_proxies(proxy_type, prop_dict):
+    n = prop_dict.pop('n', 0)
+    n = int(n)
+    if n:
+        for i in range(1, 1 + n):
+            proxy = proxy_types[proxy_type](**{k: v.replace('#n#', str(i)) for k, v in prop_dict.items()})
+            proxies.append(proxy)
+    else:
+        if 'directory' == proxy_type:
+            proxy_directories.append(prop_dict)
+        else:
+            proxy = proxy_types[proxy_type](**prop_dict)
+            proxies.append(proxy)
+
+
 def init_proxies():
     for i in range(8):
-        if refresh_proxies():
-            LOGGER.info('proxies init successfully')
-            return
+        if load_proxies_from_directories():
+            if refresh_proxies():
+                LOGGER.info('proxies init successfully')
+                return
         retry_interval = math.pow(2, i)
         LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
         gevent.sleep(retry_interval)
     LOGGER.critical('proxies init successfully')
+
+def load_proxies_from_directories():
+    for proxy_directory in list(proxy_directories):
+        if not load_proxy_from_directory(proxy_directory):
+            return False
+    return True
+
+
+def load_proxy_from_directory(proxy_directory):
+    try:
+        sock = networking.create_udp_socket()
+        more_proxies = []
+        with contextlib.closing(sock):
+            sock.settimeout(10)
+            request = dpkt.dns.DNS(
+                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy_directory['src'], type=dpkt.dns.DNS_TXT)])
+            sock.sendto(str(request), ('8.8.8.8', 53))
+            gevent.sleep(0.1)
+            for an in dpkt.dns.DNS(sock.recv(1024)).an:
+                priority, proxy_type, count, partial_dns_record = an.text[0].split(':')[:4]
+                count = int(count)
+                priority = int(priority)
+                if proxy_type in proxy_directory and proxy_type in proxy_types:
+                    for i in range(count):
+                        dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i+1))
+                        more_proxies.append(DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority))
+        proxies.extend(more_proxies)
+        proxy_directories.remove(proxy_directory)
+        return True
+    except:
+        LOGGER.exception('failed to load proxy from directory')
+        return False
 
 
 def setup_logging(log_level, log_file=None):
@@ -603,15 +652,7 @@ def main(argv):
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
-        n = prop_dict.pop('n', 0)
-        n = int(n)
-        if n:
-            for i in range(1, 1 + n):
-                proxy = proxy_types[props[0]](**{k: v.replace('#n#', str(i)) for k, v in prop_dict.items()})
-                proxies.append(proxy)
-        else:
-            proxy = proxy_types[props[0]](**prop_dict)
-            proxies.append(proxy)
+        add_proxies(props[0], prop_dict)
     if args.dev:
         signal.signal(signal.SIGTERM, lambda signum, fame: teardown_development_env())
         signal.signal(signal.SIGINT, lambda signum, fame: teardown_development_env())
