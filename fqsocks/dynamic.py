@@ -1,4 +1,3 @@
-import socket
 import logging
 import random
 
@@ -17,8 +16,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DynamicProxy(Proxy):
-
-    refresh_all = True
 
     def __init__(self, dns_record, type=None, priority=0, **kwargs):
         self.dns_record = dns_record
@@ -64,8 +61,6 @@ class DynamicProxy(Proxy):
 
     @classmethod
     def refresh(cls, proxies):
-        if not cls.refresh_all:
-            proxies = [proxy for proxy in proxies if 'goagent' == proxy.type]
         greenlets = []
         for proxy in proxies:
             gevent.sleep(0.1)
@@ -95,8 +90,6 @@ class DynamicProxy(Proxy):
             except:
                 LOGGER.exception('failed to refresh proxies %s' % instances)
                 success = False
-        if success:
-            cls.refresh_all = False
         return success
 
     def is_protocol_supported(self, protocol):

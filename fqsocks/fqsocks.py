@@ -75,7 +75,6 @@ NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com.hk',
     'google.com.hk'
 }
-REFRESH_INTERVAL = 60 * 15
 last_refreshed_at = 0
 CHINA_PROXY = None
 CHECK_ACCESS = True
@@ -285,9 +284,12 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    if not client.us_ip_only and (not pick_proxy_supports(client, 'HTTP') or not pick_proxy_supports(client, 'HTTPS')):
-        LOGGER.info('proxies all died: %s' % proxies)
-        DynamicProxy.refresh_all = True
+    http_proxies_died = not pick_proxy_supports(client, 'HTTP')
+    https_proxies_died = not pick_proxy_supports(client, 'HTTPS')
+    goagent_proxies_died = not pick_proxy_supports(client, 'GOAGENT')
+    if not client.us_ip_only and (http_proxies_died or https_proxies_died or goagent_proxies_died):
+        LOGGER.info('http %s https %s goagent %s, refresh proxies: %s' %
+                    (http_proxies_died, https_proxies_died, goagent_proxies_died, proxies))
         gevent.spawn(refresh_proxies)
     for i in range(3):
         proxy = pick_proxy(client)
@@ -516,16 +518,15 @@ def start_server():
         LOGGER.info('server stopped')
 
 
-def keep_refreshing_proxies():
-    while True:
-        for i in range(8):
-            if refresh_proxies():
-                break
-            retry_interval = math.pow(2, i)
-            LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
-            gevent.sleep(retry_interval)
-        LOGGER.info('next refresh will happen %s seconds later' % REFRESH_INTERVAL)
-        gevent.sleep(REFRESH_INTERVAL)
+def init_proxies():
+    for i in range(8):
+        if refresh_proxies():
+            LOGGER.info('proxies init successfully')
+            return
+        retry_interval = math.pow(2, i)
+        LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
+        gevent.sleep(retry_interval)
+    LOGGER.critical('proxies init successfully')
 
 
 def setup_logging(log_level, log_file=None):
@@ -600,7 +601,7 @@ def main(argv):
     except:
         LOGGER.exception('failed to patch ssl')
     greenlets = [
-        gevent.spawn(start_server), gevent.spawn(keep_refreshing_proxies),
+        gevent.spawn(start_server), gevent.spawn(init_proxies),
         gevent.spawn(httpd.serve_forever)]
     if HTTP_TRY_PROXY and HTTP_TRY_PROXY.http_request_mark:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))

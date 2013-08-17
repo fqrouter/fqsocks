@@ -122,7 +122,7 @@ class GoAgentProxy(Proxy):
 
     @classmethod
     def is_protocol_supported(cls, protocol):
-        return 'HTTP' == protocol
+        return protocol in ('HTTP', 'GOAGENT')
 
     @classmethod
     def refresh(cls, proxies):
