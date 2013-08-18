@@ -453,6 +453,8 @@ def refresh_proxies():
     global proxies
     global last_refresh_started_at
     global last_success_refresh
+    if proxy_directories: # wait for proxy directories to load
+        return False
     if time.time() - last_refresh_started_at < 60:
         LOGGER.debug('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
         return False
