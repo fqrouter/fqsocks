@@ -454,12 +454,13 @@ def refresh_proxies():
     global last_refresh_started_at
     global last_success_refresh
     if proxy_directories: # wait for proxy directories to load
+        LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
         return False
     if time.time() - last_refresh_started_at < 60:
-        LOGGER.debug('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
+        LOGGER.error('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
         return False
     if time.time() - last_success_refresh < 60 * 15:
-        LOGGER.debug('skip refreshing proxy after last success %s seconds' % (time.time() - last_success_refresh))
+        LOGGER.error('skip refreshing proxy after last success %s seconds' % (time.time() - last_success_refresh))
         return False
     last_refresh_started_at = time.time()
     LOGGER.info('refresh proxies: %s' % proxies)
@@ -569,10 +570,12 @@ def init_proxies():
         gevent.sleep(retry_interval)
     LOGGER.critical('proxies init successfully')
 
+
 def load_proxies_from_directories():
     for proxy_directory in list(proxy_directories):
         if not load_proxy_from_directory(proxy_directory):
             return False
+    assert not proxy_directories
     return True
 
 
