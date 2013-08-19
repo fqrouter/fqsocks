@@ -216,7 +216,7 @@ def forward(client, proxy, appids):
     parsed_url = urllib.parse.urlparse(client.url)
     range_in_query = 'range=' in parsed_url.query
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
-        AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH)
+        AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
     range_end = 0
     auto_ranged = False
     if 'Range' in client.headers:
