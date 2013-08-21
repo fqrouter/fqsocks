@@ -166,7 +166,7 @@ class GoAgentProxy(Proxy):
                 try:
                     timeout = deadline - time.time()
                     if timeout > 0:
-                        selected_ips.add(queue.get(timeout=1))
+                        selected_ips.add(queue.get(timeout=2))
                     else:
                         selected_ips.add(queue.get(block=False))
                 except:
@@ -190,6 +190,7 @@ class GoAgentProxy(Proxy):
 def test_google_ip(queue, ip):
     try:
         sock = networking.create_tcp_socket(ip, 443, 5)
+        sock.settimeout(2)
         ssl_sock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_TLSv1)
         try:
             ssl_sock.do_handshake()
