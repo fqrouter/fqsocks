@@ -75,8 +75,7 @@ class HttpTryProxy(Proxy):
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
         scrambles_youtube = self.enable_youtube_scrambler and \
                             is_payload_complete and \
-                            is_youtube_host(client.host) and \
-                            not HTTP_TRY_PROXY.http_request_mark
+                            is_youtube_host(client.host)
         if scrambles_youtube:
             LOGGER.info('[%s] scramble youtube traffic' % repr(client))
             request_data = 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n' + request_data
