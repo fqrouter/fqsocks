@@ -15,12 +15,12 @@ LOGGER = logging.getLogger(__name__)
 SO_MARK = 36
 
 NO_DIRECT_PROXY_HOSTS = {
-    '*.twitter.com',
-    'twitter.com',
-    '*.t.co',
-    't.co',
-    '*.twimg.com',
-    'twimg.com',
+    # '*.twitter.com',
+    # 'twitter.com',
+    # '*.t.co',
+    # 't.co',
+    # '*.twimg.com',
+    # 'twimg.com',
     'hulu.com',
     '*.hulu.com',
     'huluim.com',
@@ -57,7 +57,8 @@ class HttpTryProxy(Proxy):
     def do_forward(self, client):
         try:
             self.try_direct(client)
-            self.failed_times[client.host] = 0
+            if client.host in self.failed_times:
+                del self.failed_times[client.host]
         except:
             self.failed_times[client.host] = self.failed_times.get(client.host, 0) + 1
             raise
@@ -80,7 +81,7 @@ class HttpTryProxy(Proxy):
             except client.ProxyFallBack:
                 return # give up
         failed_count = self.failed_times.get(client.host, 0)
-        if failed_count > 3 and failed_count % 10 != 0:
+        if failed_count > 3 and (failed_count % 10) != 0:
             client.fall_back(reason='%s tried before' % client.host)
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host)

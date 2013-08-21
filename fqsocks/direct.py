@@ -81,10 +81,29 @@ class DirectProxy(Proxy):
         return True
 
     def __repr__(self):
-        if self.connect_timeout != self.DEFAULT_CONNECT_TIMEOUT:
-            return 'DirectProxy[connect_timeout=%s]' % self.connect_timeout
-        else:
-            return 'DirectProxy'
+        return 'DirectProxy'
+
+
+class GenericTryProxy(DirectProxy):
+    def __init__(self):
+        super(GenericTryProxy, self).__init__(2)
+        self.failed_times = {}
+
+    def do_forward(self, client):
+        dst = (client.dst_ip, client.dst_port)
+        try:
+            failed_count = self.failed_times.get(dst, 0)
+            if failed_count and (failed_count % 10) != 0:
+                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port))
+            super(GenericTryProxy, self).do_forward(client)
+            if dst in self.failed_times and (failed_count % 10) == 0:
+                del self.failed_times[dst]
+        except:
+            self.failed_times[dst] = self.failed_times.get(dst, 0) + 1
+            raise
+
+    def __repr__(self):
+        return 'GenericTryProxy'
 
 
 class NoneProxy(Proxy):
@@ -100,4 +119,4 @@ class NoneProxy(Proxy):
 
 DIRECT_PROXY = DirectProxy()
 NONE_PROXY = NoneProxy()
-HTTPS_TRY_PROXY = DirectProxy(connect_timeout=2)
+HTTPS_TRY_PROXY = GenericTryProxy()
