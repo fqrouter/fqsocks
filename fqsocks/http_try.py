@@ -52,8 +52,17 @@ class HttpTryProxy(Proxy):
         self.flags.add('DIRECT')
         self.http_request_mark = None
         self.enable_youtube_scrambler = False
+        self.failed_times = {} # host => count
 
     def do_forward(self, client):
+        try:
+            self.try_direct(client)
+            self.failed_times[client.host] = 0
+        except:
+            self.failed_times[client.host] = self.failed_times.get(client.host, 0) + 1
+            raise
+
+    def try_direct(self, client):
         try:
             upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
         except:
@@ -70,6 +79,9 @@ class HttpTryProxy(Proxy):
                 return DIRECT_PROXY.forward(client)
             except client.ProxyFallBack:
                 return # give up
+        failed_count = self.failed_times.get(client.host, 0)
+        if failed_count > 3 and failed_count % 10 != 0:
+            client.fall_back(reason='%s tried before' % client.host)
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
