@@ -515,14 +515,6 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
-    if success and CHECK_ACCESS:
-        LOGGER.info('check access in 10 seconds')
-        gevent.sleep(10)
-        check_access_many_times('https://www.twitter.com', 5)
-        check_access_many_times('https://plus.google.com', 3)
-        check_access_many_times('http://www.youtube.com', 3)
-        check_access_many_times('http://www.facebook.com', 3)
-    return success
 
 
 def check_access_many_times(url, times):
@@ -597,6 +589,13 @@ def init_proxies():
         if load_proxies_from_directories():
             if refresh_proxies():
                 LOGGER.info('proxies init successfully')
+                if CHECK_ACCESS:
+                    LOGGER.info('check access in 10 seconds')
+                    gevent.sleep(10)
+                    check_access_many_times('https://www.twitter.com', 5)
+                    check_access_many_times('https://plus.google.com', 3)
+                    check_access_many_times('http://www.youtube.com', 3)
+                    check_access_many_times('http://www.facebook.com', 3)
                 return
         retry_interval = math.pow(2, i)
         LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
