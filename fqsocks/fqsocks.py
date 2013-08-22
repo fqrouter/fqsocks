@@ -77,12 +77,12 @@ NO_PUBLIC_PROXY_HOSTS = {
     'google.com.hk'
 }
 last_refresh_started_at = 0
-last_success_refresh = 0
 CHINA_PROXY = None
 CHECK_ACCESS = True
 dns_polluted_at = 0
 dns_pollution_ignored = False
 force_us_ip = False
+auto_fix_enabled = True
 
 
 def get_dns_polluted_at(environ, start_response):
@@ -113,7 +113,6 @@ def reset_force_us_ip():
 
 def clear_states(environ, start_response):
     global last_refresh_started_at
-    global last_success_refresh
     if HTTP_TRY_PROXY:
         HTTP_TRY_PROXY.failed_times.clear()
         HTTP_TRY_PROXY.bad_requests.clear()
@@ -121,7 +120,6 @@ def clear_states(environ, start_response):
         HTTPS_TRY_PROXY.failed_times.clear()
     GoAgentProxy.black_list = set()
     last_refresh_started_at = 0
-    last_success_refresh = 0
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
@@ -319,13 +317,8 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    http_proxies_died = not pick_proxy_supports(client, 'HTTP')
-    https_proxies_died = not pick_proxy_supports(client, 'HTTPS')
-    goagent_proxies_died = all(p.died for p in GoAgentProxy.proxies) if GoAgentProxy.proxies else False
-    if not client.us_ip_only and (http_proxies_died or https_proxies_died or goagent_proxies_died):
-        LOGGER.info('http %s https %s goagent %s, refresh proxies: %s' %
-                    (http_proxies_died, https_proxies_died, goagent_proxies_died, proxies))
-        gevent.spawn(refresh_proxies)
+    if not client.us_ip_only and should_fix():
+        gevent.spawn(fix_by_refreshing_proxies)
     for i in range(3):
         proxy = pick_proxy(client)
         while proxy:
@@ -351,6 +344,27 @@ def pick_proxy_and_forward(client):
         except NotHttp:
             client.tried_proxies[proxy] = 'not http'
             continue
+
+
+def should_fix():
+    http_proxies_died = all(proxy.died for proxy in proxies if
+                            proxy.is_protocol_supported('HTTP'))
+    https_proxies_died = all(proxy.died for proxy in proxies if
+                             proxy.is_protocol_supported('HTTPS'))
+    dynamic_goagent_proxies = [proxy for proxy in proxies if
+                               isinstance(proxy, DynamicProxy)
+                               and isinstance(proxy.delegated_to, GoAgentProxy)]
+    dynamic_goagent_proxies_died = dynamic_goagent_proxies and all(p.died for p in dynamic_goagent_proxies)
+    if auto_fix_enabled and (http_proxies_died or https_proxies_died or dynamic_goagent_proxies_died):
+        LOGGER.info('http %s https %s goagent %s, refresh proxies: %s' %
+                    (http_proxies_died, https_proxies_died, dynamic_goagent_proxies_died, proxies))
+        return True
+    else:
+        if dynamic_goagent_proxies_died:
+            LOGGER.info('dynamic goagent proxies all died, fix now')
+            return True
+        else:
+            return False
 
 
 def is_direct_access_disabled():
@@ -466,18 +480,21 @@ def pick_proxy_supports(client, protocol):
     return random.choice(prioritized_proxies[highest_priority])
 
 
+def fix_by_refreshing_proxies():
+    global auto_fix_enabled
+    if refresh_proxies() and should_fix():
+        LOGGER.critical('!!! auto fix does not work, disable it !!!')
+        auto_fix_enabled = False
+
+
 def refresh_proxies():
     global proxies
     global last_refresh_started_at
-    global last_success_refresh
     if proxy_directories: # wait for proxy directories to load
         LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
         return False
     if time.time() - last_refresh_started_at < 60:
         LOGGER.error('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
-        return False
-    if time.time() - last_success_refresh < 60 * 15:
-        LOGGER.error('skip refreshing proxy after last success %s seconds' % (time.time() - last_success_refresh))
         return False
     last_refresh_started_at = time.time()
     LOGGER.info('refresh proxies: %s' % proxies)
@@ -486,7 +503,6 @@ def refresh_proxies():
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
     success = True
-    last_success_refresh = time.time()
     for proxy_type, instances in type_to_proxies.items():
         try:
             success = success and proxy_type.refresh(instances)
@@ -627,7 +643,7 @@ def setup_logging(log_level, log_file=None):
         stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
     if log_file:
         handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=1024 * 512, backupCount=0)
+            log_file, maxBytes=1024 * 512, backupCount=1)
         handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
         handler.setLevel(log_level)
         logging.getLogger('fqsocks').addHandler(handler)
