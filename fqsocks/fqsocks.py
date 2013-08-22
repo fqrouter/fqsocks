@@ -116,6 +116,7 @@ def clear_states(environ, start_response):
     global last_success_refresh
     if HTTP_TRY_PROXY:
         HTTP_TRY_PROXY.failed_times.clear()
+        HTTP_TRY_PROXY.bad_requests.clear()
     if HTTPS_TRY_PROXY:
         HTTPS_TRY_PROXY.failed_times.clear()
     GoAgentProxy.black_list = set()

@@ -53,6 +53,7 @@ class HttpTryProxy(Proxy):
         self.http_request_mark = None
         self.enable_youtube_scrambler = False
         self.failed_times = {} # host => count
+        self.bad_requests = {} # host => count
 
     def do_forward(self, client):
         try:
@@ -109,6 +110,16 @@ class HttpTryProxy(Proxy):
         if is_payload_complete:
             response, http_response = try_receive_response(
                 client, upstream_sock, rejects_error=('GET' == client.method))
+            if httplib.BAD_REQUEST == http_response.status:
+                LOGGER.info('[%s] bad request to %s' % (repr(client), client.host))
+                self.bad_requests[client.host] = self.bad_requests.get(client.host, 0) + 1
+                if self.bad_requests[client.host] >= 3:
+                    LOGGER.critical('!!! too many bad requests, disable tcp scrambler !!!')
+                    HTTP_TRY_PROXY.http_request_mark = None
+            else:
+                if client.host in self.bad_requests:
+                    LOGGER.info('[%s] reset bad request to %s' % (repr(client), client.host))
+                    del self.bad_requests[client.host]
             if scrambles_youtube or HTTP_TRY_PROXY.http_request_mark:
                 response = response.replace('Connection: keep-alive', 'Connection: close')
                 try:
