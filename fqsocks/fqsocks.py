@@ -111,8 +111,24 @@ def reset_force_us_ip():
     force_us_ip = False
 
 
+def clear_states(environ, start_response):
+    global last_refresh_started_at
+    global last_success_refresh
+    if HTTP_TRY_PROXY:
+        HTTP_TRY_PROXY.failed_times.clear()
+    if HTTPS_TRY_PROXY:
+        HTTPS_TRY_PROXY.failed_times.clear()
+    GoAgentProxy.black_list = set()
+    last_refresh_started_at = 0
+    last_success_refresh = 0
+    LOGGER.info('cleared states upon request')
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    yield 'OK'
+
+
 httpd.HANDLERS[('GET', 'dns-polluted-at')] = get_dns_polluted_at
 httpd.HANDLERS[('POST', 'force-us-ip')] = start_force_us_ip
+httpd.HANDLERS[('POST', 'clear-states')] = clear_states
 
 
 class ProxyClient(object):

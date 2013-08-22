@@ -51,12 +51,12 @@ AUTORANGE_WAITSIZE = 524288
 AUTORANGE_BUFSIZE = 8192
 AUTORANGE_THREADS = 2
 
-tcp_connection_time = {}
-ssl_connection_time = {}
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
-general_black_list = set()
 
 class GoAgentProxy(Proxy):
+
+    black_list = set()
+
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
     proxies = []
@@ -103,7 +103,7 @@ class GoAgentProxy(Proxy):
             if 'pandora.com' in client.host:
                 client.us_ip_only = True
                 raise Exception('pandora does not support goagent')
-            if client.host in general_black_list:
+            if client.host in GoAgentProxy.black_list:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:
             for proxy in self.proxies:
@@ -248,7 +248,7 @@ def forward(client, proxy, appids):
         except:
             LOGGER.error('[%s] failed to gae_urlfetch: %s' % (repr(client), sys.exc_info()[1]))
             if 'youtube.com' not in client.host: # can not afford youtube traffic
-                general_black_list.add(client.host)
+                GoAgentProxy.black_list.add(client.host)
                 for proxy in GoAgentProxy.proxies:
                     client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back(reason='failed to gae_urlfetch, %s' % sys.exc_info()[1])
