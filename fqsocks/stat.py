@@ -30,7 +30,7 @@ def list_proxies(environ, start_response):
         proxies.setdefault(counter.proxy, []).append(counter)
     after = time.time() - 10
     yield PROXY_LIST_PAGE.split('|')[0]
-    for proxy, proxy_counters in sorted(proxies.items(), key=lambda (proxy, proxy_counters): format_proxy_name(proxy)):
+    for proxy, proxy_counters in sorted(proxies.items(), key=lambda (proxy, proxy_counters): proxy.public_name):
         rx_bytes_list, rx_seconds_list, _ = zip(*[counter.total_rx(after) for counter in proxy_counters])
         rx_bytes = sum(rx_bytes_list)
         rx_seconds = sum(rx_seconds_list)
@@ -45,28 +45,16 @@ def list_proxies(environ, start_response):
             tx_speed = tx_bytes/(tx_seconds * 1000)
         else:
             tx_speed = 0
-        proxy_name = format_proxy_name(proxy)
-        if not proxy_name:
+        if not proxy.public_name:
             continue
-        yield '%s\trx\t%0.2fkb/s\t%s\ttx\t%0.2fkb/s\t%s\n' % \
-              (proxy_name,
+        yield '%s\trx\t%0.2fKB/s\t%s\ttx\t%0.2fKB/s\t%s\n' % \
+              (proxy.public_name,
                rx_speed,
                to_human_readable_size(proxy_stats.get(proxy, {}).get('tx', 0)),
                tx_speed,
                to_human_readable_size(proxy_stats.get(proxy, {}).get('rx', 0)))
     yield PROXY_LIST_PAGE.split('|')[1]
 
-def format_proxy_name(proxy):
-    if 'DynamicProxy' == proxy.__class__.__name__:
-        if 'GoAgentProxy' == proxy.delegated_to.__class__.__name__:
-            return 'GoAgent\t公共代理\t#%s' % proxy.dns_record.replace('.fqrouter.com', '').replace('goagent', '')
-        elif 'ShadowSocksProxy' == proxy.delegated_to.__class__.__name__:
-            return 'SS\t公共代理\t#%s' % proxy.dns_record.replace('.fqrouter.com', '').replace('ss', '')
-        elif 'HttpConnectProxy' == proxy.delegated_to.__class__.__name__:
-            return 'HTTP\t公共代理\t#%s' % proxy.dns_record.replace('.fqrouter.com', '').replace('proxy', '')
-        else:
-            return None # ignore
-    return None
 
 def to_human_readable_size(num):
     for x in ['B','KB','MB','GB','TB']:
@@ -91,8 +79,8 @@ class Counter(object):
         self.closed_at = None
         self.rx_events = []
         self.tx_events = []
-        # if '127.0.0.1' != self.ip:
-        #     counters.append(self)
+        if '127.0.0.1' != self.ip:
+            counters.append(self)
         proxy_stats.setdefault(self.proxy, {'tx':0, 'rx': 0})
 
     def sending(self, bytes_count):
@@ -131,7 +119,7 @@ class Counter(object):
     def __str__(self):
         rx_bytes, rx_seconds, rx_speed = self.total_rx()
         tx_bytes, tx_seconds, tx_speed = self.total_tx()
-        return '[%s~%s] %s%s via %s rx %0.2fkb/s(%s/%s) tx %0.2fkb/s(%s/%s)' % (
+        return '[%s~%s] %s%s via %s rx %0.2fKB/s(%s/%s) tx %0.2fKB/s(%s/%s)' % (
             self.opened_at, self.closed_at or '',
             self.ip, '(%s)' % self.host if self.host else '', self.proxy,
             rx_speed, rx_bytes, rx_seconds,

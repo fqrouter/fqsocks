@@ -110,6 +110,17 @@ class DynamicProxy(Proxy):
     def __repr__(self):
         return 'DynamicProxy[%s=>%s]' % (self.dns_record, self.delegated_to or 'UNRESOLVED')
 
+    @property
+    def public_name(self):
+        if 'GoAgentProxy' == self.delegated_to.__class__.__name__:
+            return 'GoAgent\tPublic #%s' % self.dns_record.replace('.fqrouter.com', '').replace('goagent', '')
+        elif 'ShadowSocksProxy' == self.delegated_to.__class__.__name__:
+            return 'SS\tPublic #%s' % self.dns_record.replace('.fqrouter.com', '').replace('ss', '')
+        elif 'HttpConnectProxy' == self.delegated_to.__class__.__name__:
+            return 'HTTP\tPublic #%s' % self.dns_record.replace('.fqrouter.com', '').replace('proxy', '')
+        else:
+            return None # ignore
+
 
 def resolve_proxy(proxy):
     for i in range(3):

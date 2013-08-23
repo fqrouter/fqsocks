@@ -5,6 +5,9 @@ import logging
 import sys
 import os
 import networking
+import stat
+import gevent
+import gevent.event
 
 LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +23,8 @@ class SshProxy(Proxy):
         self.password = password
         self.key_filename = key_filename
         self.ssh_client = None
+        self.connection_failed = gevent.event.Event()
+        self.failed_times = 0
 
     def connect(self):
         try:
@@ -36,9 +41,22 @@ class SshProxy(Proxy):
                 username=self.username, password=self.password,
                 key_filename=self.key_filename,
                 sock=sock)
+            self.reconnected = True
         except:
             LOGGER.exception('failed to connect ssh proxy: %s' % self)
             self.died = True
+
+    def guard(self):
+        while not self.died:
+            self.connection_failed.wait()
+            if self.failed_times >= 3:
+                LOGGER.error('failed too many times')
+                self.died = True
+                break
+            self.failed_times += 1
+            self.connect()
+            self.connection_failed.clear()
+        LOGGER.critical('!!! %s gurad loop exit !!!' % self)
 
     def close(self):
         if self.ssh_client:
@@ -46,20 +64,18 @@ class SshProxy(Proxy):
 
     def do_forward(self, client):
         try:
-            try:
-                upstream_socket = self.open_channel(client)
-            except:
-                LOGGER.info('[%s] failed to open channel: %s' % (repr(client), sys.exc_info()[1]))
-                self.connect()
-                upstream_socket = self.open_channel(client)
-            LOGGER.info('[%s] channel opened: %s' % (repr(client), upstream_socket))
-            client.add_resource(upstream_socket)
-            upstream_socket.sendall(client.peeked_data)
+            upstream_socket = self.open_channel(client)
         except:
-            LOGGER.exception('[%s] ssh proxy failed' % repr(client))
-            self.died = True
-            return
+            LOGGER.info('[%s] failed to open channel: %s' % (repr(client), sys.exc_info()[1]))
+            gevent.sleep(1)
+            self.connection_failed.set()
+            client.fall_back(reason='ssh open channel failed')
+        upstream_socket.counter = stat.opened(self, client.host, client.dst_ip)
+        LOGGER.info('[%s] channel opened: %s' % (repr(client), upstream_socket))
+        client.add_resource(upstream_socket)
+        upstream_socket.sendall(client.peeked_data)
         client.forward(upstream_socket)
+        self.failed_times = 0
 
     def open_channel(self, client):
         return self.ssh_client.get_transport().open_channel(
@@ -68,7 +84,8 @@ class SshProxy(Proxy):
     @classmethod
     def refresh(cls, proxies):
         for proxy in proxies:
-            proxy.connect()
+            proxy.connection_failed.set()
+            gevent.spawn(proxy.guard)
         return True
 
     def is_protocol_supported(self, protocol):
@@ -76,3 +93,7 @@ class SshProxy(Proxy):
 
     def __repr__(self):
         return 'SshProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+
+    @property
+    def public_name(self):
+        return 'SSH\t%s' % self.proxy_host

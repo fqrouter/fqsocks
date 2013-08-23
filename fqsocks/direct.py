@@ -51,6 +51,10 @@ class Proxy(object):
     def __hash__(self):
         return hash(repr(self))
 
+    @property
+    def public_name(self):
+        return None
+
 
 class DirectProxy(Proxy):
     DEFAULT_CONNECT_TIMEOUT = 5
