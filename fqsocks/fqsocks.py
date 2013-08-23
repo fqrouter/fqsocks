@@ -206,6 +206,10 @@ class ProxyClient(object):
                 raise
         finally:
             if not self.forward_started:
+                try:
+                    upstream_sock.close()
+                except:
+                    LOGGER.exception('failed to close upstream sock before fall back')
                 self.fall_back(reason='forward does not receive any response', delayed_penalty=delayed_penalty)
 
 
@@ -482,9 +486,10 @@ def pick_proxy_supports(client, protocol):
 
 def fix_by_refreshing_proxies():
     global auto_fix_enabled
-    if refresh_proxies() and should_fix():
-        LOGGER.critical('!!! auto fix does not work, disable it !!!')
-        auto_fix_enabled = False
+    if refresh_proxies():
+        if should_fix():
+            LOGGER.critical('!!! auto fix does not work, disable it !!!')
+            auto_fix_enabled = False
 
 
 def refresh_proxies():
@@ -515,6 +520,7 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
+    return True
 
 
 def check_access_many_times(url, times):
