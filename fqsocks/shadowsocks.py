@@ -30,8 +30,12 @@ class ShadowSocksProxy(Proxy):
         except:
             self.increase_failed_time()
             client.fall_back(reason='can not connect to proxy')
-        upstream_sock.sendall(encryptor.encrypt(addr_to_send))
-        upstream_sock.sendall(encryptor.encrypt(client.peeked_data))
+        encrypted_addr = encryptor.encrypt(addr_to_send)
+        upstream_sock.counter.sending(len(encrypted_addr))
+        upstream_sock.sendall(encrypted_addr)
+        encrypted_peeked_data = encryptor.encrypt(client.peeked_data)
+        upstream_sock.counter.sending(len(encrypted_peeked_data))
+        upstream_sock.sendall(encrypted_peeked_data)
         client.forward(
             upstream_sock, encrypt=encryptor.encrypt, decrypt=encryptor.decrypt,
             delayed_penalty=self.increase_failed_time)
@@ -48,3 +52,7 @@ class ShadowSocksProxy(Proxy):
 
     def __repr__(self):
         return 'ShadowSocksProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+
+    @property
+    def public_name(self):
+        return 'SS\t%s' % self.proxy_host
