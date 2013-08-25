@@ -85,6 +85,7 @@ normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-C
 class GoAgentProxy(Proxy):
 
     black_list = set()
+    failed_times = {}
 
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
@@ -149,7 +150,6 @@ class GoAgentProxy(Proxy):
                 client.tried_proxies[proxy] = 'skip goagent'
             LOGGER.error('[%s] failed to recv and parse request: %s' % (repr(client), sys.exc_info()[1]))
             client.fall_back(reason='failed to recv and parse request, %s' % sys.exc_info()[1])
-        LOGGER.info('[%s] urlfetch %s %s' % (repr(client), client.method, client.url))
         forward(client, self, [p.appid for p in self.proxies if not p.died])
 
     @classmethod
@@ -312,18 +312,17 @@ def _create_ssl_connection(ip, port):
 
 
 def create_ssl_connection():
-    first_google_ip = GoAgentProxy.GOOGLE_IPS[0]
-    ssl_sock = _create_ssl_connection(first_google_ip, 443)
-    if ssl_sock:
-        return ssl_sock
     for i in range(3):
-        fallback_google_ip = random.choice(GoAgentProxy.GOOGLE_IPS[1:])
-        ssl_sock = _create_ssl_connection(fallback_google_ip, 443)
+        random.shuffle(GoAgentProxy.GOOGLE_IPS)
+        google_ip = sorted(GoAgentProxy.GOOGLE_IPS, key=lambda ip: GoAgentProxy.failed_times.get(ip, 0))[0]
+        ssl_sock = _create_ssl_connection(google_ip, 443)
         if ssl_sock:
-            if first_google_ip == GoAgentProxy.GOOGLE_IPS[0]:
-                LOGGER.critical('!!! put google ip %s into tail !!!' % first_google_ip)
-                GoAgentProxy.GOOGLE_IPS = GoAgentProxy.GOOGLE_IPS[1:] + GoAgentProxy.GOOGLE_IPS[:1]
+            ssl_sock.google_ip = google_ip
             return ssl_sock
+        else:
+            LOGGER.error('!!! failed to connect google ip %s !!!' % google_ip)
+            GoAgentProxy.failed_times[google_ip] = GoAgentProxy.failed_times.get(google_ip, 0) + 1
+            gevent.sleep(0.1)
     raise ConnectionFailed()
 
 
@@ -398,6 +397,7 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
     ssl_sock = create_ssl_connection()
     ssl_sock.counter = stat.opened(proxy, host=client.host, ip=client.dst_ip)
+    LOGGER.info('[%s] urlfetch %s %s via %s' % (repr(client), client.method, client.url, ssl_sock.google_ip))
     client.add_resource(ssl_sock)
     client.add_resource(ssl_sock.counter)
     client.add_resource(ssl_sock.sock)

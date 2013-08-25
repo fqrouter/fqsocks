@@ -119,6 +119,7 @@ def clear_states(environ, start_response):
     if HTTPS_TRY_PROXY:
         HTTPS_TRY_PROXY.failed_times.clear()
     GoAgentProxy.black_list = set()
+    GoAgentProxy.failed_times = {}
     last_refresh_started_at = 0
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
