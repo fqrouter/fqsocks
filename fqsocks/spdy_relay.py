@@ -74,7 +74,7 @@ class SpdyRelayProxy(Proxy):
             headers = {
                 ':method': client.method,
                 ':scheme': 'http',
-                ':path': client.path,
+                ':path': client.url,
                 ':version': 'HTTP/1.1',
                 ':host': client.host
             }
@@ -137,4 +137,8 @@ class SpdyRelayProxy(Proxy):
 
     def __repr__(self):
         return 'SpdyRelayProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+
+    @property
+    def public_name(self):
+        return 'HTTP\t%s' % self.proxy_host
 

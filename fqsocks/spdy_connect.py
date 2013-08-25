@@ -125,3 +125,7 @@ class SpdyConnectProxy(Proxy):
     def __repr__(self):
         return 'SpdyConnectProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
 
+    @property
+    def public_name(self):
+        return 'HTTP\t%s' % self.proxy_host
+

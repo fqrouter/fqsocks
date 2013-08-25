@@ -10,6 +10,7 @@ import sys
 import logging
 import socket
 import networking
+import stat
 
 
 LOGGER = logging.getLogger(__name__)
@@ -55,7 +56,9 @@ class SpdyClient(object):
             spdy_version=self.spdy_version)
         self.streams[stream_id] = stream
         self.send(spdy.frames.SynStream(stream_id, headers, version=self.spdy_version, flags=0))
-        self.send(spdy.frames.DataFrame(stream_id, client.payload, flags=0))
+        if client.payload:
+            stream.counter.sending(len(client.payload))
+            self.send(spdy.frames.DataFrame(stream_id, client.payload, flags=0))
         gevent.spawn(stream.poll_from_downstream)
         return stream_id
 
@@ -156,12 +159,14 @@ class SpdyStream(object):
         self.response_content_length = sys.maxint
         self.spdy_version = spdy_version
         self._done = False
+        self.counter = stat.opened(client.forwarding_by, client.host, client.dst_ip)
 
     def send_to_downstream(self, data):
         try:
             self.client.forward_started = True
             self.client.downstream_sock.sendall(data)
             self.upstream_frames.put(WORKING)
+            self.counter.received(len(data))
             self.received_bytes += len(data)
             if self.spdy_version == SPDY_3:
                 self.downstream_window_size -= len(data)
@@ -192,6 +197,7 @@ class SpdyStream(object):
                     if data:
                         self.upstream_frames.put(WORKING)
                         self.send_cb(spdy.frames.DataFrame(self.stream_id, data, flags=0))
+                        self.counter.sending(len(data))
                         self.sent_bytes += len(data)
                         if self.spdy_version == SPDY_3:
                             self.upstream_window_size -= len(data)
@@ -214,4 +220,3 @@ class SpdyStream(object):
         if self.received_bytes >= self.response_content_length and self.sent_bytes >= self.request_content_length:
             self._done = True
         return self._done
-
