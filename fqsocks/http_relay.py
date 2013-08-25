@@ -33,7 +33,9 @@ class HttpRelayProxy(Proxy):
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
             if self.is_secured:
+                counter = upstream_sock.counter
                 upstream_sock = ssl.wrap_socket(upstream_sock)
+                upstream_sock.counter = counter
                 client.add_resource(upstream_sock)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
@@ -52,11 +54,14 @@ class HttpRelayProxy(Proxy):
         if HTTP_TRY_PROXY.http_request_mark:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
         try:
-            upstream_sock.sendall(request_data + client.payload)
+            request_data = request_data + client.payload
+            upstream_sock.counter.sending(len(request_data))
+            upstream_sock.sendall(request_data)
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
         if is_payload_complete:
             response, _ = try_receive_response(client, upstream_sock)
+            upstream_sock.counter.received(len(response))
             client.forward_started = True
             client.downstream_sock.sendall(response)
         if HTTP_TRY_PROXY.http_request_mark:
@@ -75,4 +80,8 @@ class HttpRelayProxy(Proxy):
 
     def __repr__(self):
         return 'HttpRelayProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+
+    @property
+    def public_name(self):
+        return 'HTTP\t%s' % self.proxy_host
 

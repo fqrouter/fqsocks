@@ -33,7 +33,9 @@ class HttpConnectProxy(Proxy):
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
             if self.is_secured:
+                counter = upstream_sock.counter
                 upstream_sock = ssl.wrap_socket(upstream_sock)
+                upstream_sock.counter = counter
                 client.add_resource(upstream_sock)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
@@ -83,4 +85,8 @@ class HttpConnectProxy(Proxy):
 
     def __repr__(self):
         return 'HttpConnectProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+
+    @property
+    def public_name(self):
+        return 'HTTP\t%s' % self.proxy_host
 
