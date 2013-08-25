@@ -4,11 +4,11 @@ import httplib
 import time
 
 counters = [] # not closed or closed within 5 minutes
-proxy_stats = {}
 
 PROXY_LIST_PAGE = """
 <html>
 <head>
+<meta http-equiv="refresh" content="1" />
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 </head>
 <body>
@@ -28,7 +28,7 @@ def list_proxies(environ, start_response):
     proxies = {}
     for counter in counters:
         proxies.setdefault(counter.proxy, []).append(counter)
-    after = time.time() - 10
+    after = time.time() - 60 * 10
     yield PROXY_LIST_PAGE.split('|')[0]
     for proxy, proxy_counters in sorted(proxies.items(), key=lambda (proxy, proxy_counters): proxy.public_name):
         rx_bytes_list, rx_seconds_list, _ = zip(*[counter.total_rx(after) for counter in proxy_counters])
@@ -50,9 +50,9 @@ def list_proxies(environ, start_response):
         yield '%s\trx\t%0.2fKB/s\t%s\ttx\t%0.2fKB/s\t%s\n' % \
               (proxy.public_name,
                rx_speed,
-               to_human_readable_size(proxy_stats.get(proxy, {}).get('tx', 0)),
+               to_human_readable_size(rx_bytes),
                tx_speed,
-               to_human_readable_size(proxy_stats.get(proxy, {}).get('rx', 0)))
+               to_human_readable_size(tx_bytes))
     yield PROXY_LIST_PAGE.split('|')[1]
 
 
@@ -77,40 +77,54 @@ class Counter(object):
         self.ip = ip
         self.opened_at = time.time()
         self.closed_at = None
-        self.rx_events = []
-        self.tx_events = []
+        self.events = []
         if '127.0.0.1' != self.ip:
             counters.append(self)
-        proxy_stats.setdefault(self.proxy, {'tx':0, 'rx': 0})
 
     def sending(self, bytes_count):
-        proxy_stats[self.proxy]['tx'] += bytes_count
-        self.tx_events.append((time.time(), bytes_count))
+        self.events.append(('tx', time.time(), bytes_count))
 
 
     def received(self, bytes_count):
-        proxy_stats[self.proxy]['rx'] += bytes_count
-        self.rx_events.append((time.time(), bytes_count))
+        self.events.append(('rx', time.time(), bytes_count))
 
     def total_rx(self, after=0):
-        if not self.rx_events:
+        if not self.events:
             return 0, 0, 0
-        bytes = sum(bytes for rx_at, bytes in self.rx_events if rx_at > after)
+        bytes = 0
+        seconds = 0
+        last_event_time = self.opened_at
+        for event_type, event_time, event_bytes in self.events:
+            if event_time > after and 'rx' == event_type:
+                seconds += (event_time - last_event_time)
+                bytes += event_bytes
+            last_event_time = event_time
         if not bytes:
             return 0, 0, 0
-        seconds = self.rx_events[-1][0] - max(after, self.opened_at)
         return bytes, seconds, bytes/(seconds * 1000)
 
     def total_tx(self, after=0):
-        if not self.tx_events:
+        if not self.events:
             return 0, 0, 0
-        matched_tx_events = [(tx_at, bytes) for tx_at, bytes in self.tx_events if tx_at > after]
-        if not matched_tx_events:
+        bytes = 0
+        seconds = 0
+        pending_tx_events = []
+        for event_type, event_time, event_bytes in self.events:
+            if event_time > after:
+                if 'tx' == event_type:
+                    pending_tx_events.append((event_time, event_bytes))
+                else:
+                    if pending_tx_events:
+                        seconds += (event_time - pending_tx_events[-1][0])
+                        bytes += sum(b for _, b in pending_tx_events)
+                    pending_tx_events = []
+        if pending_tx_events:
+            seconds += ((self.closed_at or time.time()) - pending_tx_events[0][0])
+            bytes += sum(b for _, b in pending_tx_events)
+        if not bytes:
             return 0, 0, 0
-        bytes = sum(bytes for _, bytes in matched_tx_events)
-        ended_at = self.closed_at or time.time()
-        seconds = ended_at - matched_tx_events[0][0]
         return bytes, seconds, bytes/(seconds * 1000)
+
 
 
     def close(self):

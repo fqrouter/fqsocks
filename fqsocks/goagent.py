@@ -22,6 +22,8 @@ import struct
 import io
 import copy
 import threading
+import stat
+from http_try import CapturingSock
 
 try:
     import urllib.request
@@ -141,7 +143,7 @@ class GoAgentProxy(Proxy):
         except:
             for proxy in self.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
-            LOGGER.exception('[%s] failed to recv and parse request' % repr(client))
+            LOGGER.error('[%s] failed to recv and parse request: %s' % (repr(client), sys.exc_info()[1]))
             client.fall_back(reason='failed to recv and parse request, %s' % sys.exc_info()[1])
         LOGGER.info('[%s] urlfetch %s %s' % (repr(client), client.method, client.url))
         forward(client, self, [p.appid for p in self.proxies if not p.died])
@@ -216,17 +218,17 @@ def forward(client, proxy, appids):
         fetchserver = 'https://%s.appspot.com%s?' % (proxy.appid, proxy.path)
         try:
             response = gae_urlfetch(
-                client.method, client.url, client.headers, client.payload, fetchserver, **kwargs)
+                client, client.method, client.url, client.headers, client.payload, fetchserver, **kwargs)
         except ConnectionFailed:
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back('can not connect to google ip')
         except ReadResponseFailed:
-            LOGGER.error('[%s] failed to gae_urlfetch: %s' % (repr(client), sys.exc_info()[1]))
+            LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
             GoAgentProxy.black_list.add(client.host)
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
-            client.fall_back(reason='failed to gae_urlfetch, %s' % sys.exc_info()[1])
+            client.fall_back(reason='failed to read response from gae_urlfetch')
         if response is None:
             client.fall_back('urlfetch empty response')
         if response.app_status == 503:
@@ -253,7 +255,7 @@ def forward(client, proxy, appids):
             fetchservers = [fetchserver]
             fetchservers += ['https://%s.appspot.com/2?' % appid for appid in appids]
             rangefetch = RangeFetch(
-                range_end, auto_ranged, client.downstream_wfile, response, client.method, client.url, client.headers, client.payload,
+                client, range_end, auto_ranged, client.downstream_wfile, response, client.method, client.url, client.headers, client.payload,
                 fetchservers, proxy.password, maxsize=AUTORANGE_MAXSIZE, bufsize=AUTORANGE_BUFSIZE,
                 waitsize=AUTORANGE_WAITSIZE, threads=AUTORANGE_THREADS)
             return rangefetch.fetch()
@@ -270,6 +272,8 @@ def forward(client, proxy, appids):
         while 1:
             try:
                 data = response.read(8192)
+                response.ssl_sock.counter.received(len(response.counted_sock.rfile.captured))
+                response.counted_sock.rfile.captured = ''
             except httplib.IncompleteRead as e:
                 LOGGER.error('incomplete read: %s' % e.partial)
                 raise
@@ -327,33 +331,38 @@ def create_ssl_connection():
 class ConnectionFailed(Exception):
     pass
 
-def http_call(sock, method, path, headers, payload, bufsize=8192):
-    sock.settimeout(3)
+def http_call(ssl_sock, method, path, headers, payload):
+    ssl_sock.settimeout(30)
     request_data = ''
     request_data += '%s %s HTTP/1.1\r\n' % (method, path)
     request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in headers.items() if k not in SKIP_HEADERS)
     request_data += '\r\n'
-
-    if isinstance(payload, bytes):
-        sock.sendall(request_data.encode() + payload)
-    elif hasattr(payload, 'read'):
-        sock.sendall(request_data.encode())
-        while 1:
-            data = payload.read(bufsize)
-            if not data:
-                break
-            sock.sendall(data)
-    else:
-        raise TypeError('http_util.request(payload) must be a string or buffer, not %r' % type(payload))
-
+    request_data = request_data.encode() + payload
+    ssl_sock.counter.sending(len(request_data))
+    ssl_sock.sendall(request_data)
+    rfile = None
+    counted_sock = None
     try:
-        response = http.client.HTTPResponse(sock)
+        rfile = ssl_sock.makefile('rb', 0)
+        counted_sock = CountedSock(rfile, ssl_sock.counter)
+        response = http.client.HTTPResponse(counted_sock)
+        response.ssl_sock = ssl_sock
+        response.rfile = rfile
+        response.counted_sock = counted_sock
         try:
             response.begin()
         except http.client.BadStatusLine:
             response = None
+        ssl_sock.counter.received(len(counted_sock.rfile.captured))
+        counted_sock.rfile.captured = ''
         return response
     except:
+        for res in [ssl_sock, ssl_sock.sock, rfile, counted_sock]:
+            try:
+                if res:
+                    res.close()
+            except:
+                pass
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.exception('failed to read goagent response')
         else:
@@ -361,11 +370,19 @@ def http_call(sock, method, path, headers, payload, bufsize=8192):
         raise ReadResponseFailed()
 
 
+class CountedSock(CapturingSock):
+    def __init__(self, rfile, counter):
+        super(CountedSock, self).__init__(rfile)
+        self.counter = counter
+
+    def close(self):
+        self.counter.received(len(self.rfile.captured))
+
+
 class ReadResponseFailed(Exception):
     pass
 
-def gae_urlfetch(method, url, headers, payload, fetchserver, **kwargs):
-    # deflate = lambda x:zlib.compress(x)[2:-4]
+def gae_urlfetch(client, method, url, headers, payload, fetchserver, **kwargs):
     if payload:
         if len(payload) < 10 * 1024 * 1024 and 'Content-Encoding' not in headers:
             zpayload = zlib.compress(payload)[2:-4]
@@ -381,9 +398,13 @@ def gae_urlfetch(method, url, headers, payload, fetchserver, **kwargs):
     metadata = zlib.compress(metadata.encode())[2:-4]
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
     ssl_sock = create_ssl_connection()
-    with contextlib.closing(ssl_sock):
-        with contextlib.closing(ssl_sock.sock):
-            response = http_call(ssl_sock, 'POST', fetchserver, {'Content-Length': str(len(payload))}, payload)
+    ssl_sock.counter = stat.opened(client.forwarding_by, host=client.host, ip=client.dst_ip)
+    client.add_resource(ssl_sock)
+    client.add_resource(ssl_sock.counter)
+    client.add_resource(ssl_sock.sock)
+    response = http_call(ssl_sock, 'POST', fetchserver, {'Content-Length': str(len(payload))}, payload)
+    client.add_resource(response.rfile)
+    client.add_resource(response.counted_sock)
     response.app_status = response.status
     if response.status != 200:
         return response
@@ -409,9 +430,9 @@ class RangeFetch(object):
     bufsize = 8192
     threads = 1
     waitsize = 1024*512
-    urlfetch = staticmethod(gae_urlfetch)
 
-    def __init__(self, range_end, auto_ranged, wfile, response, method, url, headers, payload, fetchservers, password, maxsize=0, bufsize=0, waitsize=0, threads=0):
+    def __init__(self, client, range_end, auto_ranged, wfile, response, method, url, headers, payload, fetchservers, password, maxsize=0, bufsize=0, waitsize=0, threads=0):
+        self.client = client
         self.range_end = range_end
         self.auto_ranged = auto_ranged
         self.wfile = wfile
@@ -519,10 +540,12 @@ class RangeFetch(object):
                         fetchserver = random.choice(self.fetchservers)
                         if self._last_app_status.get(fetchserver, 200) >= 500:
                             time.sleep(5)
-                        response = self.urlfetch(self.command, self.url, headers, self.payload, fetchserver, password=self.password)
+                        response = gae_urlfetch(
+                            self.client, self.command, self.url, headers, self.payload,
+                            fetchserver, password=self.password)
                 except queue.Empty:
                     continue
-                except (socket.error, ssl.SSLError, OSError) as e:
+                except (socket.error, ssl.SSLError, OSError, ConnectionFailed, ReadResponseFailed) as e:
                     LOGGER.warning("Response %r in __fetchlet", e)
                 if not response:
                     LOGGER.warning('RangeFetch %s return %r', headers['Range'], response)
@@ -553,6 +576,8 @@ class RangeFetch(object):
                     while 1:
                         try:
                             data = response.read(self.bufsize)
+                            response.ssl_sock.counter.received(len(response.counted_sock.rfile.captured))
+                            response.counted_sock.rfile.captured = ''
                             if not data:
                                 break
                             data_queue.put((start, data))
