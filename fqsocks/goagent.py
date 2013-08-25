@@ -191,6 +191,10 @@ class GoAgentProxy(Proxy):
     def __repr__(self):
         return 'GoAgentProxy[%s ver %s]' % (self.appid, self.version)
 
+    @property
+    def public_name(self):
+        return 'GoAgent\t%s' % self.appid
+
 
 def forward(client, proxy, appids):
     parsed_url = urllib.parse.urlparse(client.url)
