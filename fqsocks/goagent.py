@@ -101,6 +101,10 @@ class GoAgentProxy(Proxy):
         self.version = 'UNKNOWN'
         self.flags.add('PUBLIC')
 
+    @property
+    def fetch_server(self):
+        return 'https://%s.appspot.com%s?' % (self.appid, self.path)
+
     def query_version(self):
         try:
             ssl_sock = create_ssl_connection()
@@ -215,10 +219,10 @@ def forward(client, proxy, appids):
             kwargs['password'] = proxy.password
         if proxy.validate:
             kwargs['validate'] = 1
-        fetchserver = 'https://%s.appspot.com%s?' % (proxy.appid, proxy.path)
+
         try:
             response = gae_urlfetch(
-                client, client.method, client.url, client.headers, client.payload, fetchserver, **kwargs)
+                client, proxy, client.method, client.url, client.headers, client.payload, **kwargs)
         except ConnectionFailed:
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
@@ -252,12 +256,7 @@ def forward(client, proxy, appids):
         client.forward_started = True
         if response.status == 206:
             LOGGER.info('[%s] start range fetch' % repr(client))
-            fetchservers = [fetchserver]
-            fetchservers += ['https://%s.appspot.com/2?' % appid for appid in appids]
-            rangefetch = RangeFetch(
-                client, range_end, auto_ranged, client.downstream_wfile, response, client.method, client.url, client.headers, client.payload,
-                fetchservers, proxy.password, maxsize=AUTORANGE_MAXSIZE, bufsize=AUTORANGE_BUFSIZE,
-                waitsize=AUTORANGE_WAITSIZE, threads=AUTORANGE_THREADS)
+            rangefetch = RangeFetch(client, range_end, auto_ranged, response)
             return rangefetch.fetch()
         if 'Set-Cookie' in response.msg:
             response.msg['Set-Cookie'] = normcookie(response.msg['Set-Cookie'])
@@ -382,7 +381,7 @@ class CountedSock(CapturingSock):
 class ReadResponseFailed(Exception):
     pass
 
-def gae_urlfetch(client, method, url, headers, payload, fetchserver, **kwargs):
+def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     if payload:
         if len(payload) < 10 * 1024 * 1024 and 'Content-Encoding' not in headers:
             zpayload = zlib.compress(payload)[2:-4]
@@ -398,11 +397,11 @@ def gae_urlfetch(client, method, url, headers, payload, fetchserver, **kwargs):
     metadata = zlib.compress(metadata.encode())[2:-4]
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
     ssl_sock = create_ssl_connection()
-    ssl_sock.counter = stat.opened(client.forwarding_by, host=client.host, ip=client.dst_ip)
+    ssl_sock.counter = stat.opened(proxy, host=client.host, ip=client.dst_ip)
     client.add_resource(ssl_sock)
     client.add_resource(ssl_sock.counter)
     client.add_resource(ssl_sock.sock)
-    response = http_call(ssl_sock, 'POST', fetchserver, {'Content-Length': str(len(payload))}, payload)
+    response = http_call(ssl_sock, 'POST', proxy.fetch_server, {'Content-Length': str(len(payload))}, payload)
     client.add_resource(response.rfile)
     client.add_resource(response.counted_sock)
     response.app_status = response.status
@@ -424,31 +423,18 @@ def gae_urlfetch(client, method, url, headers, payload, fetchserver, **kwargs):
 
 
 class RangeFetch(object):
-    """Range Fetch Class"""
 
-    maxsize = 1024*1024*4
-    bufsize = 8192
-    threads = 1
-    waitsize = 1024*512
-
-    def __init__(self, client, range_end, auto_ranged, wfile, response, method, url, headers, payload, fetchservers, password, maxsize=0, bufsize=0, waitsize=0, threads=0):
+    def __init__(self, client, range_end, auto_ranged, response):
         self.client = client
         self.range_end = range_end
         self.auto_ranged = auto_ranged
-        self.wfile = wfile
+        self.wfile = client.downstream_wfile
         self.response = response
-        self.command = method
-        self.url = url
-        self.headers = headers
-        self.payload = payload
-        self.fetchservers = fetchservers
-        self.password = password
-        self.maxsize = maxsize or self.__class__.maxsize
-        self.bufsize = bufsize or self.__class__.bufsize
-        self.waitsize = waitsize or self.__class__.bufsize
-        self.threads = threads or self.__class__.threads
+        self.command = client.method
+        self.url = client.url
+        self.headers = client.headers
+        self.payload = client.payload
         self._stopped = None
-        self._last_app_status = {}
 
     def fetch(self):
         response_status = self.response.status
@@ -481,9 +467,9 @@ class RangeFetch(object):
         data_queue = gevent.queue.PriorityQueue()
         range_queue = gevent.queue.PriorityQueue()
         range_queue.put((start, end, self.response))
-        for begin in range(end+1, self.range_end + 1 if self.range_end else length, self.maxsize):
-            range_queue.put((begin, min(begin+self.maxsize-1, length-1), None))
-        for i in range(self.threads):
+        for begin in range(end+1, self.range_end + 1 if self.range_end else length, AUTORANGE_MAXSIZE):
+            range_queue.put((begin, min(begin+AUTORANGE_MAXSIZE-1, length-1), None))
+        for i in range(AUTORANGE_THREADS):
             gevent.spawn(self.__fetchlet, range_queue, data_queue)
         has_peek = hasattr(data_queue, 'peek')
         peek_timeout = 90
@@ -529,20 +515,16 @@ class RangeFetch(object):
             try:
                 if self._stopped:
                     return
-                if data_queue.qsize() * self.bufsize > 180*1024*1024:
+                if data_queue.qsize() * AUTORANGE_BUFSIZE > 180*1024*1024:
                     time.sleep(10)
                     continue
                 try:
                     start, end, response = range_queue.get(timeout=1)
                     headers['Range'] = 'bytes=%d-%d' % (start, end)
-                    fetchserver = ''
                     if not response:
-                        fetchserver = random.choice(self.fetchservers)
-                        if self._last_app_status.get(fetchserver, 200) >= 500:
-                            time.sleep(5)
+                        proxy = random.choice([p for p in GoAgentProxy.proxies if not p.died])
                         response = gae_urlfetch(
-                            self.client, self.command, self.url, headers, self.payload,
-                            fetchserver, password=self.password)
+                            self.client, proxy, self.command, self.url, headers, self.payload)
                 except queue.Empty:
                     continue
                 except (socket.error, ssl.SSLError, OSError, ConnectionFailed, ReadResponseFailed) as e:
@@ -551,8 +533,6 @@ class RangeFetch(object):
                     LOGGER.warning('RangeFetch %s return %r', headers['Range'], response)
                     range_queue.put((start, end, None))
                     continue
-                if fetchserver:
-                    self._last_app_status[fetchserver] = response.app_status
                 if response.app_status != 200:
                     LOGGER.warning('Range Fetch "%s %s" %s return %s', self.command, self.url, headers['Range'], response.app_status)
                     response.close()
@@ -575,7 +555,7 @@ class RangeFetch(object):
                     LOGGER.info('>>>>>>>>>>>>>>> [thread %s] %s %s', threading.currentThread().ident, content_length, content_range)
                     while 1:
                         try:
-                            data = response.read(self.bufsize)
+                            data = response.read(AUTORANGE_BUFSIZE)
                             response.ssl_sock.counter.received(len(response.counted_sock.rfile.captured))
                             response.counted_sock.rfile.captured = ''
                             if not data:

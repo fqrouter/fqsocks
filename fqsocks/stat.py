@@ -67,6 +67,8 @@ httpd.HANDLERS[('GET', 'proxies')] = list_proxies
 
 
 def opened(proxy, host, ip):
+    if hasattr(proxy, 'shown_as'):
+        proxy = proxy.shown_as
     return Counter(proxy, host, ip)
 
 
