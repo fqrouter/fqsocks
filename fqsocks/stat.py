@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
-import httpd
 import httplib
 import time
+import logging
+
+import httpd
+
+LOGGER = logging.getLogger(__name__)
+
 
 counters = [] # not closed or closed within 5 minutes
 
@@ -19,6 +24,7 @@ PROXY_LIST_PAGE = """
 
 MAX_TIME_RANGE = 60 * 10
 
+
 def list_counters(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     for counter in counters:
@@ -29,28 +35,28 @@ def list_proxies(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/html')])
     proxies = {}
     for counter in counters:
-        proxies.setdefault(counter.proxy, []).append(counter)
+        proxies.setdefault(counter.proxy.public_name, []).append(counter)
     after = time.time() - MAX_TIME_RANGE
     yield PROXY_LIST_PAGE.split('|')[0]
-    for proxy, proxy_counters in sorted(proxies.items(), key=lambda (proxy, proxy_counters): proxy.public_name):
+    for proxy_public_name, proxy_counters in sorted(proxies.items(), key=lambda (proxy_public_name, proxy_counters): proxy_public_name):
         rx_bytes_list, rx_seconds_list, _ = zip(*[counter.total_rx(after) for counter in proxy_counters])
         rx_bytes = sum(rx_bytes_list)
         rx_seconds = sum(rx_seconds_list)
         if rx_seconds:
-            rx_speed = rx_bytes/(rx_seconds * 1000)
+            rx_speed = rx_bytes / (rx_seconds * 1000)
         else:
             rx_speed = 0
         tx_bytes_list, tx_seconds_list, _ = zip(*[counter.total_tx(after) for counter in proxy_counters])
         tx_bytes = sum(tx_bytes_list)
         tx_seconds = sum(tx_seconds_list)
         if tx_seconds:
-            tx_speed = tx_bytes/(tx_seconds * 1000)
+            tx_speed = tx_bytes / (tx_seconds * 1000)
         else:
             tx_speed = 0
-        if not proxy.public_name:
+        if not proxy_public_name:
             continue
         yield '%s\trx\t%0.2fKB/s\t%s\ttx\t%0.2fKB/s\t%s\n' % \
-              (proxy.public_name,
+              (proxy_public_name,
                rx_speed,
                to_human_readable_size(rx_bytes),
                tx_speed,
@@ -59,10 +65,11 @@ def list_proxies(environ, start_response):
 
 
 def to_human_readable_size(num):
-    for x in ['B','KB','MB','GB','TB']:
+    for x in ['B', 'KB', 'MB', 'GB', 'TB']:
         if num < 1024.0:
             return '%06.2f %s' % (num, x)
         num /= 1024.0
+
 
 httpd.HANDLERS[('GET', 'counters')] = list_counters
 httpd.HANDLERS[('GET', 'proxies')] = list_proxies
@@ -73,19 +80,41 @@ def opened(attached_to_resource, proxy, host, ip):
         proxy = proxy.shown_as
     counter = Counter(proxy, host, ip)
     orig_close = attached_to_resource.close
+
     def new_close():
         try:
             orig_close()
         finally:
             counter.close()
+
     attached_to_resource.close = new_close
     if '127.0.0.1' != counter.ip:
         counters.append(counter)
     clean_counters()
     return counter
 
+
 def clean_counters():
-    pass
+    global counters
+    try:
+        expired_counters = find_expired_counters()
+        for counter in expired_counters:
+            counters.remove(counter)
+    except:
+        LOGGER.exception('failed to clean counters')
+        counters = []
+
+
+def find_expired_counters():
+    now = time.time()
+    expired_counters = []
+    for counter in counters:
+        counter_time = counter.closed_at or counter.opened_at
+        if now - counter_time > MAX_TIME_RANGE:
+            expired_counters.append(counter)
+        else:
+            return expired_counters
+    return []
 
 
 class Counter(object):
@@ -117,7 +146,7 @@ class Counter(object):
             last_event_time = event_time
         if not bytes:
             return 0, 0, 0
-        return bytes, seconds, bytes/(seconds * 1000)
+        return bytes, seconds, bytes / (seconds * 1000)
 
     def total_tx(self, after=0):
         if not self.events:
@@ -139,7 +168,7 @@ class Counter(object):
             bytes += sum(b for _, b in pending_tx_events)
         if not bytes:
             return 0, 0, 0
-        return bytes, seconds, bytes/(seconds * 1000)
+        return bytes, seconds, bytes / (seconds * 1000)
 
     def close(self):
         if not self.closed_at:
