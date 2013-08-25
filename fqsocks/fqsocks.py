@@ -153,7 +153,7 @@ class ProxyClient(object):
 
     def create_tcp_socket(self, server_ip, server_port, connect_timeout):
         upstream_sock = networking.create_tcp_socket(server_ip, server_port, connect_timeout)
-        upstream_sock.counter = stat.opened(self.forwarding_by, self.host, self.dst_ip)
+        upstream_sock.counter = stat.opened(upstream_sock, self.forwarding_by, self.host, self.dst_ip)
         self.resources.append(upstream_sock)
         self.resources.append(upstream_sock.counter)
         return upstream_sock

@@ -65,6 +65,7 @@ class SpdyClient(object):
     def end_stream(self, stream_id):
         self.send(spdy.frames.RstStream(stream_id, error_code=spdy.frames.CANCEL, version=self.spdy_version))
         if stream_id in self.streams:
+            self.streams[stream_id].close()
             del self.streams[stream_id]
 
     def poll_stream(self, stream_id, on_frame_cb):
@@ -159,7 +160,7 @@ class SpdyStream(object):
         self.response_content_length = sys.maxint
         self.spdy_version = spdy_version
         self._done = False
-        self.counter = stat.opened(client.forwarding_by, client.host, client.dst_ip)
+        self.counter = stat.opened(self, client.forwarding_by, client.host, client.dst_ip)
 
     def send_to_downstream(self, data):
         try:
@@ -220,3 +221,6 @@ class SpdyStream(object):
         if self.received_bytes >= self.response_content_length and self.sent_bytes >= self.request_content_length:
             self._done = True
         return self._done
+
+    def close(self):
+        pass

@@ -400,7 +400,7 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     metadata = zlib.compress(metadata.encode())[2:-4]
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
     ssl_sock = create_ssl_connection()
-    ssl_sock.counter = stat.opened(proxy, host=client.host, ip=client.dst_ip)
+    ssl_sock.counter = stat.opened(ssl_sock, proxy, host=client.host, ip=client.dst_ip)
     LOGGER.info('[%s] urlfetch %s %s via %s' % (repr(client), client.method, client.url, ssl_sock.google_ip))
     client.add_resource(ssl_sock)
     client.add_resource(ssl_sock.counter)

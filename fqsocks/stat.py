@@ -17,6 +17,8 @@ PROXY_LIST_PAGE = """
 </html>
 """
 
+MAX_TIME_RANGE = 60 * 10
+
 def list_counters(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     for counter in counters:
@@ -28,7 +30,7 @@ def list_proxies(environ, start_response):
     proxies = {}
     for counter in counters:
         proxies.setdefault(counter.proxy, []).append(counter)
-    after = time.time() - 60 * 10
+    after = time.time() - MAX_TIME_RANGE
     yield PROXY_LIST_PAGE.split('|')[0]
     for proxy, proxy_counters in sorted(proxies.items(), key=lambda (proxy, proxy_counters): proxy.public_name):
         rx_bytes_list, rx_seconds_list, _ = zip(*[counter.total_rx(after) for counter in proxy_counters])
@@ -66,10 +68,24 @@ httpd.HANDLERS[('GET', 'counters')] = list_counters
 httpd.HANDLERS[('GET', 'proxies')] = list_proxies
 
 
-def opened(proxy, host, ip):
+def opened(attached_to_resource, proxy, host, ip):
     if hasattr(proxy, 'shown_as'):
         proxy = proxy.shown_as
-    return Counter(proxy, host, ip)
+    counter = Counter(proxy, host, ip)
+    orig_close = attached_to_resource.close
+    def new_close():
+        try:
+            orig_close()
+        finally:
+            counter.close()
+    attached_to_resource.close = new_close
+    if '127.0.0.1' != counter.ip:
+        counters.append(counter)
+    clean_counters()
+    return counter
+
+def clean_counters():
+    pass
 
 
 class Counter(object):
@@ -80,8 +96,6 @@ class Counter(object):
         self.opened_at = time.time()
         self.closed_at = None
         self.events = []
-        if '127.0.0.1' != self.ip:
-            counters.append(self)
 
     def sending(self, bytes_count):
         self.events.append(('tx', time.time(), bytes_count))
@@ -127,10 +141,9 @@ class Counter(object):
             return 0, 0, 0
         return bytes, seconds, bytes/(seconds * 1000)
 
-
-
     def close(self):
-        self.closed_at = time.time()
+        if not self.closed_at:
+            self.closed_at = time.time()
 
     def __str__(self):
         rx_bytes, rx_seconds, rx_speed = self.total_rx()

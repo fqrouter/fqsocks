@@ -8,6 +8,7 @@ import networking
 import stat
 import gevent
 import gevent.event
+import contextlib
 
 LOGGER = logging.getLogger(__name__)
 
@@ -69,13 +70,14 @@ class SshProxy(Proxy):
             LOGGER.info('[%s] failed to open channel: %s' % (repr(client), sys.exc_info()[1]))
             gevent.sleep(1)
             self.connection_failed.set()
-            client.fall_back(reason='ssh open channel failed')
-        upstream_socket.counter = stat.opened(self, client.host, client.dst_ip)
-        LOGGER.info('[%s] channel opened: %s' % (repr(client), upstream_socket))
-        client.add_resource(upstream_socket)
-        upstream_socket.sendall(client.peeked_data)
-        client.forward(upstream_socket)
-        self.failed_times = 0
+            return client.fall_back(reason='ssh open channel failed')
+        with contextlib.closing(upstream_socket):
+            upstream_socket.counter = stat.opened(upstream_socket, self, client.host, client.dst_ip)
+            LOGGER.info('[%s] channel opened: %s' % (repr(client), upstream_socket))
+            client.add_resource(upstream_socket)
+            upstream_socket.sendall(client.peeked_data)
+            client.forward(upstream_socket)
+            self.failed_times = 0
 
     def open_channel(self, client):
         return self.ssh_client.get_transport().open_channel(
