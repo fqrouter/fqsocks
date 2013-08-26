@@ -433,7 +433,7 @@ def pick_proxy(client):
         ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
         if errors:
             LOGGER.error('[%s] peek data failed' % repr(client))
-            return DIRECT_PROXY, ''
+            return DIRECT_PROXY
         if not ins:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] peek data timed out' % repr(client))
@@ -457,9 +457,12 @@ def pick_proxy(client):
             return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
     else:
         if 'BLACK' == dst_color:
-            return pick_proxy_supports(client, 'TCP')
+            return pick_proxy_supports(client, 'TCP') or DIRECT_PROXY
         else:
-            return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
+            if pick_proxy_supports(client, 'TCP'):
+                return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
+            else:
+                return DIRECT_PROXY
 
 
 def get_dst_color(host, ip, port):

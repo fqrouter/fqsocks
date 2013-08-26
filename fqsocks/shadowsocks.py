@@ -48,7 +48,10 @@ class ShadowSocksProxy(Proxy):
             LOGGER.fatal('!!! proxy died !!!: %s' % self)
 
     def is_protocol_supported(self, protocol):
-        return True
+        if hasattr(self, 'resolved_by_dynamic_proxy'):
+            return protocol in ('HTTP', 'HTTPS')
+        else:
+            return True
 
     def __repr__(self):
         return 'ShadowSocksProxy[%s:%s]' % (self.proxy_host, self.proxy_port)

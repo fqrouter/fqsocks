@@ -11,7 +11,6 @@ class Proxy(object):
         self.flags = set()
         self.priority = 0
         self._proxy_ip = None
-        self.shown_as = self
 
     @property
     def proxy_ip(self):
@@ -27,7 +26,7 @@ class Proxy(object):
         return self._proxy_ip
 
     def forward(self, client):
-        client.forwarding_by = self.shown_as
+        client.forwarding_by = self
         try:
             self.do_forward(client)
         finally:

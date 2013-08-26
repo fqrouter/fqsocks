@@ -76,8 +76,8 @@ httpd.HANDLERS[('GET', 'proxies')] = list_proxies
 
 
 def opened(attached_to_resource, proxy, host, ip):
-    if hasattr(proxy, 'shown_as'):
-        proxy = proxy.shown_as
+    if hasattr(proxy, 'resolved_by_dynamic_proxy'):
+        proxy = proxy.resolved_by_dynamic_proxy
     counter = Counter(proxy, host, ip)
     orig_close = attached_to_resource.close
 

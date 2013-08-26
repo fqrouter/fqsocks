@@ -138,16 +138,16 @@ def resolve_proxy(proxy):
                     return False
                 if 'goagent' == proxy.type:
                     proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
-                    proxy.delegated_to.shown_as = proxy
+                    proxy.delegated_to.resolved_by_dynamic_proxy = proxy
                 elif 'ss' == proxy.type:
                     ip, port, password, encrypt_method = connection_info.split(':')
                     proxy.delegated_to = ShadowSocksProxy(ip, port, password, encrypt_method)
-                    proxy.delegated_to.shown_as = proxy
+                    proxy.delegated_to.resolved_by_dynamic_proxy = proxy
                 else:
                     proxy_type, ip, port, username, password = connection_info.split(':')
                     assert 'http-connect' == proxy_type # only support one type currently
                     proxy.delegated_to = HttpConnectProxy(ip, port, username, password, **proxy.kwargs)
-                    proxy.delegated_to.shown_as = proxy
+                    proxy.delegated_to.resolved_by_dynamic_proxy = proxy
                 LOGGER.info('resolved proxy: %s' % repr(proxy))
                 return True
         except:
