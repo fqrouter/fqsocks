@@ -521,7 +521,7 @@ def refresh_proxies():
         except:
             pass
     LOGGER.info('refreshed proxies: %s' % proxies)
-    return True
+    return success
 
 
 def check_access_many_times(url, times):
