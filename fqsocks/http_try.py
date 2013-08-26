@@ -60,6 +60,8 @@ class HttpTryProxy(Proxy):
             self.try_direct(client)
             if client.host in self.failed_times:
                 del self.failed_times[client.host]
+        except NotHttp:
+            raise
         except:
             self.failed_times[client.host] = self.failed_times.get(client.host, 0) + 1
             raise
@@ -74,13 +76,7 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
             return
         client.direct_connection_succeeded()
-        try:
-            is_payload_complete = recv_and_parse_request(client)
-        except NotHttp:
-            try:
-                return DIRECT_PROXY.forward(client)
-            except client.ProxyFallBack:
-                return # give up
+        is_payload_complete = recv_and_parse_request(client)
         failed_count = self.failed_times.get(client.host, 0)
         if failed_count > 3 and (failed_count % 10) != 0:
             client.fall_back(reason='%s tried before' % client.host)

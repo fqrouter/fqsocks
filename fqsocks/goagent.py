@@ -139,12 +139,7 @@ class GoAgentProxy(Proxy):
             if client.host in GoAgentProxy.black_list:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:
-            for proxy in self.proxies:
-                client.tried_proxies[proxy] = 'skip goagent'
-            try:
-                return DIRECT_PROXY.forward(client)
-            except client.ProxyFallBack:
-                return # give up
+            raise
         except:
             for proxy in self.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'

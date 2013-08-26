@@ -83,6 +83,7 @@ dns_polluted_at = 0
 dns_pollution_ignored = False
 force_us_ip = False
 auto_fix_enabled = True
+proxy_failures = {} # proxy => [failed_at]
 
 
 def get_dns_polluted_at(environ, start_response):
@@ -292,7 +293,12 @@ def handle(downstream_sock, address):
             pick_proxy_and_forward(client)
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] done' % repr(client))
+            record_success(client)
+        except NoMoreProxy:
+            record_failure(client)
+            return
         except:
+            record_failure(client)
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
             else:
@@ -301,6 +307,38 @@ def handle(downstream_sock, address):
             client.close()
     except:
         LOGGER.exception('failed to handle %s:%s' % (src_ip, src_port))
+
+
+def record_success(client):
+    try:
+        if not client.forwarding_by:
+            return
+        if client.forwarding_by in proxy_failures:
+            del proxy_failures[client.forwarding_by]
+    except:
+        LOGGER.exception('failed to record success')
+
+
+def record_failure(client):
+    try:
+        if not client.forwarding_by:
+            return
+        if client.forwarding_by.died:
+            return
+        failures = proxy_failures.get(client.forwarding_by, [])
+        if not failures:
+            proxy_failures[client.forwarding_by] = [time.time()]
+            return
+        last_failure = failures[-1]
+        if time.time() - last_failure < 1:
+            return
+        if len(failures) >= 3:
+            LOGGER.critical('!!! %s screwed up too many clients !!!' % client.forwarding_by)
+            client.forwarding_by.died = True
+        else:
+            failures.append(time.time())
+    except:
+        LOGGER.exception('failed to record failure')
 
 
 def pick_proxy_and_forward(client):
@@ -335,7 +373,7 @@ def pick_proxy_and_forward(client):
                 break
             proxy = pick_proxy(client)
         if not proxy:
-            return
+            raise NoMoreProxy()
         if 'DIRECT' in proxy.flags:
             LOGGER.debug('[%s] picked proxy: %s' % (repr(client), repr(proxy)))
         else:
@@ -347,8 +385,15 @@ def pick_proxy_and_forward(client):
             LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
             client.tried_proxies[proxy] = e.reason
         except NotHttp:
-            client.tried_proxies[proxy] = 'not http'
-            continue
+            try:
+                return DIRECT_PROXY.forward(client)
+            except client.ProxyFallBack:
+                return # give up
+    raise NoMoreProxy()
+
+
+class NoMoreProxy(Exception):
+    pass
 
 
 def should_fix():
