@@ -325,6 +325,8 @@ def record_failure(client):
             return
         if client.forwarding_by.died:
             return
+        if 'DIRECT' in client.forwarding_by.flags:
+            return
         failures = proxy_failures.get(client.forwarding_by, [])
         if not failures:
             proxy_failures[client.forwarding_by] = [time.time()]
@@ -565,6 +567,8 @@ def refresh_proxies():
             sock.close()
         except:
             pass
+    for proxy in proxies:
+        proxy.died = False
     LOGGER.info('refreshed proxies: %s' % proxies)
     return success
 
