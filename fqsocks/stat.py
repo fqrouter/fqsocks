@@ -4,23 +4,15 @@ import time
 import logging
 
 import httpd
+import jinja2
+import os.path
+import functools
 
+PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxies.html')
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 LOGGER = logging.getLogger(__name__)
 
-
 counters = [] # not closed or closed within 5 minutes
-
-PROXY_LIST_PAGE = """
-<html>
-<head>
-<meta http-equiv="refresh" content="1" />
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-</head>
-<body>
-<pre>|</pre>
-</body>
-</html>
-"""
 
 MAX_TIME_RANGE = 60 * 10
 
@@ -33,12 +25,12 @@ def list_counters(environ, start_response):
 
 def list_proxies(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/html')])
-    proxies = {}
+    proxies_counters = {}
     for counter in counters:
-        proxies.setdefault(counter.proxy.public_name, []).append(counter)
+        proxies_counters.setdefault(counter.proxy.public_name, []).append(counter)
     after = time.time() - MAX_TIME_RANGE
-    yield PROXY_LIST_PAGE.split('|')[0]
-    for proxy_public_name, proxy_counters in sorted(proxies.items(), key=lambda (proxy_public_name, proxy_counters): proxy_public_name):
+    proxies = []
+    for proxy_public_name, proxy_counters in sorted(proxies_counters.items(), key=lambda (proxy_public_name, proxy_counters): proxy_public_name):
         rx_bytes_list, rx_seconds_list, _ = zip(*[counter.total_rx(after) for counter in proxy_counters])
         rx_bytes = sum(rx_bytes_list)
         rx_seconds = sum(rx_seconds_list)
@@ -55,13 +47,16 @@ def list_proxies(environ, start_response):
             tx_speed = 0
         if not proxy_public_name:
             continue
-        yield '%s\trx\t%0.2fKB/s\t%s\ttx\t%0.2fKB/s\t%s\n' % \
-              (proxy_public_name,
-               rx_speed,
-               to_human_readable_size(rx_bytes),
-               tx_speed,
-               to_human_readable_size(tx_bytes))
-    yield PROXY_LIST_PAGE.split('|')[1]
+        proxies.append({
+            'name': proxy_public_name,
+            'rx_speed': '%0.2f KB/s' % rx_speed,
+            'rx_bytes': to_human_readable_size(rx_bytes),
+            'tx_speed': '%0.2f KB/s' % tx_speed,
+            'tx_bytes': to_human_readable_size(tx_bytes)
+        })
+    with open(PROXIES_HTML_FILE) as f:
+        template = jinja2.Template(f.read())
+    return [template.render(proxies=proxies).encode('utf8')]
 
 
 def to_human_readable_size(num):
@@ -71,6 +66,20 @@ def to_human_readable_size(num):
         num /= 1024.0
 
 
+def get_asset(file_path, content_type, environ, start_response):
+    start_response(httplib.OK, [('Content-Type', content_type)])
+    with open(file_path) as f:
+        return [f.read()]
+
+
+httpd.HANDLERS[('GET', 'assets/bootstrap.min.css')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'bootstrap.min.css'), 'text/css')
+httpd.HANDLERS[('GET', 'assets/bootstrap.min.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'bootstrap.min.js'), 'text/javascript')
+httpd.HANDLERS[('GET', 'assets/jquery.min.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'jquery.min.js'), 'text/javascript')
+httpd.HANDLERS[('GET', 'assets/tablesort.min.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'tablesort.min.js'), 'text/javascript')
 httpd.HANDLERS[('GET', 'counters')] = list_counters
 httpd.HANDLERS[('GET', 'proxies')] = list_proxies
 

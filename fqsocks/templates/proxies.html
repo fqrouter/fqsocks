@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>fqrouter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/assets/bootstrap.min.css"
+          rel="stylesheet" media="screen">
+    <style type="text/css">
+        th.sort-header {
+            cursor:pointer;
+        }
+        th.sort-header::-moz-selection,
+        th.sort-header::selection {
+            background:transparent;
+        }
+        table th.sort-header:after {
+            content:'';
+            float:right;
+            margin-top:7px;
+            border-width:0 4px 4px;
+            border-style:solid;
+            border-color:#404040 transparent;
+            visibility:hidden;
+        }
+        table th.sort-header:hover:after {
+            visibility:visible;
+        }
+        table th.sort-up:after,
+        table th.sort-down:after,
+        table th.sort-down:hover:after {
+            visibility:visible;
+            opacity:0.4;
+        }
+        table th.sort-up:after {
+            border-bottom:none;
+            border-width:4px 4px 0;
+        }
+    </style>
+</head>
+<body>
+<table class="table" id="proxies">
+    <thead>
+    <tr>
+        <th>proxy</th>
+        <th>rx</th>
+        <th>rx</th>
+        <th>tx</th>
+        <th>tx</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for proxy in proxies %}
+    <tr>
+        <td>{{ proxy.name }}</td>
+        <td>{{ proxy.rx_speed }}</td>
+        <td>{{ proxy.rx_bytes }}</td>
+        <td>{{ proxy.tx_speed }}</td>
+        <td>{{ proxy.tx_bytes }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<script src="/assets/jquery.min.js"></script>
+<script src="/assets/bootstrap.min.js"></script>
+<script src="/assets/tablesort.min.js"></script>
+<script>
+    $(document).ready(function() {
+        new Tablesort($('#proxies')[0]);
+    });
+</script>
+</body>
+</html>
