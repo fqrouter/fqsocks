@@ -61,7 +61,6 @@ proxy_types = {
 }
 LOGGER = logging.getLogger(__name__)
 
-mandatory_proxies = []
 proxies = []
 direct_connection_successes = set() # set of (ip, port)
 direct_connection_failures = {} # (ip, port) => failed_at
@@ -424,11 +423,6 @@ def is_direct_access_disabled():
 
 
 def pick_proxy(client):
-    if mandatory_proxies:
-        available_mandatory_proxies = [p for p in mandatory_proxies if not p.died and p not in client.tried_proxies]
-        if available_mandatory_proxies:
-            return random.choice(available_mandatory_proxies)
-        raise Exception('[%s] no proxy to handle' % repr(client))
     if not client.peeked_data:
         ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
         if errors:

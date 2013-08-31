@@ -35,10 +35,16 @@
             border-bottom:none;
             border-width:4px 4px 0;
         }
+        table.portrait .tx-speed {
+            display: none;
+        }
+        table.portrait .rx-speed {
+            display: none;
+        }
     </style>
 </head>
 <body>
-<table class="table" id="proxies">
+<table class="table table-striped" id="proxies">
     <thead>
     <tr>
         <th>proxy</th>
@@ -49,15 +55,7 @@
     </tr>
     </thead>
     <tbody>
-    {% for proxy in proxies %}
-    <tr>
-        <td>{{ proxy.name }}</td>
-        <td class="rx-speed" data-sort="{{ proxy.rx_speed_value }}">{{ proxy.rx_speed_label }}</td>
-        <td data-sort="{{ proxy.rx_bytes_value }}">{{ proxy.rx_bytes_label }}</td>
-        <td class="tx-speed" data-sort="{{ proxy.tx_speed_value }}">{{ proxy.tx_speed_label }}</td>
-        <td data-sort="{{ proxy.tx_bytes_value }}">{{ proxy.tx_bytes_label }}</td>
-    </tr>
-    {% endfor %}
+    {{ proxy_list }}
     </tbody>
 </table>
 <script src="/assets/jquery.min.js"></script>
@@ -65,20 +63,28 @@
 <script src="/assets/tablesort.min.js"></script>
 <script>
     $(document).ready(function() {
-        new Tablesort($('#proxies')[0]);
+
+        var tablesort = new Tablesort($('#proxies')[0]);
+
         function showHideSpeed() {
             if (typeof(this.orientation) === "undefined" || window.orientation == -90 || window.orientation == 90) {
-                $('.rx-speed').show();
-                $('.tx-speed').show();
+                $('#proxies').removeClass('portrait');
             } else {
-                $('.rx-speed').hide();
-                $('.tx-speed').hide();
+                $('#proxies').addClass('portrait');
             }
         }
+
+        function refreshProxyList() {
+            $('#proxies tbody').load('/proxies?list-only=True', function() {
+                tablesort.refresh();
+            });
+        }
+
         $(window).bind('orientationchange', function () {
             showHideSpeed();
         });
         showHideSpeed();
+//        setInterval(refreshProxyList, 1000);
     });
 </script>
 </body>

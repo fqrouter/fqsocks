@@ -37,6 +37,7 @@ def get_http_response(code):
 
 def serve_forever():
     try:
+        __import__('fqsocks.web_ui')
         httpd = WSGIServer(('127.0.0.1', 8319), handle_request)
         LOGGER.info('serving HTTP on port 8319...')
     except:
