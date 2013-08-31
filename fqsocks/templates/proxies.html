@@ -42,9 +42,9 @@
     <thead>
     <tr>
         <th>proxy</th>
+        <th class="rx-speed">rx</th>
         <th>rx</th>
-        <th>rx</th>
-        <th>tx</th>
+        <th class="tx-speed">tx</th>
         <th>tx</th>
     </tr>
     </thead>
@@ -52,10 +52,10 @@
     {% for proxy in proxies %}
     <tr>
         <td>{{ proxy.name }}</td>
-        <td>{{ proxy.rx_speed }}</td>
-        <td>{{ proxy.rx_bytes }}</td>
-        <td>{{ proxy.tx_speed }}</td>
-        <td>{{ proxy.tx_bytes }}</td>
+        <td class="rx-speed" data-sort="{{ proxy.rx_speed_value }}">{{ proxy.rx_speed_label }}</td>
+        <td data-sort="{{ proxy.rx_bytes_value }}">{{ proxy.rx_bytes_label }}</td>
+        <td class="tx-speed" data-sort="{{ proxy.tx_speed_value }}">{{ proxy.tx_speed_label }}</td>
+        <td data-sort="{{ proxy.tx_bytes_value }}">{{ proxy.tx_bytes_label }}</td>
     </tr>
     {% endfor %}
     </tbody>
@@ -66,6 +66,19 @@
 <script>
     $(document).ready(function() {
         new Tablesort($('#proxies')[0]);
+        function showHideSpeed() {
+            if (typeof(this.orientation) === "undefined" || window.orientation == -90 || window.orientation == 90) {
+                $('.rx-speed').show();
+                $('.tx-speed').show();
+            } else {
+                $('.rx-speed').hide();
+                $('.tx-speed').hide();
+            }
+        }
+        $(window).bind('orientationchange', function () {
+            showHideSpeed();
+        });
+        showHideSpeed();
     });
 </script>
 </body>

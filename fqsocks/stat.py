@@ -49,10 +49,14 @@ def list_proxies(environ, start_response):
             continue
         proxies.append({
             'name': proxy_public_name,
-            'rx_speed': '%0.2f KB/s' % rx_speed,
-            'rx_bytes': to_human_readable_size(rx_bytes),
-            'tx_speed': '%0.2f KB/s' % tx_speed,
-            'tx_bytes': to_human_readable_size(tx_bytes)
+            'rx_speed_value': rx_speed,
+            'rx_speed_label': '%0.2f KB/s' % rx_speed,
+            'rx_bytes_value': rx_bytes,
+            'rx_bytes_label': to_human_readable_size(rx_bytes),
+            'tx_speed_value': tx_speed,
+            'tx_speed_label': '%0.2f KB/s' % tx_speed,
+            'tx_bytes_value': tx_bytes,
+            'tx_bytes_label': to_human_readable_size(tx_bytes)
         })
     with open(PROXIES_HTML_FILE) as f:
         template = jinja2.Template(f.read())
