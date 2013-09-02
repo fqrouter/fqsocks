@@ -35,12 +35,18 @@ def get_http_response(code):
     return '%s %s' % (code, httplib.responses[code])
 
 
+def homepage(environ, start_response):
+    start_response(httplib.TEMPORARY_REDIRECT, [('Location', '/proxies')])
+    return []
+
+
 def serve_forever():
     try:
         __import__('fqsocks.web_ui')
-        httpd = WSGIServer(('127.0.0.1', 8319), handle_request)
-        LOGGER.info('serving HTTP on port 8319...')
+        HANDLERS[('GET', '')] = homepage
+        httpd = WSGIServer(('', 2515), handle_request)
+        LOGGER.info('serving HTTP on port 2515...')
     except:
-        LOGGER.exception('failed to start HTTP server on port 8319')
+        LOGGER.exception('failed to start HTTP server on port 2515')
         sys.exit(1)
     httpd.serve_forever()
