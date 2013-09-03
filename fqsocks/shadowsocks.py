@@ -42,6 +42,7 @@ class ShadowSocksProxy(Proxy):
         self.failed_times = 0
 
     def increase_failed_time(self):
+        LOGGER.error('failed once/%s: %s' % (self.failed_times, self))
         self.failed_times += 1
         if self.failed_times > 3:
             self.died = True

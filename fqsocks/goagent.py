@@ -84,6 +84,7 @@ normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-C
 
 class GoAgentProxy(Proxy):
 
+    last_refresh_started_at = 0
     black_list = set()
     failed_times = {}
 
@@ -236,6 +237,10 @@ def forward(client, proxy, appids):
             client.fall_back('urlfetch empty response')
         if response.app_status == 503:
             proxy.died = True
+            if time.time() - GoAgentProxy.last_refresh_started_at > 60:
+                GoAgentProxy.last_refresh_started_at =  time.time()
+                LOGGER.error('refresh goagent proxies due to over quota')
+                gevent.spawn(GoAgentProxy.refresh, GoAgentProxy.proxies)
             client.fall_back('goagent server over quota')
         if response.app_status == 404:
             proxy.died = True
