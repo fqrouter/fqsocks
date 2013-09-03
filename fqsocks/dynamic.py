@@ -31,6 +31,17 @@ class DynamicProxy(Proxy):
         else:
             raise NotImplementedError()
 
+    def clear_latency_records(self):
+        if self.delegated_to:
+            self.delegated_to.clear_latency_records()
+
+    @property
+    def latency(self):
+        if self.delegated_to:
+            return self.delegated_to.latency
+        else:
+            return 0
+
     @property
     def died(self):
         if self.delegated_to:

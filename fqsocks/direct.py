@@ -11,6 +11,26 @@ class Proxy(object):
         self.flags = set()
         self.priority = 0
         self._proxy_ip = None
+        self.latency_records_total = 0
+        self.latency_records_count = 0
+
+    def record_latency(self, latency):
+        self.latency_records_total += latency
+        self.latency_records_count += 1
+        if self.latency_records_count > 100:
+            self.latency_records_total = self.latency
+            self.latency_records_count = 1
+
+    def clear_latency_records(self):
+        self.latency_records_total = 0
+        self.latency_records_count = 0
+
+    @property
+    def latency(self):
+        if self.latency_records_count:
+            return self.latency_records_total / self.latency_records_count
+        else:
+            return 0
 
     @property
     def proxy_ip(self):

@@ -4,7 +4,8 @@ import logging
 
 from direct import Proxy
 import encrypt
-
+import time
+import functools
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class ShadowSocksProxy(Proxy):
         addr_to_send = '\x01'
         addr_to_send += socket.inet_aton(client.dst_ip)
         addr_to_send += struct.pack('>H', client.dst_port)
+        begin_at = time.time()
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 5)
         except:
@@ -37,9 +39,14 @@ class ShadowSocksProxy(Proxy):
         upstream_sock.counter.sending(len(encrypted_peeked_data))
         upstream_sock.sendall(encrypted_peeked_data)
         client.forward(
-            upstream_sock, encrypt=encryptor.encrypt, decrypt=encryptor.decrypt,
-            delayed_penalty=self.increase_failed_time)
+            upstream_sock, timeout=10, tick=1,
+            encrypt=encryptor.encrypt, decrypt=encryptor.decrypt,
+            delayed_penalty=self.increase_failed_time,
+            on_forward_started=functools.partial(self.on_forward_started, begin_at=begin_at))
         self.failed_times = 0
+
+    def on_forward_started(self, begin_at):
+        self.record_latency(time.time() - begin_at)
 
     def increase_failed_time(self):
         LOGGER.error('failed once/%s: %s' % (self.failed_times, self))
@@ -55,7 +62,7 @@ class ShadowSocksProxy(Proxy):
             return True
 
     def __repr__(self):
-        return 'ShadowSocksProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+        return 'ShadowSocksProxy[%s:%s %0.2f]' % (self.proxy_host, self.proxy_port, self.latency)
 
     @property
     def public_name(self):

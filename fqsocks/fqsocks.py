@@ -164,7 +164,8 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192, encrypt=None, decrypt=None, delayed_penalty=None):
+    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192, encrypt=None, decrypt=None,
+                delayed_penalty=None, on_forward_started=None):
         buffer_multiplier = 1
         try:
             timecount = 61 if self.forward_started else timeout
@@ -184,6 +185,8 @@ class ProxyClient(object):
                             buffer_multiplier = min(16, buffer_multiplier + 1)
                             if data:
                                 self.forward_started = True
+                                if on_forward_started:
+                                    on_forward_started()
                                 if decrypt:
                                     data = decrypt(data)
                                 self.downstream_sock.sendall(data)
@@ -529,7 +532,10 @@ def pick_proxy_supports(client, protocol):
     for proxy in supported_proxies:
         prioritized_proxies.setdefault(proxy.priority, []).append(proxy)
     highest_priority = sorted(prioritized_proxies.keys())[0]
-    return random.choice(prioritized_proxies[highest_priority])
+    picked_proxy = sorted(prioritized_proxies[highest_priority], key=lambda proxy: proxy.latency)[0]
+    if picked_proxy.latency == 0:
+        return random.choice(prioritized_proxies[highest_priority])
+    return picked_proxy
 
 
 def fix_by_refreshing_proxies():
