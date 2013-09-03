@@ -41,9 +41,16 @@
         table.portrait .rx-speed {
             display: none;
         }
+        #refresh-panel {
+            margin: 8px;
+        }
     </style>
 </head>
 <body>
+<div id="refresh-panel" style="float: right;">
+    <span>Last refresh started at: {{ last_refresh_started_at.strftime('%H:%M:%S') }}</span>
+    <button  id="refresh">refresh now</button>
+</div>
 <table class="table table-striped" id="proxies">
     <thead>
     <tr>
@@ -83,6 +90,14 @@
         $(window).bind('orientationchange', function () {
             showHideSpeed();
         });
+
+        $('#refresh').click(function(e) {
+            $.post('/refresh-proxies', function() {
+                window.location.reload();
+            });
+            return false;
+        });
+
         showHideSpeed();
         setInterval(refreshProxyList, 1000);
     });

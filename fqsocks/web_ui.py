@@ -10,6 +10,7 @@ import functools
 import urlparse
 import stat
 import fqsocks
+from datetime import datetime
 
 PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxies.html')
 PROXY_LIST_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxy-list.html')
@@ -17,6 +18,12 @@ ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 LOGGER = logging.getLogger(__name__)
 
 MAX_TIME_RANGE = 60 * 10
+
+
+def refresh_proxies(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    fqsocks.refresh_proxies()
+    return ['OK']
 
 
 def list_counters(environ, start_response):
@@ -86,7 +93,9 @@ def list_proxies(environ, start_response):
         return [proxy_list]
     with open(PROXIES_HTML_FILE) as f:
         proxies_template = jinja2.Template(f.read())
-    return [proxies_template.render(proxy_list=proxy_list).encode('utf8')]
+    last_refresh_started_at = datetime.fromtimestamp(fqsocks.last_refresh_started_at)
+    return [proxies_template.render(
+        proxy_list=proxy_list, last_refresh_started_at=last_refresh_started_at).encode('utf8')]
 
 
 def to_human_readable_size(num):
@@ -111,4 +120,5 @@ httpd.HANDLERS[('GET', 'assets/jquery.min.js')] = functools.partial(
 httpd.HANDLERS[('GET', 'assets/tablesort.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'tablesort.min.js'), 'text/javascript')
 httpd.HANDLERS[('GET', 'counters')] = list_counters
+httpd.HANDLERS[('POST', 'refresh-proxies')] = refresh_proxies
 httpd.HANDLERS[('GET', 'proxies')] = list_proxies
