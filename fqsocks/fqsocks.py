@@ -83,6 +83,8 @@ dns_pollution_ignored = False
 force_us_ip = False
 auto_fix_enabled = True
 proxy_failures = {} # proxy => [failed_at]
+IFCONFIG_COMMAND = None
+IP_COMMAND = None
 
 
 def get_dns_polluted_at(environ, start_response):
@@ -120,6 +122,7 @@ def clear_states(environ, start_response):
         HTTPS_TRY_PROXY.failed_times.clear()
     GoAgentProxy.black_list = set()
     GoAgentProxy.failed_times = {}
+    proxy_failures.clear()
     last_refresh_started_at = 0
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
@@ -566,7 +569,8 @@ def refresh_proxies():
             pass
     for proxy in proxies:
         proxy.died = False
-    LOGGER.info('refreshed proxies: %s' % proxies)
+    proxy_failures.clear()
+    LOGGER.info('%s, refreshed proxies: %s' % (success, proxies))
     return success
 
 
@@ -704,6 +708,7 @@ def setup_logging(log_level, log_file=None):
 def main(argv):
     global LISTEN_IP, LISTEN_PORT, CHINA_PROXY, CHECK_ACCESS
     global HTTP_TRY_PROXY, HTTPS_TRY_PROXY
+    global IP_COMMAND, IFCONFIG_COMMAND
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument('--listen', default='127.0.0.1:12345')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
@@ -718,7 +723,13 @@ def main(argv):
     argument_parser.add_argument('--disable-direct-access', action='store_true')
     argument_parser.add_argument('--http-request-mark')
     argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
+    argument_parser.add_argument('--ip-command')
+    argument_parser.add_argument('--ifconfig-command')
     args = argument_parser.parse_args(argv)
+    if args.ip_command:
+        IP_COMMAND = args.ip_command
+    if args.ifconfig_command:
+        IFCONFIG_COMMAND = args.ifconfig_command
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')

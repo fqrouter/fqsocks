@@ -3,8 +3,7 @@
 <head>
     <title>fqrouter</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="/assets/bootstrap.min.css"
-          rel="stylesheet" media="screen">
+    <link href="/assets/bootstrap.min.css" rel="stylesheet" media="screen">
     <style type="text/css">
         th.sort-header {
             cursor:pointer;
@@ -41,16 +40,16 @@
         table.portrait .rx-speed {
             display: none;
         }
-        #refresh-panel {
+        body {
             margin: 8px;
         }
     </style>
 </head>
 <body>
-<div id="refresh-panel" style="float: right;">
-    <span>Last refresh started at: {{ last_refresh_started_at.strftime('%H:%M:%S') }}</span>
-    <button  id="refresh">refresh now</button>
-</div>
+<ul class="nav nav-tabs">
+    <li class="active"><a href="javascript:void(0);">Proxies</a></li>
+    <li><a href="/remote-access">Remote Access</a></li>
+</ul>
 <table class="table table-striped" id="proxies">
     <thead>
     <tr>
@@ -65,6 +64,7 @@
     {{ proxy_list }}
     </tbody>
 </table>
+<button  id="refresh" class="btn btn-primary">Get New Proxies ({{ last_refresh_started_at.strftime('%H:%M:%S') }})</button>
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap.min.js"></script>
 <script src="/assets/tablesort.min.js"></script>
@@ -100,6 +100,7 @@
 
         showHideSpeed();
         setInterval(refreshProxyList, 1000);
+        refreshProxyList();
     });
 </script>
 </body>
