@@ -28,6 +28,7 @@ import gevent.monkey
 
 import lan_ip
 import china_ip
+import us_ip
 from direct import DIRECT_PROXY
 from direct import HTTPS_TRY_PROXY
 from direct import NONE_PROXY
@@ -262,7 +263,7 @@ class ProxyClient(object):
         if isinstance(proxy, DynamicProxy):
             proxy = proxy.delegated_to
         if self.us_ip_only:
-            if hasattr(proxy, 'proxy_ip') and not china_ip.is_us_ip(proxy.proxy_ip):
+            if hasattr(proxy, 'proxy_ip') and not us_ip.is_us_ip(proxy.proxy_ip):
                 LOGGER.info('skip %s' % proxy.proxy_ip)
                 return True
         return proxy in self.tried_proxies

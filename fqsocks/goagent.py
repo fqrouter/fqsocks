@@ -134,9 +134,6 @@ class GoAgentProxy(Proxy):
                 raise Exception('payload is too large')
             if client.method.upper() not in ('GET', 'POST'):
                 raise Exception('unsupported method: %s' % client.method)
-            if 'pandora.com' in client.host:
-                client.us_ip_only = True
-                raise Exception('pandora does not support goagent')
             if client.host in GoAgentProxy.black_list:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:

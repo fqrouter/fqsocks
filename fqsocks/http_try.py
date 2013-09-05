@@ -15,12 +15,12 @@ LOGGER = logging.getLogger(__name__)
 SO_MARK = 36
 
 NO_DIRECT_PROXY_HOSTS = {
-    # '*.twitter.com',
-    # 'twitter.com',
-    # '*.t.co',
-    # 't.co',
-    # '*.twimg.com',
-    # 'twimg.com',
+    '*.twitter.com',
+    'twitter.com',
+    '*.t.co',
+    't.co',
+    '*.twimg.com',
+    'twimg.com',
     'hulu.com',
     '*.hulu.com',
     'huluim.com',
@@ -29,8 +29,6 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.netflix.com',
     'skype.com',
     '*.skype.com',
-    'pandora.com',
-    '*.pandora.com',
     'radiotime.com',
     '*.radiotime.com'
 }
