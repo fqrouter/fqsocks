@@ -63,8 +63,6 @@ proxy_types = {
 LOGGER = logging.getLogger(__name__)
 
 proxies = []
-direct_connection_successes = set() # set of (ip, port)
-direct_connection_failures = {} # (ip, port) => failed_at
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -117,10 +115,10 @@ def clear_states(environ, start_response):
     global last_refresh_started_at
     last_refresh_started_at = 0
     if HTTP_TRY_PROXY:
-        HTTP_TRY_PROXY.failed_times.clear()
+        HTTP_TRY_PROXY.host_black_list.clear()
         HTTP_TRY_PROXY.bad_requests.clear()
     if HTTPS_TRY_PROXY:
-        HTTPS_TRY_PROXY.failed_times.clear()
+        HTTPS_TRY_PROXY.dst_black_list.clear()
     for proxy in proxies:
         proxy.clear_latency_records()
         proxy.clear_failed_times()
@@ -239,23 +237,14 @@ class ProxyClient(object):
             except:
                 pass
 
-    def fall_back(self, reason, delayed_penalty=None):
+    def fall_back(self, reason, delayed_penalty=None, silently=False):
         if self.forward_started:
             LOGGER.fatal('[%s] fall back can not happen after forward started:\n%s' %
                          (repr(self), traceback.format_stack()))
             raise Exception('!!! fall back can not happen after forward started !!!')
         if delayed_penalty:
             self.delayed_penalties.append(delayed_penalty)
-        raise ProxyFallBack(reason)
-
-    def direct_connection_succeeded(self):
-        direct_connection_successes.add((self.dst_ip, self.dst_port))
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] direct connection succeeded' % repr(self))
-
-    def direct_connection_failed(self):
-        direct_connection_failures[(self.dst_ip, self.dst_port)] = time.time()
-        LOGGER.info('[%s] direct connection failed' % repr(self))
+        raise ProxyFallBack(reason, silently=silently)
 
     def dump_proxies(self):
         LOGGER.info('dump proxies: %s' % [p for p in proxies if not p.died])
@@ -281,9 +270,10 @@ class ProxyClient(object):
 
 
 class ProxyFallBack(Exception):
-    def __init__(self, reason):
+    def __init__(self, reason, silently):
         super(ProxyFallBack, self).__init__(reason)
         self.reason = reason
+        self.silently = silently
 
 
 ProxyClient.ProxyFallBack = ProxyFallBack
@@ -355,8 +345,9 @@ def pick_proxy_and_forward(client):
         try:
             proxy.forward(client)
             return
-        except ProxyFallBack, e:
-            LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
+        except ProxyFallBack as e:
+            if not e.silently:
+                LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
             client.tried_proxies[proxy] = e.reason
         except NotHttp:
             try:
@@ -409,39 +400,17 @@ def pick_proxy(client):
     protocol, domain = analyze_protocol(client.peeked_data)
     if domain:
         client.host = domain
-    dst_color = get_dst_color(client.host, client.dst_ip, client.dst_port)
     if LOGGER.isEnabledFor(logging.DEBUG):
-        LOGGER.debug('[%s] analyzed traffic: %s %s %s' % (repr(client), dst_color, protocol, domain))
+        LOGGER.debug('[%s] analyzed traffic: %s %s' % (repr(client), protocol, domain))
     if protocol == 'HTTP' or client.dst_port == 80:
-        if 'BLACK' == dst_color:
-            return pick_proxy_supports(client, 'HTTP')
-        else:
-            return pick_http_try_proxy(client) or pick_proxy_supports(client, 'HTTP')
+        return pick_http_try_proxy(client) or pick_proxy_supports(client, 'HTTP')
     elif protocol == 'HTTPS' or client.dst_port == 443:
-        if 'BLACK' == dst_color:
-            return pick_proxy_supports(client, 'HTTPS')
-        else:
-            return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
+        return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
     else:
-        if 'BLACK' == dst_color:
-            return pick_proxy_supports(client, 'TCP') or DIRECT_PROXY
+        if pick_proxy_supports(client, 'TCP'):
+            return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
         else:
-            if pick_proxy_supports(client, 'TCP'):
-                return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
-            else:
-                return DIRECT_PROXY
-
-
-def get_dst_color(host, ip, port):
-    if is_no_direct_host(host):
-        return 'BLACK'
-    dst = (ip, port)
-    if dst in direct_connection_successes:
-        return 'WHITE'
-    failure = direct_connection_failures.get(dst)
-    if failure and (time.time() - failure) < 60: # make dst BLACK for 1 minute
-        return 'BLACK'
-    return 'GRAY'
+            return DIRECT_PROXY
 
 
 def analyze_protocol(peeked_data):

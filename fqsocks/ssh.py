@@ -44,14 +44,18 @@ class SshProxy(Proxy):
                 username=self.username, password=self.password,
                 key_filename=self.key_filename,
                 sock=sock)
+            return True
         except:
             LOGGER.exception('failed to connect ssh proxy: %s' % self)
+            self.increase_failed_time()
+            return False
 
     def guard(self):
         while not self.died:
             self.connection_failed.wait()
             LOGGER.critical('!!! %s reconnect' % self)
-            self.connect()
+            if not self.connect():
+                continue
             self.connection_failed.clear()
             gevent.sleep(1)
         LOGGER.critical('!!! %s gurad loop exit !!!' % self)

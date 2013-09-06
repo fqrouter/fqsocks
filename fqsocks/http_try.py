@@ -50,18 +50,22 @@ class HttpTryProxy(Proxy):
         self.flags.add('DIRECT')
         self.http_request_mark = None
         self.enable_youtube_scrambler = False
-        self.failed_times = {} # host => count
+        self.host_black_list = {} # host => count
         self.bad_requests = {} # host => count
 
     def do_forward(self, client):
         try:
             self.try_direct(client)
-            if client.host in self.failed_times:
-                del self.failed_times[client.host]
+            if client.host and client.host in self.host_black_list:
+                LOGGER.error('remove host %s from blacklist' % client.host)
+                del self.host_black_list[client.host]
         except NotHttp:
             raise
         except:
-            self.failed_times[client.host] = self.failed_times.get(client.host, 0) + 1
+            if client.host:
+                self.host_black_list[client.host] = self.host_black_list.get(client.host, 0) + 1
+                if self.host_black_list[client.host] > 3:
+                    LOGGER.error('blacklist host %s' % client.host)
             raise
 
     def try_direct(self, client):
@@ -70,16 +74,14 @@ class HttpTryProxy(Proxy):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
-            client.direct_connection_failed()
             client.fall_back(reason='http try connect failed')
             return
-        client.direct_connection_succeeded()
         is_payload_complete = recv_and_parse_request(client)
-        failed_count = self.failed_times.get(client.host, 0)
+        failed_count = self.host_black_list.get(client.host, 0)
         if failed_count > 3 and (failed_count % 10) != 0:
-            client.fall_back(reason='%s tried before' % client.host)
+            client.fall_back(reason='%s tried before' % client.host, silently=True)
         if is_no_direct_host(client.host):
-            client.fall_back(reason='%s blacklisted for direct access' % client.host)
+            client.fall_back(reason='%s blacklisted for direct access' % client.host, silently=True)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
         scrambles_youtube = self.enable_youtube_scrambler and \
                             is_payload_complete and \

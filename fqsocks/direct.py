@@ -100,10 +100,8 @@ class DirectProxy(Proxy):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] direct connect upstream socket timed out' % (repr(client)), exc_info=1)
-            client.direct_connection_failed()
             client.fall_back(reason='direct connect upstream socket timed out')
             return
-        client.direct_connection_succeeded()
         upstream_sock.settimeout(None)
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] direct upstream connected' % repr(client))
@@ -121,19 +119,22 @@ class DirectProxy(Proxy):
 class GenericTryProxy(DirectProxy):
     def __init__(self):
         super(GenericTryProxy, self).__init__(2)
-        self.failed_times = {}
+        self.dst_black_list = {}
 
     def do_forward(self, client):
         dst = (client.dst_ip, client.dst_port)
         try:
-            failed_count = self.failed_times.get(dst, 0)
+            failed_count = self.dst_black_list.get(dst, 0)
             if failed_count and (failed_count % 10) != 0:
-                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port))
+                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
             super(GenericTryProxy, self).do_forward(client)
-            if dst in self.failed_times and (failed_count % 10) == 0:
-                del self.failed_times[dst]
+            if dst in self.dst_black_list:
+                LOGGER.error('removed dst %s:%s from blacklist' % dst)
+                del self.dst_black_list[dst]
         except:
-            self.failed_times[dst] = self.failed_times.get(dst, 0) + 1
+            if dst not in self.dst_black_list:
+                LOGGER.error('blacklist dst %s:%s' % dst)
+            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
             raise
 
     def __repr__(self):
