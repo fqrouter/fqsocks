@@ -9,6 +9,8 @@ import stat
 import gevent
 import gevent.event
 import contextlib
+import functools
+import time
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,42 +44,44 @@ class SshProxy(Proxy):
                 username=self.username, password=self.password,
                 key_filename=self.key_filename,
                 sock=sock)
-            self.reconnected = True
         except:
             LOGGER.exception('failed to connect ssh proxy: %s' % self)
-            self.died = True
 
     def guard(self):
         while not self.died:
             self.connection_failed.wait()
-            if self.failed_times >= 3:
-                LOGGER.error('failed too many times')
-                self.died = True
-                break
-            self.failed_times += 1
+            LOGGER.critical('!!! %s reconnect' % self)
             self.connect()
             self.connection_failed.clear()
+            gevent.sleep(1)
         LOGGER.critical('!!! %s gurad loop exit !!!' % self)
+
 
     def close(self):
         if self.ssh_client:
             self.ssh_client.close()
 
     def do_forward(self, client):
+        begin_at = time.time()
         try:
             upstream_socket = self.open_channel(client)
         except:
             LOGGER.info('[%s] failed to open channel: %s' % (repr(client), sys.exc_info()[1]))
             gevent.sleep(1)
             self.connection_failed.set()
-            return client.fall_back(reason='ssh open channel failed')
+            return client.fall_back(reason='ssh open channel failed', delayed_penalty=self.increase_failed_time)
         with contextlib.closing(upstream_socket):
             upstream_socket.counter = stat.opened(upstream_socket, self, client.host, client.dst_ip)
             LOGGER.info('[%s] channel opened: %s' % (repr(client), upstream_socket))
             client.add_resource(upstream_socket)
             upstream_socket.sendall(client.peeked_data)
-            client.forward(upstream_socket)
+            client.forward(
+                upstream_socket, delayed_penalty=self.increase_failed_time,
+                on_forward_started=functools.partial(self.on_forward_started, begin_at=begin_at))
             self.failed_times = 0
+
+    def on_forward_started(self, begin_at):
+        self.record_latency(time.time() - begin_at)
 
     def open_channel(self, client):
         return self.ssh_client.get_transport().open_channel(

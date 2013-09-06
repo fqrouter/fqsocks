@@ -115,6 +115,7 @@ def reset_force_us_ip():
 
 def clear_states(environ, start_response):
     global last_refresh_started_at
+    last_refresh_started_at = 0
     if HTTP_TRY_PROXY:
         HTTP_TRY_PROXY.failed_times.clear()
         HTTP_TRY_PROXY.bad_requests.clear()
@@ -123,10 +124,10 @@ def clear_states(environ, start_response):
     for proxy in proxies:
         proxy.clear_latency_records()
         proxy.clear_failed_times()
+    GoAgentProxy.last_refresh_started_at = 0
     GoAgentProxy.black_list = set()
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
-    last_refresh_started_at = 0
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
