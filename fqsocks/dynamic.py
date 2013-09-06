@@ -35,6 +35,12 @@ class DynamicProxy(Proxy):
         if self.delegated_to:
             self.delegated_to.clear_latency_records()
 
+
+    def clear_failed_times(self):
+        if self.delegated_to:
+            self.delegated_to.clear_failed_times()
+
+
     @property
     def latency(self):
         if self.delegated_to:

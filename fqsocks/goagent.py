@@ -86,7 +86,8 @@ class GoAgentProxy(Proxy):
 
     last_refresh_started_at = 0
     black_list = set()
-    failed_times = {}
+    google_ip_failed_times = {}
+    google_ip_latency_records = {}
 
     GOOGLE_HOSTS = ['www.g.cn', 'www.google.cn', 'www.google.com', 'mail.google.com']
     GOOGLE_IPS = []
@@ -318,17 +319,44 @@ def _create_ssl_connection(ip, port):
 
 def create_ssl_connection():
     for i in range(3):
-        random.shuffle(GoAgentProxy.GOOGLE_IPS)
-        google_ip = sorted(GoAgentProxy.GOOGLE_IPS, key=lambda ip: GoAgentProxy.failed_times.get(ip, 0))[0]
+        google_ip = pick_best_google_ip()
+        started_at = time.time()
         ssl_sock = _create_ssl_connection(google_ip, 443)
         if ssl_sock:
+            record_google_ip_latency(google_ip, time.time() - started_at)
             ssl_sock.google_ip = google_ip
             return ssl_sock
         else:
             LOGGER.error('!!! failed to connect google ip %s !!!' % google_ip)
-            GoAgentProxy.failed_times[google_ip] = GoAgentProxy.failed_times.get(google_ip, 0) + 1
+            GoAgentProxy.google_ip_failed_times[google_ip] = GoAgentProxy.google_ip_failed_times.get(google_ip, 0) + 1
             gevent.sleep(0.1)
     raise ConnectionFailed()
+
+
+def pick_best_google_ip():
+    random.shuffle(GoAgentProxy.GOOGLE_IPS)
+    google_ips = sorted(GoAgentProxy.GOOGLE_IPS, key=lambda ip: GoAgentProxy.google_ip_failed_times.get(ip, 0))[:3]
+    return sorted(google_ips, key=lambda ip: get_google_ip_latency(ip))[0]
+
+
+def get_google_ip_latency(google_ip):
+    if google_ip in GoAgentProxy.google_ip_latency_records:
+        total_elapsed_seconds, times = GoAgentProxy.google_ip_latency_records[google_ip]
+        return total_elapsed_seconds / times
+    else:
+        return 0
+
+def record_google_ip_latency(google_ip, elapsed_seconds):
+    if google_ip in GoAgentProxy.google_ip_latency_records:
+        total_elapsed_seconds, times = GoAgentProxy.google_ip_latency_records[google_ip]
+        total_elapsed_seconds += elapsed_seconds
+        times += 1
+        if times > 100:
+            total_elapsed_seconds = total_elapsed_seconds / times
+            times = 1
+        GoAgentProxy.google_ip_latency_records[google_ip] = (total_elapsed_seconds, times)
+    else:
+        GoAgentProxy.google_ip_latency_records[google_ip] = (elapsed_seconds, 1)
 
 
 class ConnectionFailed(Exception):
@@ -402,7 +430,8 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
     ssl_sock = create_ssl_connection()
     ssl_sock.counter = stat.opened(ssl_sock, proxy, host=client.host, ip=client.dst_ip)
-    LOGGER.info('[%s] urlfetch %s %s via %s' % (repr(client), method, url, ssl_sock.google_ip))
+    LOGGER.info('[%s] urlfetch %s %s via %s %0.2f'
+                % (repr(client), method, url, ssl_sock.google_ip, get_google_ip_latency(ssl_sock.google_ip)))
     client.add_resource(ssl_sock)
     client.add_resource(ssl_sock.counter)
     client.add_resource(ssl_sock.sock)

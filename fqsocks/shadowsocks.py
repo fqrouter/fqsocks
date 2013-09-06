@@ -19,7 +19,6 @@ class ShadowSocksProxy(Proxy):
         self.proxy_port = int(proxy_port)
         self.password = password
         self.encrypt_method = encrypt_method
-        self.failed_times = 0
 
     def do_forward(self, client):
         encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
@@ -30,8 +29,7 @@ class ShadowSocksProxy(Proxy):
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 5)
         except:
-            self.increase_failed_time()
-            client.fall_back(reason='can not connect to proxy')
+            client.fall_back(reason='can not connect to proxy', delayed_penalty=self.increase_failed_time)
         encrypted_addr = encryptor.encrypt(addr_to_send)
         upstream_sock.counter.sending(len(encrypted_addr))
         upstream_sock.sendall(encrypted_addr)
@@ -47,13 +45,6 @@ class ShadowSocksProxy(Proxy):
 
     def on_forward_started(self, begin_at):
         self.record_latency(time.time() - begin_at)
-
-    def increase_failed_time(self):
-        LOGGER.error('failed once/%s: %s' % (self.failed_times, self))
-        self.failed_times += 1
-        if self.failed_times > 3:
-            self.died = True
-            LOGGER.fatal('!!! proxy died !!!: %s' % self)
 
     def is_protocol_supported(self, protocol):
         if hasattr(self, 'resolved_by_dynamic_proxy'):

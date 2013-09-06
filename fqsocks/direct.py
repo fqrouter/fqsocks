@@ -13,6 +13,14 @@ class Proxy(object):
         self._proxy_ip = None
         self.latency_records_total = 0
         self.latency_records_count = 0
+        self.failed_times = 0
+
+    def increase_failed_time(self):
+        LOGGER.error('failed once/%s: %s' % (self.failed_times, self))
+        self.failed_times += 1
+        if self.failed_times > 3:
+            self.died = True
+            LOGGER.fatal('!!! proxy died !!!: %s' % self)
 
     def record_latency(self, latency):
         self.latency_records_total += latency
@@ -24,6 +32,9 @@ class Proxy(object):
     def clear_latency_records(self):
         self.latency_records_total = 0
         self.latency_records_count = 0
+
+    def clear_failed_times(self):
+        self.failed_times = 0
 
     @property
     def latency(self):

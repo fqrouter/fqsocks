@@ -70,6 +70,8 @@ TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
 LISTEN_IP = None
 LISTEN_PORT = None
+IFCONFIG_COMMAND = None
+IP_COMMAND = None
 NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com',
     'google.com',
@@ -83,9 +85,6 @@ dns_polluted_at = 0
 dns_pollution_ignored = False
 force_us_ip = False
 auto_fix_enabled = True
-proxy_failures = {} # proxy => [failed_at]
-IFCONFIG_COMMAND = None
-IP_COMMAND = None
 
 
 def get_dns_polluted_at(environ, start_response):
@@ -121,9 +120,12 @@ def clear_states(environ, start_response):
         HTTP_TRY_PROXY.bad_requests.clear()
     if HTTPS_TRY_PROXY:
         HTTPS_TRY_PROXY.failed_times.clear()
+    for proxy in proxies:
+        proxy.clear_latency_records()
+        proxy.clear_failed_times()
     GoAgentProxy.black_list = set()
-    GoAgentProxy.failed_times = {}
-    proxy_failures.clear()
+    GoAgentProxy.google_ip_failed_times = {}
+    GoAgentProxy.google_ip_latency_records = {}
     last_refresh_started_at = 0
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
@@ -299,12 +301,9 @@ def handle(downstream_sock, address):
             pick_proxy_and_forward(client)
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] done' % repr(client))
-            record_success(client)
         except NoMoreProxy:
-            record_failure(client)
             return
         except:
-            record_failure(client)
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
             else:
@@ -313,40 +312,6 @@ def handle(downstream_sock, address):
             client.close()
     except:
         LOGGER.exception('failed to handle %s:%s' % (src_ip, src_port))
-
-
-def record_success(client):
-    try:
-        if not client.forwarding_by:
-            return
-        if client.forwarding_by in proxy_failures:
-            del proxy_failures[client.forwarding_by]
-    except:
-        LOGGER.exception('failed to record success')
-
-
-def record_failure(client):
-    try:
-        if not client.forwarding_by:
-            return
-        if client.forwarding_by.died:
-            return
-        if 'DIRECT' in client.forwarding_by.flags:
-            return
-        failures = proxy_failures.get(client.forwarding_by, [])
-        if not failures:
-            proxy_failures[client.forwarding_by] = [time.time()]
-            return
-        last_failure = failures[-1]
-        if time.time() - last_failure < 1:
-            return
-        if len(failures) >= 3:
-            LOGGER.critical('!!! %s screwed up too many clients !!!' % client.forwarding_by)
-            client.forwarding_by.died = True
-        else:
-            failures.append(time.time())
-    except:
-        LOGGER.exception('failed to record failure')
 
 
 def pick_proxy_and_forward(client):
@@ -576,7 +541,6 @@ def refresh_proxies():
             pass
     for proxy in proxies:
         proxy.died = False
-    proxy_failures.clear()
     LOGGER.info('%s, refreshed proxies: %s' % (success, proxies))
     return success
 
