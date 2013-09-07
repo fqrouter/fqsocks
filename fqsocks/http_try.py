@@ -15,6 +15,8 @@ LOGGER = logging.getLogger(__name__)
 SO_MARK = 36
 
 NO_DIRECT_PROXY_HOSTS = {
+    '*.facebook.com',
+    'facebook.com',
     '*.twitter.com',
     'twitter.com',
     '*.t.co',
