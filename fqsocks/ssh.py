@@ -30,6 +30,8 @@ class SshProxy(Proxy):
         self.failed_times = 0
 
     def connect(self):
+        if '0.0.0.0' == self._proxy_ip:
+            return False
         try:
             self.close()
             self.ssh_client = paramiko.SSHClient()
