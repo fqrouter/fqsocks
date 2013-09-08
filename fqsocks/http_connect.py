@@ -4,6 +4,7 @@ import sys
 import base64
 import socket
 import ssl
+import time
 
 from direct import Proxy
 from http_try import recv_till_double_newline
@@ -30,6 +31,7 @@ class HttpConnectProxy(Proxy):
 
     def do_forward(self, client):
         LOGGER.info('[%s] http connect %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
+        begin_at = time.time()
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
             if self.is_secured:
@@ -40,8 +42,9 @@ class HttpConnectProxy(Proxy):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http-connect upstream socket connect timed out' % (repr(client)), exc_info=1)
-            self.report_failure(client, 'http-connect upstream socket connect timed out')
-            return
+            return client.fall_back(
+                reason='http-connect upstream socket connect timed out',
+                delayed_penalty=self.increase_failed_time)
         upstream_sock.settimeout(3)
         upstream_sock.sendall('CONNECT %s:%s HTTP/1.0\r\n' % (client.dst_ip, client.dst_port))
         if self.username and self.password:
@@ -51,15 +54,19 @@ class HttpConnectProxy(Proxy):
         try:
             response, _ = recv_till_double_newline('', upstream_sock)
         except socket.timeout:
-            self.report_failure(client, 'http-connect upstream connect command timed out')
+            return client.fall_back(
+                reason='http-connect upstream connect command timed out',
+                delayed_penalty=self.increase_failed_time)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http-connect upstream connect command failed' % (repr(client)), exc_info=1)
-            self.report_failure(
-                client, 'http-connect upstream connect command failed: %s,%s'
-                        % (sys.exc_info()[0], sys.exc_info()[1]))
+            return client.fall_back(
+                reason='http-connect upstream connect command failed: %s,%s'
+                       % (sys.exc_info()[0], sys.exc_info()[1]),
+                delayed_penalty=self.increase_failed_time)
         match = RE_STATUS.search(response)
         if match and '200' == match.group(1):
+            self.record_latency(time.time() - begin_at)
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] upstream connected' % repr(client))
             upstream_sock.sendall(client.peeked_data)
@@ -70,21 +77,16 @@ class HttpConnectProxy(Proxy):
             LOGGER.error('[%s] http connect rejected: %s' %
                          (repr(client), response.splitlines()[0] if response.splitlines() else 'unknown'))
             self.died = True
-            client.fall_back(response.splitlines()[0] if response.splitlines() else 'unknown')
+            client.fall_back(
+                response.splitlines()[0] if response.splitlines() else 'unknown',
+                delayed_penalty=self.increase_failed_time)
         self.failed_times = 0
-
-    def report_failure(self, client, reason):
-        self.failed_times += 1
-        if self.failed_times > 3:
-            LOGGER.error('%s failed more than 3 times, died' % self)
-            self.died = True
-        client.fall_back(reason=reason)
 
     def is_protocol_supported(self, protocol):
         return protocol == 'HTTPS'
 
     def __repr__(self):
-        return 'HttpConnectProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+        return 'HttpConnectProxy[%s:%s %0.2f]' % (self.proxy_host, self.proxy_port, self.latency)
 
     @property
     def public_name(self):

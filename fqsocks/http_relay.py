@@ -3,6 +3,7 @@ import socket
 import ssl
 import base64
 import sys
+import time
 
 from direct import Proxy
 from http_try import try_receive_response
@@ -30,6 +31,7 @@ class HttpRelayProxy(Proxy):
 
     def do_forward(self, client):
         LOGGER.info('[%s] http relay %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))
+        begin_at = time.time()
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
             if self.is_secured:
@@ -40,8 +42,9 @@ class HttpRelayProxy(Proxy):
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http-relay upstream socket connect timed out' % (repr(client)), exc_info=1)
-            self.report_failure(client, 'http-relay upstream socket connect timed out')
-            return
+            return client.fall_back(
+                reason='http-relay upstream socket connect timed out',
+                delayed_penalty=self.increase_failed_time)
         upstream_sock.settimeout(3)
         is_payload_complete = recv_and_parse_request(client)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.url)
@@ -58,7 +61,9 @@ class HttpRelayProxy(Proxy):
             upstream_sock.counter.sending(len(request_data))
             upstream_sock.sendall(request_data)
         except:
-            client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
+            client.fall_back(
+                reason='send to upstream failed: %s' % sys.exc_info()[1],
+                delayed_penalty=self.increase_failed_time)
         if is_payload_complete:
             response, _ = try_receive_response(client, upstream_sock)
             upstream_sock.counter.received(len(response))
@@ -66,20 +71,15 @@ class HttpRelayProxy(Proxy):
             client.downstream_sock.sendall(response)
         if HTTP_TRY_PROXY.http_request_mark:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
+        self.record_latency(time.time() - begin_at)
         client.forward(upstream_sock)
         self.failed_times = 0
-
-    def report_failure(self, client, reason):
-        self.failed_times += 1
-        if self.failed_times > 3:
-            self.died = True
-        client.fall_back(reason=reason)
 
     def is_protocol_supported(self, protocol):
         return protocol == 'HTTP'
 
     def __repr__(self):
-        return 'HttpRelayProxy[%s:%s]' % (self.proxy_host, self.proxy_port)
+        return 'HttpRelayProxy[%s:%s %0.2f]' % (self.proxy_host, self.proxy_port, self.latency)
 
     @property
     def public_name(self):

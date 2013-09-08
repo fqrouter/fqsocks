@@ -58,7 +58,7 @@ class HttpTryProxy(Proxy):
     def do_forward(self, client):
         try:
             self.try_direct(client)
-            if client.host and client.host in self.host_black_list:
+            if client.host and self.host_black_list.get(client.host, 0) > 3:
                 LOGGER.error('remove host %s from blacklist' % client.host)
                 del self.host_black_list[client.host]
         except NotHttp:
@@ -66,7 +66,7 @@ class HttpTryProxy(Proxy):
         except:
             if client.host:
                 self.host_black_list[client.host] = self.host_black_list.get(client.host, 0) + 1
-                if self.host_black_list[client.host] > 3:
+                if self.host_black_list[client.host] == 4:
                     LOGGER.error('blacklist host %s' % client.host)
             raise
 
