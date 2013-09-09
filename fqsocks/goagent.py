@@ -303,15 +303,11 @@ def _create_ssl_connection(ip, port):
         ssl_sock = ssl.wrap_socket(sock, do_handshake_on_connect=False)
         ssl_sock.settimeout(2)
         ssl_sock.do_handshake()
-        # sometimes, we want to use raw tcp socket directly(select/epoll), so setattr it to ssl socket.
         ssl_sock.sock = sock
         return ssl_sock
-    except (socket.error, ssl.SSLError, OSError) as e:
-        # any socket.error, put Excpetions to output queobj.
-        # close ssl socket
+    except:
         if ssl_sock:
             ssl_sock.close()
-            # close tcp socket
         if sock:
             sock.close()
         return None
