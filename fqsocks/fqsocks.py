@@ -171,7 +171,6 @@ class ProxyClient(object):
         self.buffer_multiplier = 1
         upstream_sock.settimeout(timeout)
         self.downstream_sock.settimeout(None)
-        greenlets = []
 
         def from_upstream_to_downstream():
             try:
@@ -199,9 +198,6 @@ class ProxyClient(object):
                     return e
             except:
                 return sys.exc_info()[1]
-            finally:
-                for greenlet in greenlets:
-                    greenlet.kill()
 
         def from_downstream_to_upstream():
             try:
@@ -221,22 +217,29 @@ class ProxyClient(object):
             except:
                 return sys.exc_info()[1]
             finally:
-                for greenlet in greenlets:
-                    greenlet.kill()
+                upstream_sock.close()
 
         u2d = gevent.spawn(from_upstream_to_downstream)
         d2u = gevent.spawn(from_downstream_to_upstream)
-        greenlets.append(u2d)
-        greenlets.append(d2u)
-        e = u2d.join()
-        if e:
-            raise e
-        e = d2u.join()
-        if e:
-            raise e
-        upstream_sock.close()
-        if not self.forward_started:
-            self.fall_back(reason='forward does not receive any response', delayed_penalty=delayed_penalty)
+        try:
+            e = u2d.join()
+            if e:
+                raise e
+            try:
+                upstream_sock.close()
+            except:
+                pass
+            if not self.forward_started:
+                self.fall_back(reason='forward does not receive any response', delayed_penalty=delayed_penalty)
+        finally:
+            try:
+                u2d.kill()
+            except:
+                pass
+            try:
+                d2u.kill()
+            except:
+                pass
 
     def apply_delayed_penalties(self):
         for delayed_penalty in self.delayed_penalties:

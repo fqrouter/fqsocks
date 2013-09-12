@@ -17,7 +17,8 @@ RE_STATUS = re.compile(r'HTTP/1.\d (\d+) ')
 
 
 class HttpConnectProxy(Proxy):
-    def __init__(self, proxy_host, proxy_port, username=None, password=None, is_public=False, is_secured=False):
+    def __init__(self, proxy_host, proxy_port, username=None, password=None,
+                 is_public=False, is_secured=False, priority=0):
         super(HttpConnectProxy, self).__init__()
         self.proxy_host = proxy_host
         if not self.proxy_host:
@@ -27,6 +28,7 @@ class HttpConnectProxy(Proxy):
         self.password = password
         self.failed_times = 0
         self.is_secured = is_secured
+        self.priority = priority
         if is_public:
             self.flags.add('PUBLIC')
 

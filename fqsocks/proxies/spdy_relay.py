@@ -17,7 +17,7 @@ LOGGER = logging.getLogger(__name__)
 
 class SpdyRelayProxy(Proxy):
     def __init__(self, proxy_host, proxy_port, requested_spdy_version='auto',
-                 username=None, password=None, is_public=False):
+                 username=None, password=None, is_public=False, priority=0):
         super(SpdyRelayProxy, self).__init__()
         self.proxy_host = proxy_host
         if not self.proxy_host:
@@ -31,6 +31,7 @@ class SpdyRelayProxy(Proxy):
             self.flags.add('PUBLIC')
         self.died = True
         self.loop_greenlet = None
+        self.priority = priority
 
     def connect(self):
         try:
