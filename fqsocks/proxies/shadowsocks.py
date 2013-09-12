@@ -1,11 +1,12 @@
 import socket
 import struct
 import logging
-
-from direct import Proxy
-import encrypt
 import time
 import functools
+
+from .direct import Proxy
+from . import encrypt
+
 
 LOGGER = logging.getLogger(__name__)
 

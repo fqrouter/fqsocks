@@ -1,22 +1,24 @@
-import paramiko
-from direct import Proxy
-import socket
 import logging
 import sys
 import os
-import networking
-import stat
-import gevent
-import gevent.event
 import contextlib
 import functools
 import time
+
+import paramiko
+import gevent
+import gevent.event
+
+from .direct import Proxy
+from .. import networking
+from .. import stat
+
 
 LOGGER = logging.getLogger(__name__)
 
 
 class SshProxy(Proxy):
-    def __init__(self, proxy_host, proxy_port=22, username=None, password=None, key_filename=None):
+    def __init__(self, proxy_host, proxy_port=22, username=None, password=None, key_filename=None, priority=0):
         super(SshProxy, self).__init__()
         self.proxy_host = proxy_host
         if not self.proxy_host:
@@ -28,6 +30,7 @@ class SshProxy(Proxy):
         self.ssh_client = None
         self.connection_failed = gevent.event.Event()
         self.failed_times = 0
+        self.priority = int(priority)
 
     def connect(self):
         if '0.0.0.0' == self._proxy_ip:

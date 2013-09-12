@@ -1,16 +1,18 @@
 import logging
 import random
+import time
+import sys
+import contextlib
 
 import gevent
 import dpkt
-import time
-from direct import Proxy
-from http_connect import HttpConnectProxy
-from goagent import GoAgentProxy
-from shadowsocks import ShadowSocksProxy
-import sys
-import networking
-import contextlib
+
+from .direct import Proxy
+from .http_connect import HttpConnectProxy
+from .goagent import GoAgentProxy
+from .shadowsocks import ShadowSocksProxy
+from .. import networking
+
 
 LOGGER = logging.getLogger(__name__)
 

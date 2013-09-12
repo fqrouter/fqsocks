@@ -21,6 +21,20 @@ import time
 import contextlib
 import fqdns
 import httplib
+from .proxies.direct import DIRECT_PROXY
+from .proxies.direct import HTTPS_TRY_PROXY
+from .proxies.direct import NONE_PROXY
+from .proxies.http_try import HTTP_TRY_PROXY
+from .proxies.http_try import NotHttp
+from .proxies.http_try import detect_if_ttl_being_ignored
+from .proxies.goagent import GoAgentProxy
+from .proxies.http_relay import HttpRelayProxy
+from .proxies.http_connect import HttpConnectProxy
+from .proxies.spdy_relay import SpdyRelayProxy
+from .proxies.dynamic import DynamicProxy
+from .proxies.shadowsocks import ShadowSocksProxy
+from .proxies.ssh import SshProxy
+from .proxies.spdy_connect import SpdyConnectProxy
 
 import dpkt
 import gevent.server
@@ -29,21 +43,6 @@ import gevent.monkey
 import lan_ip
 import china_ip
 import us_ip
-from direct import DIRECT_PROXY
-from direct import HTTPS_TRY_PROXY
-from direct import NONE_PROXY
-from http_try import HTTP_TRY_PROXY
-from http_try import NotHttp
-from http_try import is_no_direct_host
-from http_try import detect_if_ttl_being_ignored
-from goagent import GoAgentProxy
-from http_relay import HttpRelayProxy
-from http_connect import HttpConnectProxy
-from spdy_relay import SpdyRelayProxy
-from spdy_connect import SpdyConnectProxy
-from dynamic import DynamicProxy
-from shadowsocks import ShadowSocksProxy
-from ssh import SshProxy
 import httpd
 import networking
 import stat
@@ -171,7 +170,8 @@ class ProxyClient(object):
 
         self.buffer_multiplier = 1
         upstream_sock.settimeout(timeout)
-        self.downstream_sock.settimeout(timeout)
+        self.downstream_sock.settimeout(None)
+        greenlets = []
 
         def from_upstream_to_downstream():
             try:
@@ -184,10 +184,8 @@ class ProxyClient(object):
                             self.forward_started = True
                             if 5228 == self.dst_port: # Google Service
                                 upstream_sock.settimeout(None)
-                                self.downstream_sock.settimeout(None)
                             else: # More than 5 minutes
                                 upstream_sock.settimeout(360)
-                                self.downstream_sock.settimeout(360)
                             self.apply_delayed_penalties()
                             if on_forward_started:
                                 on_forward_started()
@@ -201,6 +199,9 @@ class ProxyClient(object):
                     return e
             except:
                 return sys.exc_info()[1]
+            finally:
+                for greenlet in greenlets:
+                    greenlet.kill()
 
         def from_downstream_to_upstream():
             try:
@@ -219,9 +220,14 @@ class ProxyClient(object):
                     return e
             except:
                 return sys.exc_info()[1]
+            finally:
+                for greenlet in greenlets:
+                    greenlet.kill()
 
         u2d = gevent.spawn(from_upstream_to_downstream)
         d2u = gevent.spawn(from_downstream_to_upstream)
+        greenlets.append(u2d)
+        greenlets.append(d2u)
         e = u2d.join()
         if e:
             raise e

@@ -1,5 +1,5 @@
 import logging
-import networking
+from .. import networking
 
 LOGGER = logging.getLogger(__name__)
 

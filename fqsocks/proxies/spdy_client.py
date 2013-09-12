@@ -9,8 +9,8 @@ import spdy.frames
 import sys
 import logging
 import socket
-import networking
-import stat
+from .. import networking
+from .. import stat
 
 
 LOGGER = logging.getLogger(__name__)

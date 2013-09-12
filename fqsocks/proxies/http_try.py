@@ -6,9 +6,8 @@ import StringIO
 import gzip
 import fnmatch
 
-from direct import Proxy
-from direct import DIRECT_PROXY
-import networking
+from .direct import Proxy
+from .. import networking
 
 LOGGER = logging.getLogger(__name__)
 

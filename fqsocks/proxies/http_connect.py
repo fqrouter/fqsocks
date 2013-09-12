@@ -3,11 +3,12 @@ import re
 import sys
 import base64
 import socket
-import ssl
 import time
 
-from direct import Proxy
-from http_try import recv_till_double_newline
+import ssl
+
+from .direct import Proxy
+from .http_try import recv_till_double_newline
 
 
 LOGGER = logging.getLogger(__name__)

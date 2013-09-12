@@ -1,15 +1,16 @@
 import logging
 import socket
-import ssl
 import base64
 import sys
 import time
 
-from direct import Proxy
-from http_try import try_receive_response
-from http_try import recv_and_parse_request
-from http_try import HTTP_TRY_PROXY
-from http_try import SO_MARK
+import ssl
+
+from .direct import Proxy
+from .http_try import try_receive_response
+from .http_try import recv_and_parse_request
+from .http_try import HTTP_TRY_PROXY
+from .http_try import SO_MARK
 
 
 LOGGER = logging.getLogger(__name__)

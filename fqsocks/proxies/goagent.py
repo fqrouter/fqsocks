@@ -9,21 +9,23 @@ import functools
 import fnmatch
 import urllib
 import httplib
-import ssl
-import gevent.queue
 import random
-
-import networking
-from direct import Proxy, DIRECT_PROXY
-from http_try import recv_and_parse_request, NotHttp
 import contextlib
 import zlib
 import struct
 import io
 import copy
 import threading
-import stat
-from http_try import CapturingSock
+
+import ssl
+import gevent.queue
+
+from .. import networking
+from .. import stat
+from .direct import Proxy
+from .http_try import recv_and_parse_request, NotHttp
+from .http_try import CapturingSock
+
 
 try:
     import urllib.request
