@@ -37,7 +37,7 @@ class ShadowSocksProxy(Proxy):
         upstream_sock.counter.sending(len(encrypted_peeked_data))
         upstream_sock.sendall(encrypted_peeked_data)
         client.forward(
-            upstream_sock, timeout=10, tick=1,
+            upstream_sock, timeout=10,
             encrypt=encryptor.encrypt, decrypt=encryptor.decrypt,
             delayed_penalty=self.increase_failed_time,
             on_forward_started=functools.partial(self.on_forward_started, begin_at=begin_at))

@@ -166,61 +166,71 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=7, tick=2, bufsize=8192, encrypt=None, decrypt=None,
+    def forward(self, upstream_sock, timeout=7, bufsize=8192, encrypt=None, decrypt=None,
                 delayed_penalty=None, on_forward_started=None):
-        buffer_multiplier = 1
-        try:
-            timecount = 61 if self.forward_started else timeout
-            while 1:
-                timecount -= tick
-                if timecount <= 0:
-                    return
-                ins, _, errors = select.select(
-                    [self.downstream_sock, upstream_sock], [], [self.downstream_sock, upstream_sock], tick)
-                if errors:
-                    break
-                if ins:
-                    for sock in ins:
-                        if sock is upstream_sock:
-                            data = sock.recv(bufsize * buffer_multiplier)
-                            upstream_sock.counter.received(len(data))
-                            buffer_multiplier = min(16, buffer_multiplier + 1)
-                            if data:
-                                self.forward_started = True
-                                if on_forward_started:
-                                    on_forward_started()
-                                if decrypt:
-                                    data = decrypt(data)
-                                self.downstream_sock.sendall(data)
-                                timecount = 61 if self.forward_started else timeout
-                            else:
-                                if self.forward_started:
-                                    self.apply_delayed_penalties()
-                                return
-                        else:
-                            buffer_multiplier = 1
-                            data = sock.recv(bufsize)
-                            if data:
-                                if encrypt:
-                                    data = encrypt(data)
-                                upstream_sock.counter.sending(len(data))
-                                upstream_sock.sendall(data)
-                                timecount = 61 if self.forward_started else timeout
-                            else:
-                                if self.forward_started:
-                                    self.apply_delayed_penalties()
-                                return
-        except socket.error as e:
-            if e[0] not in (10053, 10054, 10057, errno.EPIPE):
-                raise
-        finally:
-            if not self.forward_started:
-                try:
-                    upstream_sock.close()
-                except:
-                    LOGGER.exception('failed to close upstream sock before fall back')
-                self.fall_back(reason='forward does not receive any response', delayed_penalty=delayed_penalty)
 
+        self.buffer_multiplier = 1
+        upstream_sock.settimeout(timeout)
+        self.downstream_sock.settimeout(timeout)
+
+        def from_upstream_to_downstream():
+            try:
+                while True:
+                    data = upstream_sock.recv(bufsize * self.buffer_multiplier)
+                    upstream_sock.counter.received(len(data))
+                    self.buffer_multiplier = min(16, self.buffer_multiplier + 1)
+                    if data:
+                        if not self.forward_started:
+                            self.forward_started = True
+                            if 5228 == self.dst_port: # Google Service
+                                upstream_sock.settimeout(None)
+                                self.downstream_sock.settimeout(None)
+                            else: # More than 5 minutes
+                                upstream_sock.settimeout(360)
+                                self.downstream_sock.settimeout(360)
+                            self.apply_delayed_penalties()
+                            if on_forward_started:
+                                on_forward_started()
+                        if decrypt:
+                            data = decrypt(data)
+                        self.downstream_sock.sendall(data)
+                    else:
+                        return
+            except socket.error as e:
+                if e[0] not in (10053, 10054, 10057, errno.EPIPE):
+                    return e
+            except:
+                return sys.exc_info()[1]
+
+        def from_downstream_to_upstream():
+            try:
+                while True:
+                    data = self.downstream_sock.recv(bufsize)
+                    self.buffer_multiplier = 1
+                    if data:
+                        if encrypt:
+                            data = encrypt(data)
+                        upstream_sock.counter.sending(len(data))
+                        upstream_sock.sendall(data)
+                    else:
+                        return
+            except socket.error as e:
+                if e[0] not in (10053, 10054, 10057, errno.EPIPE):
+                    return e
+            except:
+                return sys.exc_info()[1]
+
+        u2d = gevent.spawn(from_upstream_to_downstream)
+        d2u = gevent.spawn(from_downstream_to_upstream)
+        e = u2d.join()
+        if e:
+            raise e
+        e = d2u.join()
+        if e:
+            raise e
+        upstream_sock.close()
+        if not self.forward_started:
+            self.fall_back(reason='forward does not receive any response', delayed_penalty=delayed_penalty)
 
     def apply_delayed_penalties(self):
         for delayed_penalty in self.delayed_penalties:
