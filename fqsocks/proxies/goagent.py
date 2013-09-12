@@ -242,6 +242,9 @@ def forward(client, proxy, appids):
                 LOGGER.error('refresh goagent proxies due to over quota')
                 gevent.spawn(GoAgentProxy.refresh, GoAgentProxy.proxies)
             client.fall_back('goagent server over quota')
+        if response.app_status == 500:
+            proxy.died = True
+            client.fall_back('goagent server busy')
         if response.app_status == 404:
             proxy.died = True
             client.fall_back('goagent server not found')
@@ -256,10 +259,6 @@ def forward(client, proxy, appids):
                 LOGGER.debug('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
                     '%s: %s\r\n' % (k.title(), v) for k, v in response.getheaders() if k != 'transfer-encoding')))
                 LOGGER.debug(response.read())
-            LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
-            GoAgentProxy.black_list.add(client.host)
-            for proxy in GoAgentProxy.proxies:
-                client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back('urlfetch failed: %s' % response.app_status)
         client.forward_started = True
         if response.status == 206:
