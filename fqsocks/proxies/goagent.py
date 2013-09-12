@@ -78,7 +78,7 @@ AUTORANGE_NOENDSWITH = tuple(AUTORANGE_NOENDSWITH)
 AUTORANGE_MAXSIZE = 1048576
 AUTORANGE_WAITSIZE = 524288
 AUTORANGE_BUFSIZE = 8192
-AUTORANGE_THREADS = 2
+AUTORANGE_THREADS = 4
 SKIP_HEADERS = frozenset(['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization', 'Proxy-Connection',
                           'Upgrade', 'X-Chrome-Variations', 'Connection', 'Cache-Control'])
 
@@ -513,7 +513,7 @@ class RangeFetch(object):
                     if expect_begin == begin:
                         data_queue.get()
                     elif expect_begin < begin:
-                        time.sleep(0.1)
+                        gevent.sleep(0.1)
                         continue
                     else:
                         LOGGER.error('RangeFetch Error: begin(%r) < expect_begin(%r), quit.', begin, expect_begin)
@@ -524,7 +524,7 @@ class RangeFetch(object):
                         pass
                     elif expect_begin < begin:
                         data_queue.put((begin, data))
-                        time.sleep(0.1)
+                        gevent.sleep(0.1)
                         continue
                     else:
                         LOGGER.error('RangeFetch Error: begin(%r) < expect_begin(%r), quit.', begin, expect_begin)
@@ -548,13 +548,18 @@ class RangeFetch(object):
                 if self._stopped:
                     return
                 if data_queue.qsize() * AUTORANGE_BUFSIZE > 180*1024*1024:
-                    time.sleep(10)
+                    gevent.sleep(10)
                     continue
+                proxy = None
                 try:
                     start, end, response = range_queue.get(timeout=1)
                     headers['Range'] = 'bytes=%d-%d' % (start, end)
                     if not response:
-                        proxy = random.choice([p for p in GoAgentProxy.proxies if not p.died])
+                        not_died_proxies = [p for p in GoAgentProxy.proxies if not p.died]
+                        if not not_died_proxies:
+                            self._stopped = True
+                            return
+                        proxy = random.choice(not_died_proxies)
                         response = gae_urlfetch(
                             self.client, proxy, self.command, self.url, headers, self.payload)
                 except queue.Empty:
@@ -569,6 +574,8 @@ class RangeFetch(object):
                     LOGGER.warning('Range Fetch "%s %s" %s return %s', self.command, self.url, headers['Range'], response.app_status)
                     response.close()
                     range_queue.put((start, end, None))
+                    if proxy:
+                        proxy.died = True
                     continue
                 if response.getheader('Location'):
                     self.url = response.getheader('Location')
@@ -605,7 +612,7 @@ class RangeFetch(object):
                 else:
                     LOGGER.error('RangeFetch %r return %s', self.url, response.status)
                     response.close()
-                    #range_queue.put((start, end, None))
+                    range_queue.put((start, end, None))
                     continue
             except Exception as e:
                 LOGGER.exception('RangeFetch._fetchlet error:%s', e)

@@ -21,6 +21,8 @@ import time
 import contextlib
 import fqdns
 import httplib
+import ssl
+import urlparse
 from .proxies.direct import DIRECT_PROXY
 from .proxies.direct import HTTPS_TRY_PROXY
 from .proxies.direct import NONE_PROXY
@@ -552,8 +554,31 @@ def check_access_many_times(url, times):
 
 def check_access(url):
     try:
-        with contextlib.closing(urllib2.urlopen(url)) as response:
-            response.read()
+        scheme, netloc, path, _, _, _ = urlparse.urlparse(url)
+        ips = networking.resolve_ips(netloc)
+        LOGGER.info('resolved %s => %s' % (netloc, ips))
+        if not ips:
+            return False
+        sock = socket.socket()
+        sock.settimeout(5)
+        try:
+            if 'https' == scheme:
+                sock = ssl.wrap_socket(sock)
+                sock.connect((ips[0], 443))
+            else:
+                sock.connect((ips[0], 80))
+            LOGGER.info('connected to %s via %s' % (netloc, ips[0]))
+            request = 'GET %s HTTP/1.1\r\n' \
+                      'Host: %s\r\n' \
+                      'User-Agent: Mozilla/4.0 (compatible; MSIE 6.0;\r\n\r\n' % (path or '/', netloc)
+            LOGGER.info('sent request')
+            sock.sendall(request)
+            response = sock.recv(8192)
+            if 'HTTP' not in response:
+                raise Exception('invalid response')
+            LOGGER.info('received response')
+        finally:
+            sock.close()
         return True
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
@@ -602,22 +627,29 @@ def add_proxies(proxy_type, prop_dict):
 
 
 def init_proxies():
-    for i in range(8):
-        if load_proxies_from_directories():
-            if refresh_proxies():
-                LOGGER.info('proxies init successfully')
-                if CHECK_ACCESS:
-                    LOGGER.info('check access in 10 seconds')
-                    gevent.sleep(10)
-                    check_access_many_times('https://www.twitter.com', 5)
-                    check_access_many_times('https://plus.google.com', 3)
-                    check_access_many_times('http://www.youtube.com', 3)
-                    check_access_many_times('http://www.facebook.com', 3)
-                return
-        retry_interval = math.pow(2, i)
-        LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
-        gevent.sleep(retry_interval)
-    LOGGER.critical('proxies init successfully')
+    try:
+        success = False
+        for i in range(8):
+            if load_proxies_from_directories():
+                if refresh_proxies():
+                    success = True
+                    break
+            retry_interval = math.pow(2, i)
+            LOGGER.error('refresh failed, will retry %s seconds later' % retry_interval)
+            gevent.sleep(retry_interval)
+        if success:
+            LOGGER.critical('proxies init successfully')
+            if CHECK_ACCESS:
+                LOGGER.info('check access in 10 seconds')
+                gevent.sleep(10)
+                check_access_many_times('https://twitter.com', 5)
+                check_access_many_times('https://plus.google.com', 3)
+                check_access_many_times('http://www.youtube.com', 3)
+                check_access_many_times('http://www.facebook.com', 3)
+        else:
+            LOGGER.critical('proxies init failed')
+    except:
+        LOGGER.exception('failed to init proxies')
 
 
 def load_proxies_from_directories():
