@@ -91,8 +91,9 @@ class SpdyClient(object):
 
     def loop(self):
         while True:
-            select.select([self.sock], [], [])
             data = self.tls_conn.read()
+            if not data:
+                return
             self.spdy_context.incoming(data)
             self.consume_frames()
 

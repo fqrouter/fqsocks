@@ -67,6 +67,7 @@ class SpdyRelayProxy(Proxy):
         if self.spdy_client:
             self.spdy_client.close()
             self.spdy_client = None
+            self.died = True
 
     def do_forward(self, client):
         recv_and_parse_request(client)
