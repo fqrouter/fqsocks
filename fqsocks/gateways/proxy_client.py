@@ -99,7 +99,13 @@ class ProxyClient(object):
                 delayed_penalty=None, on_forward_started=None):
 
         self.buffer_multiplier = 1
-        upstream_sock.settimeout(timeout)
+        if self.forward_started:
+            if 5228 == self.dst_port: # Google Service
+                upstream_sock.settimeout(None)
+            else: # More than 5 minutes
+                upstream_sock.settimeout(360)
+        else:
+            upstream_sock.settimeout(timeout)
         self.downstream_sock.settimeout(None)
 
         def from_upstream_to_downstream():

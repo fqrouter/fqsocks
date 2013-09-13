@@ -165,7 +165,8 @@ class SpdyStream(object):
 
     def send_to_downstream(self, data):
         try:
-            self.client.forward_started = True
+            if not self.client.forward_started:
+                gevent.sleep(0)
             self.client.downstream_sock.sendall(data)
             self.upstream_frames.put(WORKING)
             self.counter.received(len(data))

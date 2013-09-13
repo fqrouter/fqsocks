@@ -106,7 +106,9 @@ class SpdyConnectProxy(Proxy):
             status = headers.pop(':status')
         else:
             status = headers.pop('status')
-        if not status.startswith('200'):
+        if status.startswith('200'):
+            client.forward_started = True
+        else:
             LOGGER.error('[%s] proxy rejected CONNECT: %s' % (repr(client), status))
             self.died = True
             self.loop_greenlet.kill()
