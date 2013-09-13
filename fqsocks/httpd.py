@@ -42,7 +42,6 @@ def homepage(environ, start_response):
 
 def serve_forever():
     try:
-        __import__('fqsocks.web_ui')
         HANDLERS[('GET', '')] = homepage
         httpd = WSGIServer(('', 2515), handle_request)
         LOGGER.info('serving HTTP on port 2515...')

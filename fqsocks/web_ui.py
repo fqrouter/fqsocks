@@ -9,7 +9,7 @@ import os.path
 import functools
 import urlparse
 import stat
-import fqsocks
+from .gateways import proxy_client
 import subprocess
 import re
 from datetime import datetime
@@ -24,11 +24,13 @@ LOGGER = logging.getLogger(__name__)
 MAX_TIME_RANGE = 60 * 10
 RE_DEFAULT_INTERFACE = re.compile(r'dev\s+(.+?)\s+')
 RE_IFCONFIG_IP = re.compile(r'inet addr:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+IP_COMMAND = None
+IFCONFIG_COMMAND = None
 
 def refresh_proxies(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
-    fqsocks.auto_fix_enabled = True
-    fqsocks.refresh_proxies()
+    proxy_client.auto_fix_enabled = True
+    proxy_client.refresh_proxies()
     return ['OK']
 
 
@@ -73,7 +75,7 @@ def list_proxies(environ, start_response):
             'tx_bytes_value': tx_bytes,
             'tx_bytes_label': to_human_readable_size(tx_bytes)
         }
-    for proxy in fqsocks.proxies:
+    for proxy in proxy_client.proxies:
         proxy_public_name = proxy.public_name
         if not proxy_public_name:
             continue
@@ -99,7 +101,7 @@ def list_proxies(environ, start_response):
         return [proxy_list]
     with open(PROXIES_HTML_FILE) as f:
         proxies_template = jinja2.Template(f.read())
-    last_refresh_started_at = datetime.fromtimestamp(fqsocks.last_refresh_started_at)
+    last_refresh_started_at = datetime.fromtimestamp(proxy_client.last_refresh_started_at)
     return [proxies_template.render(
         proxy_list=proxy_list, last_refresh_started_at=last_refresh_started_at).encode('utf8')]
 
@@ -135,9 +137,9 @@ def get_default_interface():
 
 
 def get_ip_route_output():
-    if fqsocks.IP_COMMAND:
+    if IP_COMMAND:
         return subprocess.check_output(
-            [fqsocks.IP_COMMAND, 'ip' if 'busybox' in fqsocks.IP_COMMAND else '', 'route'],
+            [IP_COMMAND, 'ip' if 'busybox' in IP_COMMAND else '', 'route'],
             stderr=subprocess.STDOUT)
     else:
         return subprocess.check_output(
@@ -149,9 +151,9 @@ def get_ip_of_interface(interface):
     if not interface:
         return None
     try:
-        if fqsocks.IFCONFIG_COMMAND:
+        if IFCONFIG_COMMAND:
             output = subprocess.check_output(
-                [fqsocks.IFCONFIG_COMMAND, 'ifconfig' if 'busybox' in fqsocks.IFCONFIG_COMMAND else '', interface],
+                [IFCONFIG_COMMAND, 'ifconfig' if 'busybox' in IFCONFIG_COMMAND else '', interface],
                 stderr=subprocess.STDOUT)
         else:
             output = subprocess.check_output(
