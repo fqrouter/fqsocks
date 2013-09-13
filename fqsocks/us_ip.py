@@ -1,6 +1,8 @@
 import urllib2
 import json
 import logging
+import httplib
+from . import networking
 
 LOGGER = logging.getLogger(__name__)
 
@@ -11,7 +13,17 @@ def is_us_ip(ip):
     if ip in US_IP_CACHE:
         return US_IP_CACHE[ip]
     try:
-        response = urllib2.urlopen('http://ip.taobao.com/service/getIpInfo.php?ip=%s' % ip)
+        class MyHTTPConnection(httplib.HTTPConnection):
+            def connect(self):
+                self.host = networking.resolve_ips(self.host)[0]
+                return httplib.HTTPConnection.connect(self)
+
+        class MyHTTPHandler(urllib2.HTTPHandler):
+            def http_open(self, req):
+                return self.do_open(MyHTTPConnection, req)
+
+        opener = urllib2.build_opener(MyHTTPHandler)
+        response = opener.open('http://ip.taobao.com/service/getIpInfo.php?ip=%s' % ip)
         response = json.loads(response.read())
         yes = 'US' == response['data']['country_id']
         US_IP_CACHE[ip] = yes

@@ -4,6 +4,7 @@ from .. import networking
 from .proxy_client import ProxyClient
 from .proxy_client import pick_proxy_and_forward
 from .proxy_client import NoMoreProxy
+import sys
 
 LOGGER = logging.getLogger(__name__)
 LISTEN_IP = None
