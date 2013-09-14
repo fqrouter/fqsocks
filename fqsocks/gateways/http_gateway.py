@@ -8,13 +8,10 @@ from ..proxies.http_try import parse_request
 import urlparse
 import os
 import jinja2
-from ..web_ui import get_ip_of_interface
-from ..web_ui import get_default_interface
 from .. import httpd
 import httplib
 
 
-WHITELIST_PAC_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'whitelist.pac')
 LOGGER = logging.getLogger(__name__)
 LISTEN_IP = None
 LISTEN_PORT = None
@@ -69,15 +66,6 @@ def resolve_ip(host):
     dns_cache[host] = ip
     return dns_cache[host]
 
-
-def get_pac(environ, start_response):
-    with open(WHITELIST_PAC_FILE) as f:
-        template = jinja2.Template(unicode(f.read(), 'utf8'))
-    ip = get_ip_of_interface(get_default_interface())
-    start_response(httplib.OK, [('Content-Type', 'application/x-ns-proxy-autoconfig')])
-    return [template.render(http_gateway='%s:2516' % ip).encode('utf8')]
-
-httpd.HANDLERS[('GET', 'pac')] = get_pac
 
 def start_server():
     server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)

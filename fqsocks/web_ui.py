@@ -2,30 +2,26 @@
 import httplib
 import time
 import logging
-
-import httpd
-import jinja2
 import os.path
 import functools
 import urlparse
+from datetime import datetime
+import fqlan
+
+import jinja2
+
+import httpd
 import stat
 from .gateways import proxy_client
-import subprocess
-import re
-from datetime import datetime
 
 
 PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxies.html')
 PROXY_LIST_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxy-list.html')
 REMOTE_ACCESS_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'remote-access.html')
+WHITELIST_PAC_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'whitelist.pac')
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 LOGGER = logging.getLogger(__name__)
-
 MAX_TIME_RANGE = 60 * 10
-RE_DEFAULT_INTERFACE = re.compile(r'dev\s+(.+?)\s+')
-RE_IFCONFIG_IP = re.compile(r'inet addr:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
-IP_COMMAND = None
-IFCONFIG_COMMAND = None
 
 def refresh_proxies(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
@@ -111,7 +107,7 @@ def remote_access(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/html')])
     with open(REMOTE_ACCESS_HTML_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
-    default_interface_ip = get_ip_of_interface(get_default_interface())
+    default_interface_ip = fqlan.get_default_interface_ip()
     return [template.render(_=environ['select_text'], default_interface_ip=default_interface_ip).encode('utf8')]
 
 def to_human_readable_size(num):
@@ -127,54 +123,16 @@ def get_asset(file_path, content_type, environ, start_response):
         return [f.read()]
 
 
-def get_default_interface():
-    for line in get_ip_route_output().splitlines():
-        if 'default via' not in line:
-            continue
-        match = RE_DEFAULT_INTERFACE.search(line)
-        if match:
-            return match.group(1)
-    return None
+
+def get_pac(environ, start_response):
+    with open(WHITELIST_PAC_FILE) as f:
+        template = jinja2.Template(unicode(f.read(), 'utf8'))
+    ip = fqlan.get_default_interface_ip()
+    start_response(httplib.OK, [('Content-Type', 'application/x-ns-proxy-autoconfig')])
+    return [template.render(http_gateway='%s:2516' % ip).encode('utf8')]
 
 
-def get_ip_route_output():
-    if IP_COMMAND:
-        return subprocess.check_output(
-            [IP_COMMAND, 'ip' if 'busybox' in IP_COMMAND else '', 'route'],
-            stderr=subprocess.STDOUT)
-    else:
-        return subprocess.check_output(
-            'ip route',
-            stderr=subprocess.STDOUT, shell=True)
-
-
-def get_ip_of_interface(interface):
-    if not interface:
-        return None
-    try:
-        if IFCONFIG_COMMAND:
-            output = subprocess.check_output(
-                [IFCONFIG_COMMAND, 'ifconfig' if 'busybox' in IFCONFIG_COMMAND else '', interface],
-                stderr=subprocess.STDOUT)
-        else:
-            output = subprocess.check_output(
-                'ifconfig %s' % get_default_interface(),
-                stderr=subprocess.STDOUT, shell=True)
-        output = output.lower()
-        match = RE_IFCONFIG_IP.search(output)
-        if match:
-            ip = match.group(1)
-        else:
-            ip = None
-        return ip
-    except subprocess.CalledProcessError, e:
-        LOGGER.error('failed to get ip and mac: %s' % e.output)
-        return None, None
-    except:
-        LOGGER.exception('failed to get ip and mac')
-        return None, None
-
-
+httpd.HANDLERS[('GET', 'pac')] = get_pac
 httpd.HANDLERS[('GET', 'assets/bootstrap.min.css')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'bootstrap.min.css'), 'text/css')
 httpd.HANDLERS[('GET', 'assets/bootstrap.min.js')] = functools.partial(

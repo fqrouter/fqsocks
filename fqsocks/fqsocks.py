@@ -20,8 +20,9 @@ import networking
 from .gateways import proxy_client
 from .gateways import tcp_gateway
 from .gateways import http_gateway
-from . import web_ui
+import fqlan
 
+__import__('fqsocks.web_ui')
 LOGGER = logging.getLogger(__name__)
 
 dns_pollution_ignored = False
@@ -105,9 +106,9 @@ def main(argv):
     argument_parser.add_argument('--ifconfig-command')
     args = argument_parser.parse_args(argv)
     if args.ip_command:
-        web_ui.IP_COMMAND = args.ip_command
+        fqlan.IP_COMMAND = args.ip_command
     if args.ifconfig_command:
-        web_ui.IFCONFIG_COMMAND = args.ifconfig_command
+        fqlan.IFCONFIG_COMMAND = args.ifconfig_command
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
     LOGGER.info('fqsocks args: %s' % argv)
