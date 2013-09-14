@@ -17,7 +17,8 @@
 </ul>
 <p style="font-size: 24px; margin: 24px;">
     {% if default_interface_ip %}
-    http://{{ default_interface_ip }}:2515
+    Management: http://{{ default_interface_ip }}:2515
+    Http Proxy: http://{{ default_interface_ip }}:2516
     {% else %}
     Not Available
     {% endif %}

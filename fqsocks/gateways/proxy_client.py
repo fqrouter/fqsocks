@@ -233,6 +233,23 @@ class ProxyFallBack(Exception):
 
 ProxyClient.ProxyFallBack = ProxyFallBack
 
+def handle_client(client):
+    try:
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] downstream connected' % repr(client))
+        pick_proxy_and_forward(client)
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] done' % repr(client))
+    except NoMoreProxy:
+        return
+    except:
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
+        else:
+            LOGGER.info('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
+    finally:
+        client.close()
+
 def pick_proxy_and_forward(client):
     global dns_polluted_at
     if lan_ip.is_lan_traffic(client.src_ip, client.dst_ip):

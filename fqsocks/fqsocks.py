@@ -18,7 +18,8 @@ from .proxies.goagent import GoAgentProxy
 import httpd
 import networking
 from .gateways import proxy_client
-from .gateways import tcp_transparent_gateway
+from .gateways import tcp_gateway
+from .gateways import http_gateway
 from . import web_ui
 
 LOGGER = logging.getLogger(__name__)
@@ -112,8 +113,10 @@ def main(argv):
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)
-    tcp_transparent_gateway.LISTEN_IP = LISTEN_IP
-    tcp_transparent_gateway.LISTEN_PORT = LISTEN_PORT
+    tcp_gateway.LISTEN_IP = LISTEN_IP
+    tcp_gateway.LISTEN_PORT = LISTEN_PORT
+    http_gateway.LISTEN_IP = ''
+    http_gateway.LISTEN_PORT = 2516
     networking.OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
@@ -139,7 +142,9 @@ def main(argv):
     except:
         LOGGER.exception('failed to patch ssl')
     greenlets = [
-        gevent.spawn(tcp_transparent_gateway.start_server), gevent.spawn(proxy_client.init_proxies),
+        gevent.spawn(tcp_gateway.start_server),
+        gevent.spawn(http_gateway.start_server),
+        gevent.spawn(proxy_client.init_proxies),
         gevent.spawn(httpd.serve_forever)]
     if proxy_client.HTTP_TRY_PROXY and HTTP_TRY_PROXY.http_request_mark:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
