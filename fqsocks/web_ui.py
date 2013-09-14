@@ -100,18 +100,19 @@ def list_proxies(environ, start_response):
     if is_list_only:
         return [proxy_list]
     with open(PROXIES_HTML_FILE) as f:
-        proxies_template = jinja2.Template(f.read())
+        proxies_template = jinja2.Template(unicode(f.read(), 'utf8'))
     last_refresh_started_at = datetime.fromtimestamp(proxy_client.last_refresh_started_at)
     return [proxies_template.render(
-        proxy_list=proxy_list, last_refresh_started_at=last_refresh_started_at).encode('utf8')]
+        _=environ['select_text'], proxy_list=proxy_list,
+        last_refresh_started_at=last_refresh_started_at).encode('utf8')]
 
 
 def remote_access(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/html')])
     with open(REMOTE_ACCESS_HTML_FILE) as f:
-        template = jinja2.Template(f.read())
+        template = jinja2.Template(unicode(f.read(), 'utf8'))
     default_interface_ip = get_ip_of_interface(get_default_interface())
-    return [template.render(default_interface_ip=default_interface_ip).encode('utf8')]
+    return [template.render(_=environ['select_text'], default_interface_ip=default_interface_ip).encode('utf8')]
 
 def to_human_readable_size(num):
     for x in ['B', 'KB', 'MB', 'GB', 'TB']:

@@ -17,6 +17,10 @@ def handle_request(environ, start_response):
         fp=environ['wsgi.input'],
         environ=environ,
         keep_blank_values=True)
+    if 'zh' in environ.get('HTTP_ACCEPT_LANGUAGE', None):
+        environ['select_text'] = select_zh_text
+    else:
+        environ['select_text'] = select_en_text
     handler = HANDLERS.get((method, path))
     if handler:
         try:
@@ -29,6 +33,14 @@ def handle_request(environ, start_response):
         lines = []
     for line in lines:
         yield line
+
+
+def select_en_text(en_txt, zh_txt):
+    return en_txt
+
+
+def select_zh_text(en_txt, zh_txt):
+    return zh_txt
 
 
 def get_http_response(code):

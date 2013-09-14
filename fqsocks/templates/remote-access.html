@@ -3,6 +3,7 @@
 <head>
     <title>fqrouter</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <link href="/assets/bootstrap.min.css" rel="stylesheet" media="screen">
     <style type="text/css">
         body {
@@ -12,17 +13,26 @@
 </head>
 <body>
 <ul class="nav nav-tabs">
-    <li><a href="/proxies">Proxies</a></li>
-    <li class="active"><a href="javascript:void(0);">Remote Access</a></li>
+    <li><a href="/proxies">{{ _('Proxies', '状态') }}</a></li>
+    <li><a href="/lan">{{ _('LAN', '我的小伙伴们') }}</a></li>
+    <li class="active"><a href="javascript:void(0);">{{ _('Remote Access', '远程访问') }}</a></li>
 </ul>
 <p style="font-size: 24px; margin: 24px;">
     {% if default_interface_ip %}
-    Management: http://{{ default_interface_ip }}:2515
-    Http Proxy: http://{{ default_interface_ip }}:2516
+    http://{{ default_interface_ip }}:2515
     {% else %}
     Not Available
     {% endif %}
 </p>
+{% if default_interface_ip %}
+<hr/>
+<dl>
+    <dt>PAC file</dt>
+    <dd>http://{{ default_interface_ip }}:2515/pac</dd>
+    <dt>Http Proxy</dt>
+    <dd>http://{{ default_interface_ip }}:2516</dd>
+</dl>
+{% endif %}
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap.min.js"></script>
 </body>

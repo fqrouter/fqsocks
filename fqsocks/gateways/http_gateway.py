@@ -3,11 +3,9 @@ import gevent.server
 from .. import networking
 from .proxy_client import ProxyClient
 from .proxy_client import handle_client
-from .proxy_client import NoMoreProxy
 from ..proxies.http_try import recv_till_double_newline
 from ..proxies.http_try import parse_request
 import urlparse
-import sys
 import os
 import jinja2
 from ..web_ui import get_ip_of_interface

@@ -3,6 +3,7 @@
 <head>
     <title>fqrouter</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <link href="/assets/bootstrap.min.css" rel="stylesheet" media="screen">
     <style type="text/css">
         th.sort-header {
@@ -47,24 +48,25 @@
 </head>
 <body>
 <ul class="nav nav-tabs">
-    <li class="active"><a href="javascript:void(0);">Proxies</a></li>
-    <li><a href="/remote-access">Remote Access</a></li>
+    <li class="active"><a href="javascript:void(0);">{{ _('Proxies', '状态') }}</a></li>
+    <li><a href="/lan">{{ _('LAN', '我的小伙伴们') }}</a></li>
+    <li><a href="/remote-access">{{ _('Remote Access', '远程访问') }}</a></li>
 </ul>
 <table class="table table-striped" id="proxies">
     <thead>
     <tr>
-        <th>proxy</th>
-        <th class="rx-speed">rx</th>
-        <th>rx</th>
-        <th class="tx-speed">tx</th>
-        <th>tx</th>
+        <th>{{ _('proxy', '代理') }}</th>
+        <th class="rx-speed">{{ _('download', '下载') }}</th>
+        <th>{{ _('download', '下载') }}</th>
+        <th class="tx-speed">{{ _('upload', '上传') }}</th>
+        <th>{{ _('upload', '上传') }}</th>
     </tr>
     </thead>
     <tbody>
     {{ proxy_list }}
     </tbody>
 </table>
-<button  id="refresh" class="btn btn-primary">Get New Proxies ({{ last_refresh_started_at.strftime('%H:%M:%S') }})</button>
+<button  id="refresh" class="btn btn-primary">{{ _('Get New Proxies', '获得新代理') }} ({{ last_refresh_started_at.strftime('%H:%M:%S') }})</button>
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap.min.js"></script>
 <script src="/assets/tablesort.min.js"></script>
