@@ -528,6 +528,7 @@ def add_proxies(proxy_type, prop_dict):
 
 
 def init_proxies():
+    global proxies
     try:
         success = False
         for i in range(8):
@@ -549,6 +550,7 @@ def init_proxies():
                 check_access_many_times('http://www.facebook.com', 3)
         else:
             LOGGER.critical('proxies init failed')
+            proxies = []
     except:
         LOGGER.exception('failed to init proxies')
 

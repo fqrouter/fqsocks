@@ -110,6 +110,7 @@ def main(argv):
         web_ui.IFCONFIG_COMMAND = args.ifconfig_command
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
+    LOGGER.info('fqsocks args: %s' % argv)
     LISTEN_IP, LISTEN_PORT = args.listen.split(':')
     LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
     LISTEN_PORT = int(LISTEN_PORT)

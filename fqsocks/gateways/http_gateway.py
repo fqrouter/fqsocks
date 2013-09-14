@@ -20,6 +20,7 @@ WHITELIST_PAC_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 
 LOGGER = logging.getLogger(__name__)
 LISTEN_IP = None
 LISTEN_PORT = None
+dns_cache = {}
 
 
 def handle(downstream_sock, address):
@@ -31,7 +32,9 @@ def handle(downstream_sock, address):
     if 'CONNECT' == method.upper():
         dst_host, dst_port = path.split(':')
         dst_port = int(dst_port)
-        dst_ip = networking.resolve_ips(dst_host)[0]
+        dst_ip = resolve_ip(dst_host)
+        if not dst_ip:
+            return
         downstream_sock.sendall('HTTP/1.1 200 OK\r\n\r\n')
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
         handle_client(client)
@@ -42,16 +45,31 @@ def handle(downstream_sock, address):
             dst_port = int(dst_port)
         else:
             dst_port = 80
-        dst_ip = networking.resolve_ips(dst_host)[0]
+        dst_ip = resolve_ip(dst_host)
+        if not dst_ip:
+            return
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
         request_lines = ['%s %s HTTP/1.1\r\n' % (method, path[path.find(dst_host) + len(dst_host):])]
         headers.pop('Proxy-Connection', None)
         headers['Host'] = dst_host
+        headers['Connection'] = 'close'
         for key, value in headers.items():
             request_lines.append('%s: %s\r\n' % (key, value))
         request = ''.join(request_lines)
         client.peeked_data = request + '\r\n' + payload
         handle_client(client)
+
+
+def resolve_ip(host):
+    if host in dns_cache:
+        return dns_cache[host]
+    ips = networking.resolve_ips(host)
+    if ips:
+        ip = ips[0]
+    else:
+        ip = None
+    dns_cache[host] = ip
+    return dns_cache[host]
 
 
 def get_pac(environ, start_response):
