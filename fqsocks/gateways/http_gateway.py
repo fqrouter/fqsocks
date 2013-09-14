@@ -36,7 +36,7 @@ def handle(downstream_sock, address):
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
         handle_client(client)
     else:
-        dst_host, rel_path = urlparse.urlparse(path)[1:3]
+        dst_host = urlparse.urlparse(path)[1]
         if ':' in dst_host:
             dst_host, dst_port = dst_host.split(':')
             dst_port = int(dst_port)
@@ -44,7 +44,7 @@ def handle(downstream_sock, address):
             dst_port = 80
         dst_ip = networking.resolve_ips(dst_host)[0]
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
-        request_lines = ['%s %s HTTP/1.1\r\n' % (method, rel_path)]
+        request_lines = ['%s %s HTTP/1.1\r\n' % (method, path[path.find(dst_host) + len(dst_host):])]
         headers.pop('Proxy-Connection', None)
         headers['Host'] = dst_host
         for key, value in headers.items():
