@@ -70,6 +70,8 @@ class Proxy(object):
 
     @classmethod
     def refresh(cls, proxies):
+        for proxy in proxies:
+            proxy.died = False
         return True
 
     def is_protocol_supported(self, protocol):

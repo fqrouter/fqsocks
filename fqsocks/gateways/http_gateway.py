@@ -1,15 +1,13 @@
 import logging
+import urlparse
+
 import gevent.server
+
 from .. import networking
 from .proxy_client import ProxyClient
 from .proxy_client import handle_client
 from ..proxies.http_try import recv_till_double_newline
 from ..proxies.http_try import parse_request
-import urlparse
-import os
-import jinja2
-from .. import httpd
-import httplib
 
 
 LOGGER = logging.getLogger(__name__)

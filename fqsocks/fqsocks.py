@@ -66,6 +66,7 @@ def clear_states(environ, start_response):
     GoAgentProxy.black_list = set()
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
+    http_gateway.dns_cache = {}
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
