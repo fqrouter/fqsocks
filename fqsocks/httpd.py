@@ -17,7 +17,8 @@ def handle_request(environ, start_response):
         fp=environ['wsgi.input'],
         environ=environ,
         keep_blank_values=True)
-    if 'zh' in environ.get('HTTP_ACCEPT_LANGUAGE', None):
+    accept_language = environ.get('HTTP_ACCEPT_LANGUAGE', None)
+    if accept_language and 'zh' in accept_language:
         environ['select_text'] = select_zh_text
     else:
         environ['select_text'] = select_en_text
