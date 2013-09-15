@@ -454,8 +454,6 @@ def refresh_proxies():
             sock.close()
         except:
             pass
-    for proxy in proxies:
-        proxy.died = False
     LOGGER.info('%s, refreshed proxies: %s' % (success, proxies))
     return success
 

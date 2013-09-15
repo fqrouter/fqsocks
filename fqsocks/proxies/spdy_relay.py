@@ -67,9 +67,12 @@ class SpdyRelayProxy(Proxy):
         if self.spdy_client:
             self.spdy_client.close()
             self.spdy_client = None
-            self.died = True
+        self.died = True
 
     def do_forward(self, client):
+        if not self.spdy_client:
+            self.died = True
+            client.fall_back(reason='not connected yet')
         recv_and_parse_request(client)
         if SPDY_3 == self.spdy_client.spdy_version:
             headers = {
