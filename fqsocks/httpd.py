@@ -2,6 +2,7 @@ import logging
 import httplib
 import cgi
 import sys
+import os
 from gevent.wsgi import WSGIServer
 
 LOGGER = logging.getLogger(__name__)
@@ -53,12 +54,12 @@ def homepage(environ, start_response):
     return []
 
 
-def serve_forever():
+def serve_forever(ip, port):
     try:
         HANDLERS[('GET', '')] = homepage
-        httpd = WSGIServer(('', 2515), handle_request)
-        LOGGER.info('serving HTTP on port 2515...')
+        httpd = WSGIServer((ip, port), handle_request)
+        LOGGER.info('serving HTTP on port %s:%s...' % (ip, port))
     except:
-        LOGGER.exception('failed to start HTTP server on port 2515')
-        sys.exit(1)
+        LOGGER.exception('failed to start HTTP server on port %s:%s' % (ip, port))
+        os._exit(1)
     httpd.serve_forever()

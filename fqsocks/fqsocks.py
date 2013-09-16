@@ -21,6 +21,8 @@ from .gateways import proxy_client
 from .gateways import tcp_gateway
 from .gateways import http_gateway
 import fqlan
+import fqdns
+import functools
 
 __import__('fqsocks.web_ui')
 LOGGER = logging.getLogger(__name__)
@@ -90,13 +92,15 @@ def setup_logging(log_level, log_file=None):
 
 def main(argv):
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument('--listen', default='127.0.0.1:12345')
+    argument_parser.add_argument('--tcp-listen', default='127.0.0.1:12345')
+    argument_parser.add_argument('--http-listen', default='*:2516')
+    argument_parser.add_argument('--dns-listen', default='127.0.0.1:12345')
+    argument_parser.add_argument('--manager-listen', default='*:2515 ')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
     argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
     argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--log-file')
-    argument_parser.add_argument(
-        '--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
+    argument_parser.add_argument('--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
     argument_parser.add_argument('--google-host', action='append', default=[])
     argument_parser.add_argument('--disable-china-shortcut', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
@@ -113,14 +117,10 @@ def main(argv):
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
     LOGGER.info('fqsocks args: %s' % argv)
-    LISTEN_IP, LISTEN_PORT = args.listen.split(':')
-    LISTEN_IP = '' if '*' == LISTEN_IP else LISTEN_IP
-    LISTEN_PORT = int(LISTEN_PORT)
-    tcp_gateway.LISTEN_IP = LISTEN_IP
-    tcp_gateway.LISTEN_PORT = LISTEN_PORT
-    http_gateway.LISTEN_IP = ''
-    http_gateway.LISTEN_PORT = 2516
+    tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_listen)
+    http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = parse_ip_colon_port(args.http_listen)
     networking.OUTBOUND_IP = args.outbound_ip
+    fqdns.OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
     if not args.disable_china_shortcut:
@@ -144,15 +144,29 @@ def main(argv):
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
+    dns_handler = fqdns.DnsHandler()
+    dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), dns_handler)
     greenlets = [
+        gevent.spawn(dns_server.serve_forever),
         gevent.spawn(tcp_gateway.start_server),
         gevent.spawn(http_gateway.start_server),
         gevent.spawn(proxy_client.init_proxies),
-        gevent.spawn(httpd.serve_forever)]
+        gevent.spawn(functools.partial(httpd.serve_forever, *parse_ip_colon_port(args.manager_listen)))]
     if proxy_client.HTTP_TRY_PROXY and HTTP_TRY_PROXY.http_request_mark:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
         greenlet.join()
+
+def parse_ip_colon_port(ip_colon_port):
+    if not isinstance(ip_colon_port, basestring):
+        return ip_colon_port
+    if ':' in ip_colon_port:
+        server_ip, server_port = ip_colon_port.split(':')
+        server_port = int(server_port)
+    else:
+        server_ip = ip_colon_port
+        server_port = 53
+    return '' if '*' == server_ip else server_ip, server_port
 
 # TODO add socks4 proxy
 # TODO add socks5 proxy

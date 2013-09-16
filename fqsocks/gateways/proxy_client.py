@@ -580,6 +580,7 @@ def load_proxy_from_directory(proxy_directory):
                         dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i+1))
                         more_proxies.append(DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority))
         proxies.extend(more_proxies)
+        LOGGER.info('loaded proxy directory: %s' % proxy_directory)
         proxy_directories.remove(proxy_directory)
         return True
     except:
