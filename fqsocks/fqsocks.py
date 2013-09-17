@@ -28,6 +28,7 @@ __import__('fqsocks.web_ui')
 LOGGER = logging.getLogger(__name__)
 
 dns_pollution_ignored = False
+DNS_HANDLER = fqdns.DnsHandler()
 
 
 def get_dns_polluted_at(environ, start_response):
@@ -78,7 +79,6 @@ httpd.HANDLERS[('GET', 'dns-polluted-at')] = get_dns_polluted_at
 httpd.HANDLERS[('POST', 'force-us-ip')] = start_force_us_ip
 httpd.HANDLERS[('POST', 'clear-states')] = clear_states
 
-
 def setup_logging(log_level, log_file=None):
     logging.basicConfig(
         stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
@@ -105,6 +105,7 @@ def main(argv):
     argument_parser.add_argument('--disable-china-shortcut', action='store_true')
     argument_parser.add_argument('--disable-access-check', action='store_true')
     argument_parser.add_argument('--disable-direct-access', action='store_true')
+    argument_parser.add_argument('--disable-manager-httpd', action='store_true')
     argument_parser.add_argument('--http-request-mark')
     argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
     argument_parser.add_argument('--ip-command')
@@ -144,18 +145,20 @@ def main(argv):
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
-    dns_handler = fqdns.DnsHandler()
-    dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), dns_handler)
+    dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), DNS_HANDLER)
     greenlets = [
         gevent.spawn(dns_server.serve_forever),
         gevent.spawn(tcp_gateway.start_server),
         gevent.spawn(http_gateway.start_server),
-        gevent.spawn(proxy_client.init_proxies),
-        gevent.spawn(functools.partial(httpd.serve_forever, *parse_ip_colon_port(args.manager_listen)))]
+        gevent.spawn(proxy_client.init_proxies)]
+    if not args.disable_manager_httpd:
+        greenlets.append(gevent.spawn(
+            functools.partial(httpd.serve_forever, *parse_ip_colon_port(args.manager_listen))))
     if proxy_client.HTTP_TRY_PROXY and HTTP_TRY_PROXY.http_request_mark:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
         greenlet.join()
+
 
 def parse_ip_colon_port(ip_colon_port):
     if not isinstance(ip_colon_port, basestring):
