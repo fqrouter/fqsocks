@@ -70,6 +70,8 @@
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap.min.js"></script>
 <script src="/assets/tablesort.min.js"></script>
+<script src="/assets/visibility.core.js"></script>
+<script src="/assets/visibility.timer.js"></script>
 <script>
     $(document).ready(function() {
 
@@ -101,8 +103,8 @@
         });
 
         showHideSpeed();
-        setInterval(refreshProxyList, 1000);
         refreshProxyList();
+        Visibility.every(1000, refreshProxyList);
     });
 </script>
 </body>

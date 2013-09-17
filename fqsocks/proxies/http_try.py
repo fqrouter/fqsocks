@@ -32,6 +32,8 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.skype.com',
     'radiotime.com',
     '*.radiotime.com'
+    'myfreecams.com',
+    '*.myfreecams.com'
 }
 
 

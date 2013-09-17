@@ -156,3 +156,7 @@ httpd.HANDLERS[('GET', 'assets/jquery.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'jquery.min.js'), 'text/javascript')
 httpd.HANDLERS[('GET', 'assets/tablesort.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'tablesort.min.js'), 'text/javascript')
+httpd.HANDLERS[('GET', 'assets/visibility.core.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'visibility.core.js'), 'text/javascript')
+httpd.HANDLERS[('GET', 'assets/visibility.timer.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'visibility.timer.js'), 'text/javascript')
