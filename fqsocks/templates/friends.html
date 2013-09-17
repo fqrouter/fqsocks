@@ -44,6 +44,11 @@
         body {
             margin: 8px;
         }
+        #ajax-loader {
+            position: absolute;
+            left: 80px;
+            top: 40px;
+        }
     </style>
 </head>
 <body>
@@ -52,6 +57,7 @@
     <li class="active"><a href="javascript:void(0);">{{ _('Friends', '我的小伙伴们') }}</a></li>
     <li><a href="/remote-access">{{ _('Remote Access', '远程访问') }}</a></li>
 </ul>
+<img src="/assets/ajax-loader.gif" id="ajax-loader"/>
 <table class="table table-striped" id="lan-devices">
     <thead>
     <tr>
@@ -72,20 +78,26 @@
 
         $.post('/lan/scan');
 
+        var intervalId;
         function refreshLanDevices() {
-            $('#lan-devices tbody').load('/lan/devices', function() {
+            $.get('/lan/devices', function(html) {
+                $('#lan-devices tbody').replaceWith(html);
                 tablesort.refresh();
+                if ($('#lan-devices tbody').data('isScanCompleted')) {
+                    $('#ajax-loader').hide();
+                    clearInterval(intervalId);
+                }
             });
         }
 
-        $('#lan-devices tbody').on('click', 'tr input[type=checkbox]', function() {
+        $('#lan-devices').on('click', 'tr input[type=checkbox]', function() {
             var ip = $(this).parents('tr').data('ip');
             $.post('/lan/update', {ip:ip,is_picked:$(this).is(':checked')}, function(){
                 refreshLanDevices();
             });
         });
         refreshLanDevices();
-        setInterval(refreshLanDevices, 2000);
+        intervalId = setInterval(refreshLanDevices, 1000);
     });
 </script>
 </body>

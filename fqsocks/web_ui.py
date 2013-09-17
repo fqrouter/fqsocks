@@ -7,27 +7,23 @@ import functools
 import urlparse
 from datetime import datetime
 import fqlan
-import json
-
 import jinja2
-import gevent
-
 import httpd
 import stat
 from .gateways import proxy_client
 
-
+__import__('fqsocks.lan_device')
 PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxies.html')
 PROXY_LIST_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'proxy-list.html')
 REMOTE_ACCESS_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'remote-access.html')
 FRIENDS_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'friends.html')
-LAN_DEVICES_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'lan-devices.html')
 WHITELIST_PAC_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'whitelist.pac')
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 LOGGER = logging.getLogger(__name__)
 MAX_TIME_RANGE = 60 * 10
 
 
+@httpd.http_handler('POST', 'refresh-proxies')
 def handle_refresh_proxies(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     proxy_client.auto_fix_enabled = True
@@ -35,12 +31,14 @@ def handle_refresh_proxies(environ, start_response):
     return ['OK']
 
 
+@httpd.http_handler('GET', 'counters')
 def counters_page(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     for counter in stat.counters:
         yield '%s\n' % str(counter)
 
 
+@httpd.http_handler('GET', 'proxies')
 def proxies_page(environ, start_response):
     arguments = urlparse.parse_qs(environ['QUERY_STRING'])
     start_response(httplib.OK, [('Content-Type', 'text/html')])
@@ -109,6 +107,7 @@ def proxies_page(environ, start_response):
         last_refresh_started_at=last_refresh_started_at).encode('utf8')]
 
 
+@httpd.http_handler('GET', 'remote-access')
 def remote_access_page(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/html')])
     with open(REMOTE_ACCESS_HTML_FILE) as f:
@@ -130,6 +129,7 @@ def get_asset(file_path, content_type, environ, start_response):
         return [f.read()]
 
 
+@httpd.http_handler('GET', 'pac')
 def pac_page(environ, start_response):
     with open(WHITELIST_PAC_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
@@ -138,6 +138,7 @@ def pac_page(environ, start_response):
     return [template.render(http_gateway='%s:2516' % ip).encode('utf8')]
 
 
+@httpd.http_handler('GET', 'friends')
 def friends_page(environ, start_response):
     with open(FRIENDS_HTML_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
@@ -145,56 +146,8 @@ def friends_page(environ, start_response):
     return [template.render(_=environ['select_text']).encode('utf8')]
 
 
-scan_greenlet = None
-lan_devices = {}
-
-
-def handle_lan_scan(environ, start_response):
-    global scan_greenlet
-    start_response(httplib.OK, [('Content-Type', 'application/json')])
-    was_running = False
-    if scan_greenlet:
-        if scan_greenlet.ready():
-            scan_greenlet = gevent.spawn(lan_scan)
-        else:
-            was_running = True
-    else:
-        scan_greenlet = gevent.spawn(lan_scan)
-    return [json.dumps({
-        'was_running': was_running
-    })]
-
-
-def lan_scan():
-    for result in fqlan.scan(mark='0xcafe'):
-        ip, mac, hostname = result
-        if ip not in lan_devices:
-            lan_devices[ip] = {
-                'ip': ip,
-                'mac': mac,
-                'hostname': hostname,
-                'is_picked': False
-            }
-
-
-def handle_lan_update(environ, start_response):
-    start_response(httplib.OK, [('Content-Type', 'application/json')])
-    ip = environ['REQUEST_ARGUMENTS']['ip'].value
-    is_picked = 'true' == environ['REQUEST_ARGUMENTS']['is_picked'].value
-    LOGGER.info('update %s %s' % (ip, is_picked))
-    if ip not in lan_devices:
-        return [json.dumps({'success': False})]
-    lan_devices[ip]['is_picked'] = is_picked
-    return [json.dumps({'success': True})]
-
-
-def lan_devices_page(environ, start_response):
-    with open(LAN_DEVICES_HTML_FILE) as f:
-        template = jinja2.Template(unicode(f.read(), 'utf8'))
-    start_response(httplib.OK, [('Content-Type', 'text/html')])
-    return [template.render(_=environ['select_text'], lan_devices=lan_devices).encode('utf8')]
-
-
+httpd.HANDLERS[('GET', 'assets/ajax-loader.gif')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'ajax-loader.gif'), 'image/gif')
 httpd.HANDLERS[('GET', 'assets/bootstrap.min.css')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'bootstrap.min.css'), 'text/css')
 httpd.HANDLERS[('GET', 'assets/bootstrap.min.js')] = functools.partial(
@@ -203,12 +156,3 @@ httpd.HANDLERS[('GET', 'assets/jquery.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'jquery.min.js'), 'text/javascript')
 httpd.HANDLERS[('GET', 'assets/tablesort.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'tablesort.min.js'), 'text/javascript')
-httpd.HANDLERS[('GET', 'counters')] = counters_page
-httpd.HANDLERS[('POST', 'refresh-proxies')] = handle_refresh_proxies
-httpd.HANDLERS[('GET', 'proxies')] = proxies_page
-httpd.HANDLERS[('GET', 'remote-access')] = remote_access_page
-httpd.HANDLERS[('GET', 'pac')] = pac_page
-httpd.HANDLERS[('GET', 'friends')] = friends_page
-httpd.HANDLERS[('POST', 'lan/scan')] = handle_lan_scan
-httpd.HANDLERS[('POST', 'lan/update')] = handle_lan_update
-httpd.HANDLERS[('GET', 'lan/devices')] = lan_devices_page

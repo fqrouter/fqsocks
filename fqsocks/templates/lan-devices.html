@@ -1,3 +1,4 @@
+<tbody data-is-scan-completed="{{ 'true' if is_scan_completed else '' }}">
 {% for dev in lan_devices.values() %}
 <tr data-ip="{{ dev.ip }}">
     <td data-sort="{{ dev.ip.split('.')[-1] }}">{{ dev.ip }}</td>
@@ -11,3 +12,4 @@
     </td>
 </tr>
 {% endfor %}
+</tbody>

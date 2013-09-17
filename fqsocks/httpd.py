@@ -1,7 +1,6 @@
 import logging
 import httplib
 import cgi
-import sys
 import os
 from gevent.wsgi import WSGIServer
 
@@ -47,6 +46,14 @@ def select_zh_text(en_txt, zh_txt):
 
 def get_http_response(code):
     return '%s %s' % (code, httplib.responses[code])
+
+
+def http_handler(method, url):
+    def decorator(func):
+        HANDLERS[(method, url)] = func
+        return func
+
+    return decorator
 
 
 def homepage(environ, start_response):

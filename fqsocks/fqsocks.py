@@ -23,6 +23,7 @@ from .gateways import http_gateway
 import fqlan
 import fqdns
 import functools
+from . import lan_device
 
 __import__('fqsocks.web_ui')
 LOGGER = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ dns_pollution_ignored = False
 DNS_HANDLER = fqdns.DnsHandler()
 
 
+@httpd.http_handler('GET', 'dns-polluted-at')
 def get_dns_polluted_at(environ, start_response):
     global dns_pollution_ignored
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
@@ -41,7 +43,8 @@ def get_dns_polluted_at(environ, start_response):
         yield '0'
 
 
-def start_force_us_ip(environ, start_response):
+@httpd.http_handler('POST', 'force-us-ip')
+def handle_force_us_ip(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     gevent.spawn(reset_force_us_ip)
     LOGGER.info('force_us_ip set to True')
@@ -55,7 +58,8 @@ def reset_force_us_ip():
     proxy_client.force_us_ip = False
 
 
-def clear_states(environ, start_response):
+@httpd.http_handler('POST', 'clear-states')
+def handle_clear_states(environ, start_response):
     proxy_client.last_refresh_started_at = 0
     if HTTP_TRY_PROXY:
         HTTP_TRY_PROXY.host_black_list.clear()
@@ -70,14 +74,11 @@ def clear_states(environ, start_response):
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
     http_gateway.dns_cache = {}
+    lan_device.lan_devices = {}
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
 
-
-httpd.HANDLERS[('GET', 'dns-polluted-at')] = get_dns_polluted_at
-httpd.HANDLERS[('POST', 'force-us-ip')] = start_force_us_ip
-httpd.HANDLERS[('POST', 'clear-states')] = clear_states
 
 def setup_logging(log_level, log_file=None):
     logging.basicConfig(
