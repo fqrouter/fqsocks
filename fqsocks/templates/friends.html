@@ -45,9 +45,16 @@
             margin: 8px;
         }
         #ajax-loader {
-            position: absolute;
-            left: 80px;
-            top: 40px;
+            background:url('/assets/ajax-loader.gif') center center no-repeat white;
+            position:absolute;
+            height: 100%;
+            width: 100%;
+            top: 0;
+            left: 0;
+            border-radius:10px;
+            zoom: 1;
+            filter: alpha(opacity=50);
+            opacity: 0.5;
         }
     </style>
 </head>
@@ -57,7 +64,7 @@
     <li class="active"><a href="javascript:void(0);">{{ _('Friends', '我的小伙伴们') }}</a></li>
     <li><a href="/remote-access">{{ _('Remote Access', '远程访问') }}</a></li>
 </ul>
-<img src="/assets/ajax-loader.gif" id="ajax-loader"/>
+<div id="ajax-loader"></div>
 <table class="table table-striped" id="lan-devices">
     <thead>
     <tr>
