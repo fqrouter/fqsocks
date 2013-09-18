@@ -79,20 +79,22 @@
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap.min.js"></script>
 <script src="/assets/tablesort.min.js"></script>
+<script src="/assets/visibility.core.js"></script>
+<script src="/assets/visibility.timer.js"></script>
 <script type="text/javascript">
     $(document).ready(function() {
         var tablesort = new Tablesort($('#lan-devices')[0]);
 
         $.post('/lan/scan');
 
-        var intervalId;
+        var timerId;
         function refreshLanDevices() {
             $.get('/lan/devices', function(html) {
                 $('#lan-devices tbody').replaceWith(html);
                 tablesort.refresh();
                 if ($('#lan-devices tbody').data('isScanCompleted')) {
                     $('#ajax-loader').hide();
-                    clearInterval(intervalId);
+                    Visibility.stop(timerId);
                 }
             });
         }
@@ -104,7 +106,7 @@
             });
         });
         refreshLanDevices();
-        intervalId = setInterval(refreshLanDevices, 1000);
+        timerId = Visibility.every(1000, refreshLanDevices);
     });
 </script>
 </body>

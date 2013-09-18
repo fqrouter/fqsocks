@@ -61,6 +61,13 @@ def handle_lan_update(environ, start_response):
     return [json.dumps({'success': True})]
 
 
+@httpd.http_handler('GET', 'pick-and-play/is-started')
+def is_pick_and_play_started(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    is_started = not forge_greenlet.ready() if forge_greenlet is not None else False
+    return ['TRUE' if is_started else 'FALSE']
+
+
 def lan_scan():
     for result in fqlan.scan(mark='0xcafe'):
         ip, mac, hostname = result
