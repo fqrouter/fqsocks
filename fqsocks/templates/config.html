@@ -13,26 +13,18 @@
 </head>
 <body>
 <ul class="nav nav-tabs">
-    <li><a href="/proxies">{{ _('Proxies', '状态') }}</a></li>
-    <li><a href="/friends">{{ _('Friends', '我的小伙伴们') }}</a></li>
-    <li class="active"><a href="javascript:void(0);">{{ _('Remote Access', '远程访问') }}</a></li>
+    <li><a href="/">{{ _('Status', '状态') }}</a></li>
+    <li><a href="/upstream">{{ _('Uncensored Internet', '墙外的世界') }}</a></li>
+    <li><a href="/downstream">{{ _('Friends', '我的小伙伴们') }}</a></li>
+    <li class="active"><a href="javascript:void(0);">{{ _('Config', '设置') }}</a></li>
 </ul>
 <p style="font-size: 24px; margin: 24px;">
     {% if default_interface_ip %}
-    http://{{ default_interface_ip }}:2515
+    {{ _('Remote Access', '远程访问') }} http://{{ default_interface_ip }}:2515
     {% else %}
     Not Available
     {% endif %}
 </p>
-{% if default_interface_ip %}
-<hr/>
-<dl>
-    <dt>PAC file</dt>
-    <dd>http://{{ default_interface_ip }}:2515/pac</dd>
-    <dt>Http Proxy</dt>
-    <dd>http://{{ default_interface_ip }}:2516</dd>
-</dl>
-{% endif %}
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap.min.js"></script>
 </body>

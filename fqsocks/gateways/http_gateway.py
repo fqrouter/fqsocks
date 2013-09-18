@@ -8,12 +8,26 @@ from .proxy_client import ProxyClient
 from .proxy_client import handle_client
 from ..proxies.http_try import recv_till_double_newline
 from ..proxies.http_try import parse_request
-
+from .. import httpd
+import fqlan
+import httplib
+import jinja2
+import os
 
 LOGGER = logging.getLogger(__name__)
+WHITELIST_PAC_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'whitelist.pac')
 LISTEN_IP = None
 LISTEN_PORT = None
 dns_cache = {}
+
+
+@httpd.http_handler('GET', 'pac')
+def pac_page(environ, start_response):
+    with open(WHITELIST_PAC_FILE) as f:
+        template = jinja2.Template(unicode(f.read(), 'utf8'))
+    ip = fqlan.get_default_interface_ip()
+    start_response(httplib.OK, [('Content-Type', 'application/x-ns-proxy-autoconfig')])
+    return [template.render(http_gateway='%s:2516' % ip).encode('utf8')]
 
 
 def handle(downstream_sock, address):

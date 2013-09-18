@@ -23,9 +23,9 @@ from .gateways import http_gateway
 import fqlan
 import fqdns
 import functools
-from . import lan_device
+from .pages import lan_device
 
-__import__('fqsocks.web_ui')
+__import__('fqsocks.pages')
 LOGGER = logging.getLogger(__name__)
 
 dns_pollution_ignored = False

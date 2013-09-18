@@ -55,15 +55,8 @@ def http_handler(method, url):
 
     return decorator
 
-
-def homepage(environ, start_response):
-    start_response(httplib.TEMPORARY_REDIRECT, [('Location', '/proxies')])
-    return []
-
-
 def serve_forever(ip, port):
     try:
-        HANDLERS[('GET', '')] = homepage
         httpd = WSGIServer((ip, port), handle_request)
         LOGGER.info('serving HTTP on port %s:%s...' % (ip, port))
     except:

@@ -7,10 +7,10 @@ import os
 import gevent
 import jinja2
 
-import httpd
+from .. import httpd
 
 
-LAN_DEVICES_HTML_FILE = os.path.join(os.path.dirname(__file__), 'templates', 'lan-devices.html')
+LAN_DEVICES_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'lan-devices.html')
 LOGGER = logging.getLogger(__name__)
 scan_greenlet = None
 forge_greenlet = None

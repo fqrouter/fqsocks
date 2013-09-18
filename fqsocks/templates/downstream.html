@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>fqrouter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link href="/assets/bootstrap.min.css" rel="stylesheet" media="screen">
+    <style type="text/css">
+        th.sort-header {
+            cursor:pointer;
+        }
+        th.sort-header::-moz-selection,
+        th.sort-header::selection {
+            background:transparent;
+        }
+        table th.sort-header:after {
+            content:'';
+            float:right;
+            margin-top:7px;
+            border-width:0 4px 4px;
+            border-style:solid;
+            border-color:#404040 transparent;
+            visibility:hidden;
+        }
+        table th.sort-header:hover:after {
+            visibility:visible;
+        }
+        table th.sort-up:after,
+        table th.sort-down:after,
+        table th.sort-down:hover:after {
+            visibility:visible;
+            opacity:0.4;
+        }
+        table th.sort-up:after {
+            border-bottom:none;
+            border-width:4px 4px 0;
+        }
+        table.portrait .tx-speed {
+            display: none;
+        }
+        table.portrait .rx-speed {
+            display: none;
+        }
+        body {
+            margin: 8px;
+        }
+        #ajax-loader {
+            background:url('/assets/ajax-loader.gif') center center no-repeat white;
+            position:absolute;
+            height: 100%;
+            width: 100%;
+            top: 0;
+            left: 0;
+            border-radius:10px;
+            zoom: 1;
+            filter: alpha(opacity=50);
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+<ul class="nav nav-tabs">
+    <li><a href="/">{{ _('Status', '状态') }}</a></li>
+    <li><a href="/upstream">{{ _('Uncensored Internet', '墙外的世界') }}</a></li>
+    <li class="active"><a href="javascript:void(0);">{{ _('Friends', '我的小伙伴们') }}</a></li>
+    <li><a href="/config">{{ _('Config', '设置') }}</a></li>
+</ul>
+<div id="ajax-loader"></div>
+<table class="table table-striped" id="lan-devices">
+    <thead>
+    <tr>
+        <th>{{ _('ip', 'ip') }}</th>
+        <th>{{ _('hostname', '机器名') }}</th>
+        <th class="no-sort">{{ _('picked', '已选中') }}</th>
+    </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
+<script src="/assets/jquery.min.js"></script>
+<script src="/assets/bootstrap.min.js"></script>
+<script src="/assets/tablesort.min.js"></script>
+<script src="/assets/visibility.core.js"></script>
+<script src="/assets/visibility.timer.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        var tablesort = new Tablesort($('#lan-devices')[0]);
+
+        $.post('/lan/scan');
+
+        var timerId;
+        function refreshLanDevices() {
+            $.get('/lan/devices', function(html) {
+                $('#lan-devices tbody').replaceWith(html);
+                tablesort.refresh();
+                if ($('#lan-devices tbody').data('isScanCompleted')) {
+                    $('#ajax-loader').hide();
+                    Visibility.stop(timerId);
+                }
+            });
+        }
+
+        $('#lan-devices').on('click', 'tr input[type=checkbox]', function() {
+            var ip = $(this).parents('tr').data('ip');
+            $.post('/lan/update', {ip:ip,is_picked:$(this).is(':checked')}, function(){
+                refreshLanDevices();
+            });
+        });
+        refreshLanDevices();
+        timerId = Visibility.every(1000, refreshLanDevices);
+    });
+</script>
+</body>
+</html>
