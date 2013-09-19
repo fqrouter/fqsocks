@@ -586,3 +586,21 @@ def load_proxy_from_directory(proxy_directory):
     except:
         LOGGER.exception('failed to load proxy from directory')
         return False
+
+
+def clear_proxy_states():
+    global last_refresh_started_at
+    last_refresh_started_at = 0
+    if HTTP_TRY_PROXY:
+        HTTP_TRY_PROXY.host_black_list.clear()
+        HTTP_TRY_PROXY.bad_requests.clear()
+    if HTTPS_TRY_PROXY:
+        HTTPS_TRY_PROXY.dst_black_list.clear()
+    for proxy in proxies:
+        proxy.clear_latency_records()
+        proxy.clear_failed_times()
+    GoAgentProxy.last_refresh_started_at = 0
+    GoAgentProxy.black_list = set()
+    GoAgentProxy.google_ip_failed_times = {}
+    GoAgentProxy.google_ip_latency_records = {}
+    stat.counters = []

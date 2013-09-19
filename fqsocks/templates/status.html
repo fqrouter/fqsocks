@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>fqrouter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link href="/assets/bootstrap/css/bootstrap.css" rel="stylesheet" media="screen">
+    <link href="/assets/bootstrap/css/bootstrap-theme.css" rel="stylesheet" media="screen">
+    <style type="text/css">
+        body {
+            margin: 8px;
+        }
+        .panel-body .label {
+            font-size:  12px;
+        }
+        .glyphicon-question-sign {
+            cursor: help;
+        }
+    </style>
+</head>
+<body>
+<ul class="nav nav-tabs" style="margin-bottom: 16px;">
+    <li class="active"><a href="javascript:void(0);">{{ _('Status', '状态') }}</a></li>
+    <li><a href="/upstream">{{ _('Uncensored Internet', '墙外的世界') }}</a></li>
+    <li><a href="/downstream">{{ _('Friends', '我的小伙伴们') }}</a></li>
+    <li><a href="/config">{{ _('Config', '设置') }}</a></li>
+</ul>
+<div id="flow">
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    [翻墙] 混淆器
+                    <span class="label label-success pull-right">ON</span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <label class="label label-info">TCP</label>
+                <label class="label label-info">Youtube</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    [翻墙] HTTP
+                <span class="pull-right">
+                <span class="label label-success">2</span>
+                <span class="label label-danger">4</span>
+                </span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <span class="glyphicon glyphicon-cloud-download"></span>
+                100 KB/s
+                <span class="glyphicon glyphicon-cloud-upload"></span>
+                100 KB/s
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    [翻墙] HTTPS
+                <span class="pull-right">
+                <span class="label label-success">2</span>
+                <span class="label label-danger">4</span>
+                </span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <span class="glyphicon glyphicon-cloud-download"></span>
+                100 KB/s
+                <span class="glyphicon glyphicon-cloud-upload"></span>
+                100 KB/s
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    本机联网
+                    <span class="label label-success pull-right">OK</span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <label class="label label-info">wlan0</label>
+                <label class="label label-info">192.168.1.100</label>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    [接入] 无线热点
+                    <span class="label label-default pull-right">OFF</span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <span class="label label-default">N/A</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    [接入] Pick & Play
+                    <span class="label label-success pull-right">ON</span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <ul class="list-group" style="margin-bottom: 0;">
+                    <li class="list-group-item">192.168.1.101</li>
+                    <li class="list-group-item">192.168.1.102</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span class="glyphicon glyphicon-question-sign"></span>
+                    [接入] 手工设置代理
+                    <span class="label label-success pull-right">ON</span>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <ul class="list-group" style="margin-bottom: 0;">
+                    <li class="list-group-item">PAC: http://192.168.1.100:2515/pac</li>
+                    <li class="list-group-item">HTTP: 192.168.1.100:2516</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/assets/jquery.min.js"></script>
+<script src="/assets/bootstrap/js/bootstrap.min.js"></script>
+<script src="/assets/masonry.pkgd.min.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        if ($(window).width() > 750) {
+            var msnry = new Masonry( $('#flow')[0], {
+                itemSelector: '.col-sm-4'
+            });
+        }
+    });
+</script>
+</body>
+</html>

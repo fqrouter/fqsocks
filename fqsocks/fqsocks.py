@@ -60,19 +60,7 @@ def reset_force_us_ip():
 
 @httpd.http_handler('POST', 'clear-states')
 def handle_clear_states(environ, start_response):
-    proxy_client.last_refresh_started_at = 0
-    if HTTP_TRY_PROXY:
-        HTTP_TRY_PROXY.host_black_list.clear()
-        HTTP_TRY_PROXY.bad_requests.clear()
-    if HTTPS_TRY_PROXY:
-        HTTPS_TRY_PROXY.dst_black_list.clear()
-    for proxy in proxy_client.proxies:
-        proxy.clear_latency_records()
-        proxy.clear_failed_times()
-    GoAgentProxy.last_refresh_started_at = 0
-    GoAgentProxy.black_list = set()
-    GoAgentProxy.google_ip_failed_times = {}
-    GoAgentProxy.google_ip_latency_records = {}
+    proxy_client.clear_proxy_states()
     http_gateway.dns_cache = {}
     lan_device.lan_devices = {}
     LOGGER.info('cleared states upon request')

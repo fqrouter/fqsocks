@@ -33,6 +33,7 @@ def upstream_page(environ, start_response):
 def handle_refresh_proxies(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     proxy_client.auto_fix_enabled = True
+    proxy_client.clear_proxy_states()
     proxy_client.refresh_proxies()
     return ['OK']
 
