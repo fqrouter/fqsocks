@@ -52,7 +52,7 @@ class HttpTryProxy(Proxy):
         super(HttpTryProxy, self).__init__()
         self.flags.add('DIRECT')
         self.http_request_mark = None
-        self.enable_youtube_scrambler = False
+        self.youtube_scrambler_enabled = False
         self.host_black_list = {} # host => count
         self.bad_requests = {} # host => count
 
@@ -86,7 +86,7 @@ class HttpTryProxy(Proxy):
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host, silently=True)
         request_data = '%s %s HTTP/1.1\r\n' % (client.method, client.path)
-        scrambles_youtube = self.enable_youtube_scrambler and \
+        scrambles_youtube = self.youtube_scrambler_enabled and \
                             is_payload_complete and \
                             is_youtube_host(client.host)
         if scrambles_youtube:

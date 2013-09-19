@@ -23,6 +23,8 @@ from .gateways import http_gateway
 import fqlan
 import fqdns
 import functools
+import os
+import json
 from .pages import lan_device
 
 __import__('fqsocks.pages')
@@ -86,7 +88,6 @@ def main(argv):
     argument_parser.add_argument('--dns-listen', default='127.0.0.1:12345')
     argument_parser.add_argument('--manager-listen', default='*:2515 ')
     argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
-    argument_parser.add_argument('--dev', action='store_true', help='setup network/iptables on development machine')
     argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--log-file')
     argument_parser.add_argument('--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
@@ -96,9 +97,12 @@ def main(argv):
     argument_parser.add_argument('--disable-direct-access', action='store_true')
     argument_parser.add_argument('--disable-manager-httpd', action='store_true')
     argument_parser.add_argument('--http-request-mark')
-    argument_parser.add_argument('--enable-youtube-scrambler', action='store_true')
+    argument_parser.add_argument('--youtube-scrambler', dest='youtube_scrambler_enabled', action='store_true')
+    argument_parser.add_argument('--no-youtube-scrambler', dest='youtube_scrambler_enabled', action='store_false')
+    argument_parser.set_defaults(youtube_scrambler_enabled=None)
     argument_parser.add_argument('--ip-command')
     argument_parser.add_argument('--ifconfig-command')
+    argument_parser.add_argument('--config-dir')
     args = argument_parser.parse_args(argv)
     if args.ip_command:
         fqlan.IP_COMMAND = args.ip_command
@@ -106,7 +110,9 @@ def main(argv):
         fqlan.IFCONFIG_COMMAND = args.ifconfig_command
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
+    read_configs(args)
     LOGGER.info('fqsocks args: %s' % argv)
+    LOGGER.info('fqrouter config: %s' % args.fqrouter_config)
     tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_listen)
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = parse_ip_colon_port(args.http_listen)
     networking.OUTBOUND_IP = args.outbound_ip
@@ -118,11 +124,9 @@ def main(argv):
     if args.disable_direct_access:
         proxy_client.HTTP_TRY_PROXY = None
         proxy_client.HTTPS_TRY_PROXY = None
-    if proxy_client.HTTP_TRY_PROXY:
-        if args.http_request_mark:
-            HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
-        LOGGER.info('youtube scrambler enabled: %s' % args.enable_youtube_scrambler)
-        HTTP_TRY_PROXY.enable_youtube_scrambler = args.enable_youtube_scrambler
+    if args.http_request_mark:
+        HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
+    HTTP_TRY_PROXY.youtube_scrambler_enabled = is_youtube_scrambler_enabled(args)
     if args.disable_access_check:
         proxy_client.CHECK_ACCESS = False
     for props in args.proxy:
@@ -147,6 +151,22 @@ def main(argv):
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
         greenlet.join()
+
+
+def read_configs(args):
+    args.fqrouter_config = {}
+    if not args.config_dir:
+        return
+    path = os.path.join(args.config_dir, 'fqrouter.json')
+    if os.path.exists(path):
+        with open(path) as f:
+            args.fqrouter_config = json.loads(f.read())
+
+
+def is_youtube_scrambler_enabled(args):
+    if args.youtube_scrambler_enabled is None:
+        args.youtube_scrambler_enabled = args.fqrouter_config.get('youtube_scrambler_enabled', True)
+    return args.youtube_scrambler_enabled
 
 
 def parse_ip_colon_port(ip_colon_port):
