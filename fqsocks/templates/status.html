@@ -26,73 +26,9 @@
     <li><a href="/config">{{ _('Config', '设置') }}</a></li>
 </ul>
 <div id="flow">
-    <div class="col-sm-4">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="panel-title">
-                    <span class="glyphicon glyphicon-question-sign"></span>
-                    [翻墙] 混淆器
-                    {% if HTTP_TRY_PROXY.http_request_mark or HTTP_TRY_PROXY.youtube_scrambler_enabled %}
-                    <span class="label label-success pull-right">ON</span>
-                    {% else %}
-                    <span class="label label-danger pull-right">OFF</span>
-                    {% endif %}
-                </h3>
-            </div>
-            <div class="panel-body">
-                {% if HTTP_TRY_PROXY.http_request_mark or HTTP_TRY_PROXY.youtube_scrambler_enabled %}
-                    {% if HTTP_TRY_PROXY.http_request_mark %}
-                    <label class="label label-info">TCP</label>
-                    {% endif %}
-                    {% if HTTP_TRY_PROXY.youtube_scrambler_enabled %}
-                    <label class="label label-info">Youtube</label>
-                    {% endif %}
-                {% else %}
-                <label class="label label-default">N/A</label>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="panel-title">
-                    <span class="glyphicon glyphicon-question-sign"></span>
-                    [翻墙] HTTP
-                <span class="pull-right">
-                <span class="label label-success">2</span>
-                <span class="label label-danger">4</span>
-                </span>
-                </h3>
-            </div>
-            <div class="panel-body">
-                <span class="glyphicon glyphicon-cloud-download"></span>
-                100 KB/s
-                <span class="glyphicon glyphicon-cloud-upload"></span>
-                100 KB/s
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="panel-title">
-                    <span class="glyphicon glyphicon-question-sign"></span>
-                    [翻墙] HTTPS
-                <span class="pull-right">
-                <span class="label label-success">2</span>
-                <span class="label label-danger">4</span>
-                </span>
-                </h3>
-            </div>
-            <div class="panel-body">
-                <span class="glyphicon glyphicon-cloud-download"></span>
-                100 KB/s
-                <span class="glyphicon glyphicon-cloud-upload"></span>
-                100 KB/s
-            </div>
-        </div>
-    </div>
+    {{ status_scrambler }}
+    {{ status_http }}
+    {{ status_https }}
     <div class="col-sm-4">
         <div class="panel panel-default">
             <div class="panel-heading">

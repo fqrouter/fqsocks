@@ -1,0 +1,24 @@
+<div class="col-sm-4">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                <span class="glyphicon glyphicon-question-sign"></span>
+                [翻墙] HTTPS
+                <span class="pull-right">
+                {% if alive_https_proxies_count %}
+                <span class="label label-success">{{ alive_https_proxies_count }}</span>
+                {% endif %}
+                {% if died_https_proxies_count %}
+                <span class="label label-danger">{{ died_https_proxies_count }}</span>
+                {% endif %}
+                </span>
+            </h3>
+        </div>
+        <div class="panel-body">
+            <span class="glyphicon glyphicon-cloud-download"></span>
+            {{ total_rx }}
+            <span class="glyphicon glyphicon-cloud-upload"></span>
+            {{ total_tx }}
+        </div>
+    </div>
+</div>
