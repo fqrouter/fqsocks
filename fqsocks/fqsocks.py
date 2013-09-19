@@ -124,8 +124,7 @@ def main(argv):
     if args.disable_direct_access:
         proxy_client.HTTP_TRY_PROXY = None
         proxy_client.HTTPS_TRY_PROXY = None
-    if args.http_request_mark:
-        HTTP_TRY_PROXY.http_request_mark = eval(args.http_request_mark)
+    HTTP_TRY_PROXY.http_request_mark = get_http_request_mark(args)
     HTTP_TRY_PROXY.youtube_scrambler_enabled = is_youtube_scrambler_enabled(args)
     if args.disable_access_check:
         proxy_client.CHECK_ACCESS = False
@@ -167,6 +166,14 @@ def is_youtube_scrambler_enabled(args):
     if args.youtube_scrambler_enabled is None:
         args.youtube_scrambler_enabled = args.fqrouter_config.get('youtube_scrambler_enabled', True)
     return args.youtube_scrambler_enabled
+
+
+def get_http_request_mark(args):
+    if args.http_request_mark:
+        return eval(args.http_request_mark)
+    else:
+        tcp_scrambler_enabled = args.fqrouter_config.get('tcp_scrambler_enabled', True)
+        return 0xbabe if tcp_scrambler_enabled else None
 
 
 def parse_ip_colon_port(ip_colon_port):

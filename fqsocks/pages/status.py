@@ -17,4 +17,4 @@ def status_page(environ, start_response):
 
     return [template.render(
         _=environ['select_text'],
-        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled).encode('utf8')]
+        HTTP_TRY_PROXY=HTTP_TRY_PROXY).encode('utf8')]

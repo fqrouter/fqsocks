@@ -32,13 +32,23 @@
                 <h3 class="panel-title">
                     <span class="glyphicon glyphicon-question-sign"></span>
                     [翻墙] 混淆器
+                    {% if HTTP_TRY_PROXY.http_request_mark or HTTP_TRY_PROXY.youtube_scrambler_enabled %}
                     <span class="label label-success pull-right">ON</span>
+                    {% else %}
+                    <span class="label label-danger pull-right">OFF</span>
+                    {% endif %}
                 </h3>
             </div>
             <div class="panel-body">
-                <label class="label label-info">TCP</label>
-                {% if youtube_scrambler_enabled %}
-                <label class="label label-info">Youtube</label>
+                {% if HTTP_TRY_PROXY.http_request_mark or HTTP_TRY_PROXY.youtube_scrambler_enabled %}
+                    {% if HTTP_TRY_PROXY.http_request_mark %}
+                    <label class="label label-info">TCP</label>
+                    {% endif %}
+                    {% if HTTP_TRY_PROXY.youtube_scrambler_enabled %}
+                    <label class="label label-info">Youtube</label>
+                    {% endif %}
+                {% else %}
+                <label class="label label-default">N/A</label>
                 {% endif %}
             </div>
         </div>
