@@ -5,7 +5,7 @@ import logging
 import os.path
 from datetime import datetime
 from .. import stat
-
+import gevent
 import jinja2
 
 from .. import httpd
@@ -26,7 +26,8 @@ def upstream_page(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/html')])
     return template.render(
         _=environ['select_text'],
-        last_refresh_started_at=last_refresh_started_at).encode('utf8')
+        last_refresh_started_at=last_refresh_started_at,
+        proxies_enabled=len(proxy_client.proxies) > 0).encode('utf8')
 
 
 @httpd.http_handler('POST', 'refresh-proxies')
@@ -95,6 +96,26 @@ def handle_list_proxies(environ, start_response):
     with open(PROXIES_HTML_FILE) as f:
         template = jinja2.Template(f.read())
     return template.render(proxies_stats=proxies_stats).encode('utf8')
+
+
+@httpd.http_handler('POST', 'proxies/enable')
+def handle_enable_proxies(environ, start_response):
+    proxy_client.clear_proxy_states()
+    proxy_client.reset_proxy_directories()
+    proxy_client.last_refresh_started_at = 0
+    gevent.spawn(proxy_client.init_proxies)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'proxies/disable')
+def handle_disable_proxies(environ, start_response):
+    global is_free_internet_connected
+    is_free_internet_connected = False
+    proxy_client.proxies = []
+    proxy_client.clear_proxy_states()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
 
 
 def to_human_readable_size(num):

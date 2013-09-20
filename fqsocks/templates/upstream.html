@@ -151,11 +151,41 @@
 <div class="col-sm-12">
     <div class="panel panel-default">
         <div class="panel-heading">
+            <h3 class="panel-title pull-left">{{ _('Uncensored Internet', '墙外的世界') }}</h3>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body">
+            {{ _(
+            """
+            fqrouter is designed to minimize the server usage to maximize
+            the number of users who can enjoy the benefit.
+            The methods used to archive the goal including direct access any China ip,
+            direct access any website that is not blocked, and using scrambler
+            to scramble the traffic to avoid being censored instead of always tunnelling
+            via proxy servers.
+            Despite all those efforts, proxy servers are still very necessary.
+            Builtin public servers have limited bandwidth and they are slow.
+            If you have private proxy servers, please add your own.
+            """,
+            """
+            fqrouter的设计理念是尽量减少对服务器资源的消耗以尽可能地扩大受益用户的数量。
+            使用的手段包括对于中国的IP不走代理，如果目标服务器可以直接访问则不会走代理
+            以及尽量采用混淆流量的技术从而能够不经过代理也不会被阻断。
+            即便如此，代理服务器仍然是必要的。默认内置的公共代理流量有限，而且速度不佳。
+            如果个人有代理服务器，最好使用自己的代理服务器。
+            """) }}
+        </div>
+    </div>
+</div>
+<div class="col-sm-12">
+    <div class="panel panel-default">
+        <div class="panel-heading">
             <h3 class="panel-title pull-left">
                 {{ _('Proxies', '代理列表') }}
             </h3>
             <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="proxies-checkbox" checked>
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="proxies-checkbox"
+                {{ 'checked="checked"' if proxies_enabled else '' }}>
                 <label class="onoffswitch-label" for="proxies-checkbox">
                     <div class="onoffswitch-inner"></div>
                     <div class="onoffswitch-switch"></div>
@@ -296,11 +326,12 @@
             showHideSpeed();
         });
 
-        $('#refresh').click(function (e) {
-            $.post('/refresh-proxies', function () {
-                window.location.reload();
-            });
-            return false;
+        $('#proxies-checkbox').click(function (e) {
+            if ($(this).is(':checked')) {
+                $.post('/proxies/enable');
+            } else {
+                $.post('/proxies/disable');
+            }
         });
 
         showHideSpeed();

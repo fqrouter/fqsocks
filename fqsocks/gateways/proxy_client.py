@@ -45,6 +45,7 @@ RE_HTTP_HOST = re.compile('Host: (.+)')
 CHINA_PROXY = None
 LOGGER = logging.getLogger(__name__)
 proxy_directories = []
+initial_proxy_directories = []
 proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
@@ -520,6 +521,7 @@ def add_proxies(proxy_type, prop_dict):
     else:
         if 'directory' == proxy_type:
             proxy_directories.append(prop_dict)
+            initial_proxy_directories.append(prop_dict)
         else:
             proxy = proxy_types[proxy_type](**prop_dict)
             proxies.append(proxy)
@@ -558,6 +560,11 @@ def load_proxies_from_directories():
             return False
     assert not proxy_directories
     return True
+
+
+def reset_proxy_directories():
+    global proxy_directories
+    proxy_directories = list(initial_proxy_directories)
 
 
 def load_proxy_from_directory(proxy_directory):
