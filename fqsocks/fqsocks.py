@@ -6,12 +6,13 @@ import logging.handlers
 import sys
 import argparse
 import httplib
+import fqlan
+import fqdns
+import functools
 
 import gevent.server
 import gevent.monkey
 
-from .proxies.direct import DIRECT_PROXY
-from .proxies.direct import HTTPS_TRY_PROXY
 from .proxies.http_try import HTTP_TRY_PROXY
 from .proxies.http_try import detect_if_ttl_being_ignored
 from .proxies.goagent import GoAgentProxy
@@ -20,13 +21,9 @@ import networking
 from .gateways import proxy_client
 from .gateways import tcp_gateway
 from .gateways import http_gateway
-import fqlan
-import fqdns
-import functools
-import os
-import json
 from .pages import lan_device
 from . import config_dir
+
 
 __import__('fqsocks.pages')
 LOGGER = logging.getLogger(__name__)
