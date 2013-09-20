@@ -214,12 +214,11 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">
-                TCP Scrambler
+                {{ _('TCP Scrambler', 'TCP 混淆器') }}
             </h3>
-
             <div class="onoffswitch pull-right">
                 <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="tcp-scrambler-checkbox"
-                       checked>
+                {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
                 <label class="onoffswitch-label" for="tcp-scrambler-checkbox">
                     <div class="onoffswitch-inner"></div>
                     <div class="onoffswitch-switch"></div>
@@ -228,7 +227,14 @@
             <div style="clear: both;"></div>
         </div>
         <div class="panel-body">
-            asdfasdfasdfdasfasdafdsaf
+            {{ _(
+            """
+            scramble HTTP request at TCP level, so that GFW can let us go, without using a proxy
+            server. disable this scrambler will make internet speed much slower!
+            """,
+            """
+            混淆 TCP 层面混淆HTTP请求迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+            """) }}
         </div>
     </div>
 </div>
@@ -236,12 +242,12 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title" style="display: inline;">
-                Youtube Scrambler
+                {{ _('Youtube Scrambler', 'Youtube 混淆器') }}
             </h3>
 
             <div class="onoffswitch pull-right">
                 <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="youtube-scrambler-checkbox"
-                       checked>
+                {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
                 <label class="onoffswitch-label" for="youtube-scrambler-checkbox">
                     <div class="onoffswitch-inner"></div>
                     <div class="onoffswitch-switch"></div>
@@ -250,7 +256,13 @@
             <div style="clear: both;"></div>
         </div>
         <div class="panel-body">
-            asdfasdfasdfdasfasdafdsaf
+            {{ _(
+            """
+            scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this scrambler will make internet speed much slower!
+            """,
+            """
+            混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+            """) }}
         </div>
     </div>
 </div>
@@ -331,6 +343,22 @@
                 $.post('/proxies/enable');
             } else {
                 $.post('/proxies/disable');
+            }
+        });
+
+        $('#tcp-scrambler-checkbox').click(function (e) {
+            if ($(this).is(':checked')) {
+                $.post('/tcp-scrambler/enable');
+            } else {
+                $.post('/tcp-scrambler/disable');
+            }
+        });
+
+        $('#youtube-scrambler-checkbox').click(function (e) {
+            if ($(this).is(':checked')) {
+                $.post('/youtube-scrambler/enable');
+            } else {
+                $.post('/youtube-scrambler/disable');
             }
         });
 

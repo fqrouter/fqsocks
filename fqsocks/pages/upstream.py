@@ -4,12 +4,15 @@ import time
 import logging
 import os.path
 from datetime import datetime
-from .. import stat
+
 import gevent
 import jinja2
 
+from .. import stat
 from .. import httpd
 from ..gateways import proxy_client
+from ..proxies.http_try import HTTP_TRY_PROXY
+from .. import config_dir
 
 
 PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'proxies.html')
@@ -27,7 +30,9 @@ def upstream_page(environ, start_response):
     return template.render(
         _=environ['select_text'],
         last_refresh_started_at=last_refresh_started_at,
-        proxies_enabled=len(proxy_client.proxies) > 0).encode('utf8')
+        proxies_enabled=len(proxy_client.proxies) > 0,
+        tcp_scrambler_enabled=HTTP_TRY_PROXY.http_request_mark,
+        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled).encode('utf8')
 
 
 @httpd.http_handler('POST', 'refresh-proxies')
@@ -114,6 +119,38 @@ def handle_disable_proxies(environ, start_response):
     is_free_internet_connected = False
     proxy_client.proxies = []
     proxy_client.clear_proxy_states()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'tcp-scrambler/enable')
+def handle_enable_tcp_scrambler(environ, start_response):
+    HTTP_TRY_PROXY.http_request_mark = 0xbabe
+    config_dir.update_fqrouter_config(tcp_scrambler_enabled=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'tcp-scrambler/disable')
+def handle_disable_proxies(environ, start_response):
+    HTTP_TRY_PROXY.http_request_mark = None
+    config_dir.update_fqrouter_config(tcp_scrambler_enabled=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'youtube-scrambler/enable')
+def handle_enable_tcp_scrambler(environ, start_response):
+    HTTP_TRY_PROXY.youtube_scrambler_enabled = True
+    config_dir.update_fqrouter_config(youtube_scrambler_enabled=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'youtube-scrambler/disable')
+def handle_disable_proxies(environ, start_response):
+    HTTP_TRY_PROXY.youtube_scrambler_enabled = False
+    config_dir.update_fqrouter_config(youtube_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 

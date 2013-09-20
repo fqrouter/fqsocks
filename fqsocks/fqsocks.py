@@ -26,6 +26,7 @@ import functools
 import os
 import json
 from .pages import lan_device
+from . import config_dir
 
 __import__('fqsocks.pages')
 LOGGER = logging.getLogger(__name__)
@@ -153,13 +154,8 @@ def main(argv):
 
 
 def read_configs(args):
-    args.fqrouter_config = {}
-    if not args.config_dir:
-        return
-    path = os.path.join(args.config_dir, 'fqrouter.json')
-    if os.path.exists(path):
-        with open(path) as f:
-            args.fqrouter_config = json.loads(f.read())
+    config_dir.CONFIG_DIR = args.config_dir
+    args.fqrouter_config = config_dir.read_fqrouter_config()
 
 
 def is_youtube_scrambler_enabled(args):
