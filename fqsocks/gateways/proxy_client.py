@@ -548,7 +548,6 @@ def init_proxies():
                 check_access_many_times('http://www.facebook.com', 3)
         else:
             LOGGER.critical('proxies init failed')
-            proxies = []
     except:
         LOGGER.exception('failed to init proxies')
 
