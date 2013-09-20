@@ -3,10 +3,11 @@ import gevent.server
 from .. import networking
 from .proxy_client import ProxyClient
 from .proxy_client import handle_client
-from .proxy_client import NoMoreProxy
-import sys
 
 LOGGER = logging.getLogger(__name__)
+LISTEN_IP = None
+LISTEN_PORT = None
+server_greenlet = None
 
 
 def handle(downstream_sock, address):
@@ -19,9 +20,9 @@ def handle(downstream_sock, address):
         LOGGER.exception('failed to handle %s:%s' % (src_ip, src_port))
 
 
-def serve_forever(listen_ip, listen_port):
-    server = gevent.server.StreamServer((listen_ip, listen_port), handle)
-    LOGGER.info('started fqsocks tcp gateway at %s:%s' % (listen_ip, listen_port))
+def serve_forever():
+    server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)
+    LOGGER.info('started fqsocks tcp gateway at %s:%s' % (LISTEN_IP, LISTEN_PORT))
     try:
         server.serve_forever()
     except:

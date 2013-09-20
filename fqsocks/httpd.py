@@ -5,9 +5,10 @@ import os
 from gevent.wsgi import WSGIServer
 
 LOGGER = logging.getLogger(__name__)
-HANDLERS = {
-
-}
+HANDLERS = {}
+server_greenlet = None
+LISTEN_IP = None
+LISTEN_PORT = None
 
 
 def handle_request(environ, start_response):
@@ -55,11 +56,12 @@ def http_handler(method, url):
 
     return decorator
 
-def serve_forever(ip, port):
+
+def serve_forever():
     try:
-        httpd = WSGIServer((ip, port), handle_request)
-        LOGGER.info('serving HTTP on port %s:%s...' % (ip, port))
+        httpd = WSGIServer((LISTEN_IP, LISTEN_PORT), handle_request)
+        LOGGER.info('serving HTTP on port %s:%s...' % (LISTEN_IP, LISTEN_PORT))
     except:
-        LOGGER.exception('failed to start HTTP server on port %s:%s' % (ip, port))
+        LOGGER.exception('failed to start HTTP server on port %s:%s' % (LISTEN_IP, LISTEN_PORT))
         os._exit(1)
     httpd.serve_forever()

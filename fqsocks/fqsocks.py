@@ -136,23 +136,30 @@ def main(argv):
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
-    greenlets = [gevent.spawn(proxy_client.init_proxies)]
+    greenlets = []
     if args.dns_listen:
         dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), DNS_HANDLER)
         greenlets.append(gevent.spawn(dns_server.serve_forever))
     if args.http_listen:
-        greenlets.append(gevent.spawn(
-            functools.partial(http_gateway.serve_forever, *parse_ip_colon_port(args.http_listen))))
+        http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = parse_ip_colon_port(args.http_listen)
+        http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
+        greenlets.append(http_gateway.server_greenlet)
     if args.tcp_listen:
-        greenlets.append(gevent.spawn(
-            functools.partial(tcp_gateway.serve_forever, *parse_ip_colon_port(args.tcp_listen))))
+        tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_listen)
+        tcp_gateway.server_greenlet = gevent.spawn(tcp_gateway.serve_forever)
+        greenlets.append(tcp_gateway.server_greenlet)
     if args.manager_listen:
-        greenlets.append(gevent.spawn(
-            functools.partial(httpd.serve_forever, *parse_ip_colon_port(args.manager_listen))))
+        httpd.LISTEN_IP, httpd.LISTEN_PORT = parse_ip_colon_port(args.manager_listen)
+        httpd.server_greenlet = gevent.spawn(httpd.serve_forever)
+        greenlets.append(httpd.server_greenlet)
+    greenlets.append(gevent.spawn(proxy_client.init_proxies))
     if HTTP_TRY_PROXY.tcp_scrambler_enabled:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
-        greenlet.join()
+        try:
+            greenlet.join()
+        except:
+            pass
 
 
 def read_configs(args):
