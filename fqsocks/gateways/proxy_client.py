@@ -37,12 +37,13 @@ from ..proxies.direct import NONE_PROXY
 
 dns_polluted_at = 0
 auto_fix_enabled = True
+china_shortcut_enabled = True
+direct_access_enabled = True
 last_refresh_started_at = 0
 CHECK_ACCESS = True
 force_us_ip = False
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
-CHINA_PROXY = None
 LOGGER = logging.getLogger(__name__)
 proxy_directories = []
 initial_proxy_directories = []
@@ -264,9 +265,9 @@ def pick_proxy_and_forward(client):
         dns_polluted_at = time.time()
         NONE_PROXY.forward(client)
         return
-    if CHINA_PROXY and china_ip.is_china_ip(client.dst_ip):
+    if china_shortcut_enabled and china_ip.is_china_ip(client.dst_ip):
         try:
-            CHINA_PROXY.forward(client)
+            DIRECT_PROXY.forward(client)
         except ProxyFallBack:
             pass
         return
@@ -326,10 +327,6 @@ def should_fix():
             return True
         else:
             return False
-
-
-def is_direct_access_disabled():
-    return not HTTP_TRY_PROXY
 
 
 def pick_proxy(client):
@@ -394,12 +391,18 @@ def pick_http_try_proxy(client):
     if client.us_ip_only:
         client.tried_proxies[HTTP_TRY_PROXY] = 'us ip only'
         return None
+    if not direct_access_enabled:
+        client.tried_proxies[HTTP_TRY_PROXY] = 'direct access disabled'
+        return None
     return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
 
 def pick_https_try_proxy(client):
     if client.us_ip_only:
         client.tried_proxies[HTTPS_TRY_PROXY] = 'us ip only'
+        return None
+    if not direct_access_enabled:
+        client.tried_proxies[HTTPS_TRY_PROXY] = 'direct access disabled'
         return None
     return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
@@ -597,11 +600,9 @@ def load_proxy_from_directory(proxy_directory):
 def clear_proxy_states():
     global last_refresh_started_at
     last_refresh_started_at = 0
-    if HTTP_TRY_PROXY:
-        HTTP_TRY_PROXY.host_black_list.clear()
-        HTTP_TRY_PROXY.bad_requests.clear()
-    if HTTPS_TRY_PROXY:
-        HTTPS_TRY_PROXY.dst_black_list.clear()
+    HTTP_TRY_PROXY.host_black_list.clear()
+    HTTP_TRY_PROXY.bad_requests.clear()
+    HTTPS_TRY_PROXY.dst_black_list.clear()
     for proxy in proxies:
         proxy.clear_latency_records()
         proxy.clear_failed_times()

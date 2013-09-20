@@ -121,7 +121,7 @@ def main(argv):
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
     if not args.disable_china_shortcut:
-        proxy_client.CHINA_PROXY = DIRECT_PROXY
+        proxy_client.china_shortcut_enabled = False
     if args.disable_direct_access:
         proxy_client.HTTP_TRY_PROXY = None
         proxy_client.HTTPS_TRY_PROXY = None

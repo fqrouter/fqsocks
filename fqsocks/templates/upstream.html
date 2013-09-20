@@ -270,12 +270,12 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title" style="display: inline;">
-                China Shortcut
+                {{ _('China Shortcut', '直连中国的服务器') }}
             </h3>
 
             <div class="onoffswitch pull-right">
                 <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="china-shortcut-checkbox"
-                       checked>
+                {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
                 <label class="onoffswitch-label" for="china-shortcut-checkbox">
                     <div class="onoffswitch-inner"></div>
                     <div class="onoffswitch-switch"></div>
@@ -284,7 +284,13 @@
             <div style="clear: both;"></div>
         </div>
         <div class="panel-body">
-            asdfasdfasdfdasfasdafdsaf
+            {{ _(
+            """
+            if server is china ip, access directly. disable this shortcut will make internet speed much slower!
+            """,
+            """
+            如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
+            """) }}
         </div>
     </div>
 </div>
@@ -292,12 +298,12 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title" style="display: inline;">
-                Direct Access
+                {{ _('Direct Access', '直接可以直连的服务器') }}
             </h3>
 
             <div class="onoffswitch pull-right">
                 <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="direct-access-checkbox"
-                       checked>
+                {{ 'checked="checked"' if direct_access_enabled else '' }}>
                 <label class="onoffswitch-label" for="direct-access-checkbox">
                     <div class="onoffswitch-inner"></div>
                     <div class="onoffswitch-switch"></div>
@@ -306,7 +312,13 @@
             <div style="clear: both;"></div>
         </div>
         <div class="panel-body">
-            asdfasdfasdfdasfasdafdsaf
+            {{ _(
+            """
+            try access directly first, use proxy only if tried and failed. disable this shortcut will make internet speed much slower!
+            """,
+            """
+            每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
+            """) }}
         </div>
     </div>
 </div>
@@ -359,6 +371,22 @@
                 $.post('/youtube-scrambler/enable');
             } else {
                 $.post('/youtube-scrambler/disable');
+            }
+        });
+
+        $('#china-shortcut-checkbox').click(function (e) {
+            if ($(this).is(':checked')) {
+                $.post('/china-shortcut/enable');
+            } else {
+                $.post('/china-shortcut/disable');
+            }
+        });
+
+        $('#direct-access-checkbox').click(function (e) {
+            if ($(this).is(':checked')) {
+                $.post('/direct-access/enable');
+            } else {
+                $.post('/direct-access/disable');
             }
         });
 

@@ -32,7 +32,9 @@ def upstream_page(environ, start_response):
         last_refresh_started_at=last_refresh_started_at,
         proxies_enabled=len(proxy_client.proxies) > 0,
         tcp_scrambler_enabled=HTTP_TRY_PROXY.http_request_mark,
-        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled).encode('utf8')
+        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
+        china_shortcut_enabled=proxy_client.china_shortcut_enabled,
+        direct_access_enabled=proxy_client.direct_access_enabled).encode('utf8')
 
 
 @httpd.http_handler('POST', 'refresh-proxies')
@@ -132,7 +134,7 @@ def handle_enable_tcp_scrambler(environ, start_response):
 
 
 @httpd.http_handler('POST', 'tcp-scrambler/disable')
-def handle_disable_proxies(environ, start_response):
+def handle_disable_tcp_scrambler(environ, start_response):
     HTTP_TRY_PROXY.http_request_mark = None
     config_dir.update_fqrouter_config(tcp_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
@@ -140,7 +142,7 @@ def handle_disable_proxies(environ, start_response):
 
 
 @httpd.http_handler('POST', 'youtube-scrambler/enable')
-def handle_enable_tcp_scrambler(environ, start_response):
+def handle_enable_youtube_scrambler(environ, start_response):
     HTTP_TRY_PROXY.youtube_scrambler_enabled = True
     config_dir.update_fqrouter_config(youtube_scrambler_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
@@ -148,9 +150,41 @@ def handle_enable_tcp_scrambler(environ, start_response):
 
 
 @httpd.http_handler('POST', 'youtube-scrambler/disable')
-def handle_disable_proxies(environ, start_response):
+def handle_disable_youtube_scrambler(environ, start_response):
     HTTP_TRY_PROXY.youtube_scrambler_enabled = False
     config_dir.update_fqrouter_config(youtube_scrambler_enabled=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'china-shortcut/enable')
+def handle_enable_china_shortcut(environ, start_response):
+    proxy_client.china_shortcut_enabled = True
+    config_dir.update_fqrouter_config(china_shortcut_enabled=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'china-shortcut/disable')
+def handle_disable_china_shortcut(environ, start_response):
+    proxy_client.china_shortcut_enabled = False
+    config_dir.update_fqrouter_config(china_shortcut_enabled=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'direct-access/enable')
+def handle_enable_direct_access(environ, start_response):
+    proxy_client.direct_access_enabled = True
+    config_dir.update_fqrouter_config(direct_access_enabled=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'direct-access/disable')
+def handle_disable_direct_access(environ, start_response):
+    proxy_client.direct_access_enabled = False
+    config_dir.update_fqrouter_config(direct_access_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
