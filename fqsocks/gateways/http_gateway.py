@@ -16,8 +16,6 @@ import os
 
 LOGGER = logging.getLogger(__name__)
 WHITELIST_PAC_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'whitelist.pac')
-LISTEN_IP = None
-LISTEN_PORT = None
 dns_cache = {}
 
 
@@ -79,9 +77,9 @@ def resolve_ip(host):
     return dns_cache[host]
 
 
-def start_server():
-    server = gevent.server.StreamServer((LISTEN_IP, LISTEN_PORT), handle)
-    LOGGER.info('started fqsocks http gateway at %s:%s' % (LISTEN_IP, LISTEN_PORT))
+def serve_forever(listen_ip, listen_port):
+    server = gevent.server.StreamServer((listen_ip, listen_port), handle)
+    LOGGER.info('started fqsocks http gateway at %s:%s' % (listen_ip, listen_port))
     try:
         server.serve_forever()
     except:

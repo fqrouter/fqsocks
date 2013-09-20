@@ -31,7 +31,7 @@ def upstream_page(environ, start_response):
         _=environ['select_text'],
         last_refresh_started_at=last_refresh_started_at,
         proxies_enabled=len(proxy_client.proxies) > 0,
-        tcp_scrambler_enabled=HTTP_TRY_PROXY.http_request_mark,
+        tcp_scrambler_enabled=HTTP_TRY_PROXY.tcp_scrambler_enabled,
         youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
         direct_access_enabled=proxy_client.direct_access_enabled).encode('utf8')
@@ -127,7 +127,7 @@ def handle_disable_proxies(environ, start_response):
 
 @httpd.http_handler('POST', 'tcp-scrambler/enable')
 def handle_enable_tcp_scrambler(environ, start_response):
-    HTTP_TRY_PROXY.http_request_mark = 0xbabe
+    HTTP_TRY_PROXY.tcp_scrambler_enabled = True
     config_dir.update_fqrouter_config(tcp_scrambler_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
@@ -135,7 +135,7 @@ def handle_enable_tcp_scrambler(environ, start_response):
 
 @httpd.http_handler('POST', 'tcp-scrambler/disable')
 def handle_disable_tcp_scrambler(environ, start_response):
-    HTTP_TRY_PROXY.http_request_mark = None
+    HTTP_TRY_PROXY.tcp_scrambler_enabled = False
     config_dir.update_fqrouter_config(tcp_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []

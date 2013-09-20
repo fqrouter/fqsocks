@@ -57,8 +57,8 @@ class HttpRelayProxy(Proxy):
             auth = base64.b64encode('%s:%s' % (self.username, self.password)).strip()
             request_data += 'Proxy-Authorization: Basic %s\r\n' % auth
         request_data += '\r\n'
-        if HTTP_TRY_PROXY.http_request_mark:
-            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
+        if HTTP_TRY_PROXY.tcp_scrambler_enabled:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0xbabe)
         try:
             request_data = request_data + client.payload
             upstream_sock.counter.sending(len(request_data))
@@ -72,7 +72,7 @@ class HttpRelayProxy(Proxy):
             upstream_sock.counter.received(len(response))
             client.forward_started = True
             client.downstream_sock.sendall(response)
-        if HTTP_TRY_PROXY.http_request_mark:
+        if HTTP_TRY_PROXY.tcp_scrambler_enabled:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         self.record_latency(time.time() - begin_at)
         client.forward(upstream_sock)

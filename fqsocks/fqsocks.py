@@ -84,51 +84,52 @@ def setup_logging(log_level, log_file=None):
 
 def main(argv):
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument('--tcp-listen', default='127.0.0.1:12345')
-    argument_parser.add_argument('--http-listen', default='*:2516')
-    argument_parser.add_argument('--dns-listen', default='127.0.0.1:12345')
-    argument_parser.add_argument('--manager-listen', default='*:2515 ')
-    argument_parser.add_argument('--outbound-ip', default='10.1.2.3')
+    argument_parser.add_argument('--tcp-listen')
+    argument_parser.add_argument('--http-listen')
+    argument_parser.add_argument('--dns-listen')
+    argument_parser.add_argument('--manager-listen')
+    argument_parser.add_argument('--outbound-ip')
+    argument_parser.add_argument('--ip-command')
+    argument_parser.add_argument('--ifconfig-command')
+    argument_parser.add_argument('--config-dir')
     argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--log-file')
     argument_parser.add_argument('--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
     argument_parser.add_argument('--google-host', action='append', default=[])
-    argument_parser.add_argument('--disable-china-shortcut', action='store_true')
-    argument_parser.add_argument('--disable-access-check', action='store_true')
-    argument_parser.add_argument('--disable-direct-access', action='store_true')
-    argument_parser.add_argument('--disable-manager-httpd', action='store_true')
-    argument_parser.add_argument('--http-request-mark')
+    argument_parser.add_argument('--access-check', dest='access_check_enabled', action='store_true')
+    argument_parser.add_argument('--no-access-check', dest='access_check_enabled', action='store_false')
+    argument_parser.set_defaults(access_check_enabled=None)
+    argument_parser.add_argument('--direct-access', dest='direct_access_enabled', action='store_true')
+    argument_parser.add_argument('--no-direct-access', dest='direct_access_enabled', action='store_false')
+    argument_parser.set_defaults(direct_access_enabled=None)
+    argument_parser.add_argument('--china-shortcut', dest='china_shortcut_enabled', action='store_true')
+    argument_parser.add_argument('--no-china-shortcut', dest='china_shortcut_enabled', action='store_false')
+    argument_parser.set_defaults(china_shortcut_enabled=None)
+    argument_parser.add_argument('--tcp-scrambler', dest='tcp_scrambler_enabled', action='store_true')
+    argument_parser.add_argument('--no-tcp-scrambler', dest='youtube_scrambler_enabled', action='store_false')
+    argument_parser.set_defaults(tcp_scrambler_enabled=None)
     argument_parser.add_argument('--youtube-scrambler', dest='youtube_scrambler_enabled', action='store_true')
     argument_parser.add_argument('--no-youtube-scrambler', dest='youtube_scrambler_enabled', action='store_false')
     argument_parser.set_defaults(youtube_scrambler_enabled=None)
-    argument_parser.add_argument('--ip-command')
-    argument_parser.add_argument('--ifconfig-command')
-    argument_parser.add_argument('--config-dir')
     args = argument_parser.parse_args(argv)
-    if args.ip_command:
-        fqlan.IP_COMMAND = args.ip_command
-    if args.ifconfig_command:
-        fqlan.IFCONFIG_COMMAND = args.ifconfig_command
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
     read_configs(args)
     LOGGER.info('fqsocks args: %s' % argv)
     LOGGER.info('fqrouter config: %s' % args.fqrouter_config)
-    tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_listen)
-    http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = parse_ip_colon_port(args.http_listen)
+    if args.ip_command:
+        fqlan.IP_COMMAND = args.ip_command
+    if args.ifconfig_command:
+        fqlan.IFCONFIG_COMMAND = args.ifconfig_command
     networking.OUTBOUND_IP = args.outbound_ip
     fqdns.OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
-    if not args.disable_china_shortcut:
-        proxy_client.china_shortcut_enabled = False
-    if args.disable_direct_access:
-        proxy_client.HTTP_TRY_PROXY = None
-        proxy_client.HTTPS_TRY_PROXY = None
-    HTTP_TRY_PROXY.http_request_mark = get_http_request_mark(args)
-    HTTP_TRY_PROXY.youtube_scrambler_enabled = is_youtube_scrambler_enabled(args)
-    if args.disable_access_check:
-        proxy_client.CHECK_ACCESS = False
+    proxy_client.china_shortcut_enabled = args.china_shortcut_enabled
+    proxy_client.direct_access_enabled = args.direct_access_enabled
+    proxy_client.access_check_enabled = args.access_check_enabled
+    HTTP_TRY_PROXY.tcp_scrambler_enabled = args.tcp_scrambler_enabled
+    HTTP_TRY_PROXY.youtube_scrambler_enabled = args.youtube_scrambler_enabled
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
@@ -138,16 +139,20 @@ def main(argv):
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
-    dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), DNS_HANDLER)
-    greenlets = [
-        gevent.spawn(dns_server.serve_forever),
-        gevent.spawn(tcp_gateway.start_server),
-        gevent.spawn(http_gateway.start_server),
-        gevent.spawn(proxy_client.init_proxies)]
-    if not args.disable_manager_httpd:
+    greenlets = [gevent.spawn(proxy_client.init_proxies)]
+    if args.dns_listen:
+        dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), DNS_HANDLER)
+        greenlets.append(gevent.spawn(dns_server.serve_forever))
+    if args.http_listen:
+        greenlets.append(gevent.spawn(
+            functools.partial(http_gateway.serve_forever, *parse_ip_colon_port(args.http_listen))))
+    if args.tcp_listen:
+        greenlets.append(gevent.spawn(
+            functools.partial(tcp_gateway.serve_forever, *parse_ip_colon_port(args.tcp_listen))))
+    if args.manager_listen:
         greenlets.append(gevent.spawn(
             functools.partial(httpd.serve_forever, *parse_ip_colon_port(args.manager_listen))))
-    if proxy_client.HTTP_TRY_PROXY and HTTP_TRY_PROXY.http_request_mark:
+    if HTTP_TRY_PROXY.tcp_scrambler_enabled:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
         greenlet.join()
@@ -156,20 +161,16 @@ def main(argv):
 def read_configs(args):
     config_dir.CONFIG_DIR = args.config_dir
     args.fqrouter_config = config_dir.read_fqrouter_config()
-
-
-def is_youtube_scrambler_enabled(args):
+    if args.china_shortcut_enabled is None:
+        args.china_shortcut_enabled = args.fqrouter_config.get('china_shortcut_enabled', True)
+    if args.direct_access_enabled is None:
+        args.direct_access_enabled = args.fqrouter_config.get('direct_access_enabled', True)
     if args.youtube_scrambler_enabled is None:
         args.youtube_scrambler_enabled = args.fqrouter_config.get('youtube_scrambler_enabled', True)
-    return args.youtube_scrambler_enabled
-
-
-def get_http_request_mark(args):
-    if args.http_request_mark:
-        return eval(args.http_request_mark)
-    else:
-        tcp_scrambler_enabled = args.fqrouter_config.get('tcp_scrambler_enabled', True)
-        return 0xbabe if tcp_scrambler_enabled else None
+    if args.tcp_scrambler_enabled is None:
+        args.tcp_scrambler_enabled = args.fqrouter_config.get('tcp_scrambler_enabled', True)
+    if args.access_check_enabled is None:
+        args.access_check_enabled = args.fqrouter_config.get('access_check_enabled', True)
 
 
 def parse_ip_colon_port(ip_colon_port):

@@ -40,7 +40,7 @@ auto_fix_enabled = True
 china_shortcut_enabled = True
 direct_access_enabled = True
 last_refresh_started_at = 0
-CHECK_ACCESS = True
+access_check_enabled = True
 force_us_ip = False
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -544,7 +544,7 @@ def init_proxies():
             gevent.sleep(retry_interval)
         if success:
             LOGGER.critical('proxies init successfully')
-            if CHECK_ACCESS:
+            if access_check_enabled:
                 LOGGER.info('check access in 10 seconds')
                 gevent.sleep(10)
                 check_access_many_times('https://twitter.com', 5)

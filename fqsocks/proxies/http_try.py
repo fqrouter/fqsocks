@@ -51,7 +51,7 @@ class HttpTryProxy(Proxy):
     def __init__(self):
         super(HttpTryProxy, self).__init__()
         self.flags.add('DIRECT')
-        self.http_request_mark = None
+        self.tcp_scrambler_enabled = None
         self.youtube_scrambler_enabled = False
         self.host_black_list = {} # host => count
         self.bad_requests = {} # host => count
@@ -98,8 +98,8 @@ class HttpTryProxy(Proxy):
         client.headers['Host'] = client.host
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
         request_data += '\r\n'
-        if HTTP_TRY_PROXY.http_request_mark:
-            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, HTTP_TRY_PROXY.http_request_mark)
+        if HTTP_TRY_PROXY.tcp_scrambler_enabled:
+            upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0xbabe)
         try:
             upstream_sock.sendall(request_data + client.payload)
         except:
@@ -114,12 +114,12 @@ class HttpTryProxy(Proxy):
                 self.bad_requests[client.host] = self.bad_requests.get(client.host, 0) + 1
                 if self.bad_requests[client.host] >= 3:
                     LOGGER.critical('!!! too many bad requests, disable tcp scrambler !!!')
-                    HTTP_TRY_PROXY.http_request_mark = None
+                    HTTP_TRY_PROXY.tcp_scrambler_enabled = False
             else:
                 if client.host in self.bad_requests:
                     LOGGER.info('[%s] reset bad request to %s' % (repr(client), client.host))
                     del self.bad_requests[client.host]
-            if scrambles_youtube or HTTP_TRY_PROXY.http_request_mark:
+            if scrambles_youtube or HTTP_TRY_PROXY.tcp_scrambler_enabled:
                 response = response.replace('Connection: keep-alive', 'Connection: close')
                 try:
                     if scrambles_youtube and len(response) < 10:
@@ -144,7 +144,7 @@ class HttpTryProxy(Proxy):
                     LOGGER.exception('analyze response failed')
             client.forward_started = True
             client.downstream_sock.sendall(response)
-        if HTTP_TRY_PROXY.http_request_mark:
+        if HTTP_TRY_PROXY.tcp_scrambler_enabled:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         client.forward(upstream_sock)
 
