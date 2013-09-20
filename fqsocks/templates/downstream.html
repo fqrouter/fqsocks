@@ -43,7 +43,7 @@
             display: none;
         }
         body {
-            margin: 8px;
+            margin-top: 16px;
         }
         #ajax-loader {
             background:url('/assets/ajax-loader.gif') center center no-repeat white;
@@ -60,56 +60,81 @@
     </style>
 </head>
 <body>
-<ul class="nav nav-tabs">
-    <li><a href="/">{{ _('Status', '状态') }}</a></li>
-    <li><a href="/upstream">{{ _('Uncensored Internet', '墙外的世界') }}</a></li>
-    <li class="active"><a href="javascript:void(0);">{{ _('Friends', '我的小伙伴们') }}</a></li>
-    <li><a href="/config">{{ _('Config', '设置') }}</a></li>
-</ul>
-<div id="ajax-loader"></div>
-<table class="table table-striped" id="lan-devices">
-    <thead>
-    <tr>
-        <th>{{ _('ip', 'ip') }}</th>
-        <th>{{ _('hostname', '机器名') }}</th>
-        <th class="no-sort">{{ _('picked', '已选中') }}</th>
-    </tr>
-    </thead>
-    <tbody>
-    </tbody>
-</table>
+<div class="col-sm-12">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title pull-left">我的小伙伴们</h3>
+            <button class="btn btn-default pull-right">Expand</button>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body hide">
+            asdafsdf
+        </div>
+    </div>
+</div>
+<div class="col-sm-12">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title pull-left">Pick & Play</h3>
+            <button class="btn btn-primary pull-right">Scan</button>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body">
+            asdafsdf
+        </div>
+    </div>
+</div>
+<div class="col-sm-12">
+    <div class="panel panel-default">
+        <div class="panel-body" style="position: relative;">
+            <div id="ajax-loader"></div>
+            asadfasdf
+        </div>
+    </div>
+</div>
+<!--<table class="table table-striped" id="lan-devices">-->
+    <!--<thead>-->
+    <!--<tr>-->
+        <!--<th>{{ _('ip', 'ip') }}</th>-->
+        <!--<th>{{ _('hostname', '机器名') }}</th>-->
+        <!--<th class="no-sort">{{ _('picked', '已选中') }}</th>-->
+    <!--</tr>-->
+    <!--</thead>-->
+    <!--<tbody>-->
+    <!--</tbody>-->
+<!--</table>-->
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap/js/bootstrap.min.js"></script>
 <script src="/assets/tablesort.min.js"></script>
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
 <script type="text/javascript">
-    $(document).ready(function() {
-        var tablesort = new Tablesort($('#lan-devices')[0]);
-
-        $.post('/lan/scan');
-
-        var timerId;
-        function refreshLanDevices() {
-            $.get('/lan/devices', function(html) {
-                $('#lan-devices tbody').replaceWith(html);
-                tablesort.refresh();
-                if ($('#lan-devices tbody').data('isScanCompleted')) {
-                    $('#ajax-loader').hide();
-                    Visibility.stop(timerId);
-                }
-            });
-        }
-
-        $('#lan-devices').on('click', 'tr input[type=checkbox]', function() {
-            var ip = $(this).parents('tr').data('ip');
-            $.post('/lan/update', {ip:ip,is_picked:$(this).is(':checked')}, function(){
-                refreshLanDevices();
-            });
-        });
-        refreshLanDevices();
-        timerId = Visibility.every(1000, refreshLanDevices);
-    });
+//    $(document).ready(function() {
+//        var tablesort = new Tablesort($('#lan-devices')[0]);
+//
+//        $.post('/lan/scan');
+//
+//        var timerId;
+//        function refreshLanDevices() {
+//            $.get('/lan/devices', function(html) {
+//                $('#lan-devices tbody').replaceWith(html);
+//                tablesort.refresh();
+//                if ($('#lan-devices tbody').data('isScanCompleted')) {
+//                    $('#ajax-loader').hide();
+//                    Visibility.stop(timerId);
+//                }
+//            });
+//        }
+//
+//        $('#lan-devices').on('click', 'tr input[type=checkbox]', function() {
+//            var ip = $(this).parents('tr').data('ip');
+//            $.post('/lan/update', {ip:ip,is_picked:$(this).is(':checked')}, function(){
+//                refreshLanDevices();
+//            });
+//        });
+//        refreshLanDevices();
+//        timerId = Visibility.every(1000, refreshLanDevices);
+//    });
 </script>
 </body>
 </html>

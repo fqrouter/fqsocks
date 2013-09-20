@@ -8,73 +8,273 @@
     <link href="/assets/bootstrap/css/bootstrap-theme.css" rel="stylesheet" media="screen">
     <style type="text/css">
         th.sort-header {
-            cursor:pointer;
+            cursor: pointer;
         }
+
         th.sort-header::-moz-selection,
         th.sort-header::selection {
-            background:transparent;
+            background: transparent;
         }
+
         table th.sort-header:after {
-            content:'';
-            float:right;
-            margin-top:7px;
-            border-width:0 4px 4px;
-            border-style:solid;
-            border-color:#404040 transparent;
-            visibility:hidden;
+            content: '';
+            float: right;
+            margin-top: 7px;
+            border-width: 0 4px 4px;
+            border-style: solid;
+            border-color: #404040 transparent;
+            visibility: hidden;
         }
+
         table th.sort-header:hover:after {
-            visibility:visible;
+            visibility: visible;
         }
+
         table th.sort-up:after,
         table th.sort-down:after,
         table th.sort-down:hover:after {
-            visibility:visible;
-            opacity:0.4;
+            visibility: visible;
+            opacity: 0.4;
         }
+
         table th.sort-up:after {
-            border-bottom:none;
-            border-width:4px 4px 0;
+            border-bottom: none;
+            border-width: 4px 4px 0;
         }
+
         table.portrait .tx-speed {
             display: none;
         }
+
         table.portrait .rx-speed {
             display: none;
         }
+
         body {
-            margin: 8px;
+            margin-top: 16px;
+        }
+
+        .onoffswitch {
+            position: relative;
+            width: 90px;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .onoffswitch-checkbox {
+            display: none;
+        }
+
+        .onoffswitch-label {
+            display: block;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid #666666;
+            border-radius: 30px;
+        }
+
+        .onoffswitch-inner {
+            width: 200%;
+            margin-left: -100%;
+            -moz-transition: margin 0.3s ease-in 0s;
+            -webkit-transition: margin 0.3s ease-in 0s;
+            -o-transition: margin 0.3s ease-in 0s;
+            transition: margin 0.3s ease-in 0s;
+        }
+
+        .onoffswitch-inner:before, .onoffswitch-inner:after {
+            float: left;
+            width: 50%;
+            height: 30px;
+            padding: 0;
+            line-height: 30px;
+            font-size: 16px;
+            color: white;
+            font-family: Trebuchet, Arial, sans-serif;
+            font-weight: bold;
+            -moz-box-sizing: border-box;
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+            border-radius: 30px;
+            box-shadow: 0px 15px 0px rgba(0, 0, 0, 0.08) inset;
+        }
+
+        .onoffswitch-inner:before {
+            content: "ON";
+            padding-left: 15px;
+            background-color: #6BB2ED;
+            color: #FFFFFF;
+            border-radius: 30px 0 0 30px;
+        }
+
+        .onoffswitch-inner:after {
+            content: "OFF";
+            padding-right: 15px;
+            background-color: #FFFFFF;
+            color: #666666;
+            text-align: right;
+            border-radius: 0 30px 30px 0;
+        }
+
+        .onoffswitch-switch {
+            width: 30px;
+            margin: 0px;
+            background: #FFFFFF;
+            border: 2px solid #666666;
+            border-radius: 30px;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 56px;
+            -moz-transition: all 0.3s ease-in 0s;
+            -webkit-transition: all 0.3s ease-in 0s;
+            -o-transition: all 0.3s ease-in 0s;
+            transition: all 0.3s ease-in 0s;
+            background-image: -moz-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
+            background-image: -webkit-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
+            background-image: -o-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
+            background-image: linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
+            box-shadow: 0 1px 1px white inset;
+        }
+
+        .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-inner {
+            margin-left: 0;
+        }
+
+        .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-switch {
+            right: 0px;
         }
     </style>
 </head>
 <body>
-<ul class="nav nav-tabs">
-    <li><a href="/">{{ _('Status', '状态') }}</a></li>
-    <li class="active"><a href="javascript:void(0);">{{ _('Uncensored Internet', '墙外的世界') }}</a></li>
-    <li><a href="/downstream">{{ _('Friends', '我的小伙伴们') }}</a></li>
-    <li><a href="/config">{{ _('Config', '设置') }}</a></li>
-</ul>
-<table class="table table-striped" id="proxies">
-    <thead>
-    <tr>
-        <th>{{ _('proxy', '代理') }}</th>
-        <th class="rx-speed">{{ _('download', '下载') }}</th>
-        <th>{{ _('download', '下载') }}</th>
-        <th class="tx-speed">{{ _('upload', '上传') }}</th>
-        <th>{{ _('upload', '上传') }}</th>
-    </tr>
-    </thead>
-    <tbody>
-    </tbody>
-</table>
-<button  id="refresh" class="btn btn-primary">{{ _('Get New Proxies', '获得新代理') }} ({{ last_refresh_started_at.strftime('%H:%M:%S') }})</button>
+<div class="col-sm-12">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title pull-left">
+                {{ _('Proxies', '代理列表') }}
+            </h3>
+            <div class="onoffswitch pull-right">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="proxies-checkbox" checked>
+                <label class="onoffswitch-label" for="proxies-checkbox">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+            <div style="clear:both;"></div>
+        </div>
+        <div class="panel-body">
+            <table class="table table-striped" id="proxies">
+                <thead>
+                <tr>
+                    <th>{{ _('proxy', '代理') }}</th>
+                    <th class="rx-speed">{{ _('download', '下载') }}</th>
+                    <th>{{ _('download', '下载') }}</th>
+                    <th class="tx-speed">{{ _('upload', '上传') }}</th>
+                    <th>{{ _('upload', '上传') }}</th>
+                </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="col-sm-4">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title pull-left">
+                TCP Scrambler
+            </h3>
+
+            <div class="onoffswitch pull-right">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="tcp-scrambler-checkbox"
+                       checked>
+                <label class="onoffswitch-label" for="tcp-scrambler-checkbox">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body">
+            asdfasdfasdfdasfasdafdsaf
+        </div>
+    </div>
+</div>
+<div class="col-sm-4">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title" style="display: inline;">
+                Youtube Scrambler
+            </h3>
+
+            <div class="onoffswitch pull-right">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="youtube-scrambler-checkbox"
+                       checked>
+                <label class="onoffswitch-label" for="youtube-scrambler-checkbox">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body">
+            asdfasdfasdfdasfasdafdsaf
+        </div>
+    </div>
+</div>
+<div class="col-sm-4">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title" style="display: inline;">
+                China Shortcut
+            </h3>
+
+            <div class="onoffswitch pull-right">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="china-shortcut-checkbox"
+                       checked>
+                <label class="onoffswitch-label" for="china-shortcut-checkbox">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body">
+            asdfasdfasdfdasfasdafdsaf
+        </div>
+    </div>
+</div>
+<div class="col-sm-4">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title" style="display: inline;">
+                Direct Access
+            </h3>
+
+            <div class="onoffswitch pull-right">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="direct-access-checkbox"
+                       checked>
+                <label class="onoffswitch-label" for="direct-access-checkbox">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+            <div style="clear: both;"></div>
+        </div>
+        <div class="panel-body">
+            asdfasdfasdfdasfasdafdsaf
+        </div>
+    </div>
+</div>
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap/js/bootstrap.min.js"></script>
 <script src="/assets/tablesort.min.js"></script>
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
 <script>
-    $(document).ready(function() {
+    $(document).ready(function () {
 
         var tablesort = new Tablesort($('#proxies')[0]);
 
@@ -87,7 +287,7 @@
         }
 
         function refreshProxyList() {
-            $('#proxies tbody').load('/proxies?list-only=True', function() {
+            $('#proxies tbody').load('/proxies?list-only=True', function () {
                 tablesort.refresh();
             });
         }
@@ -96,8 +296,8 @@
             showHideSpeed();
         });
 
-        $('#refresh').click(function(e) {
-            $.post('/refresh-proxies', function() {
+        $('#refresh').click(function (e) {
+            $.post('/refresh-proxies', function () {
                 window.location.reload();
             });
             return false;
