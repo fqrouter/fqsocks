@@ -12,7 +12,7 @@ from .. import stat
 from .. import httpd
 from ..gateways import proxy_client
 from ..proxies.http_try import HTTP_TRY_PROXY
-from .. import config_dir
+from .. import config_file
 
 
 PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'proxies.html')
@@ -128,7 +128,7 @@ def handle_disable_proxies(environ, start_response):
 @httpd.http_handler('POST', 'tcp-scrambler/enable')
 def handle_enable_tcp_scrambler(environ, start_response):
     HTTP_TRY_PROXY.tcp_scrambler_enabled = True
-    config_dir.update_fqrouter_config(tcp_scrambler_enabled=True)
+    config_file.update_config(tcp_scrambler_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -136,7 +136,7 @@ def handle_enable_tcp_scrambler(environ, start_response):
 @httpd.http_handler('POST', 'tcp-scrambler/disable')
 def handle_disable_tcp_scrambler(environ, start_response):
     HTTP_TRY_PROXY.tcp_scrambler_enabled = False
-    config_dir.update_fqrouter_config(tcp_scrambler_enabled=False)
+    config_file.update_config(tcp_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -144,7 +144,7 @@ def handle_disable_tcp_scrambler(environ, start_response):
 @httpd.http_handler('POST', 'youtube-scrambler/enable')
 def handle_enable_youtube_scrambler(environ, start_response):
     HTTP_TRY_PROXY.youtube_scrambler_enabled = True
-    config_dir.update_fqrouter_config(youtube_scrambler_enabled=True)
+    config_file.update_config(youtube_scrambler_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -152,7 +152,7 @@ def handle_enable_youtube_scrambler(environ, start_response):
 @httpd.http_handler('POST', 'youtube-scrambler/disable')
 def handle_disable_youtube_scrambler(environ, start_response):
     HTTP_TRY_PROXY.youtube_scrambler_enabled = False
-    config_dir.update_fqrouter_config(youtube_scrambler_enabled=False)
+    config_file.update_config(youtube_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -160,7 +160,7 @@ def handle_disable_youtube_scrambler(environ, start_response):
 @httpd.http_handler('POST', 'china-shortcut/enable')
 def handle_enable_china_shortcut(environ, start_response):
     proxy_client.china_shortcut_enabled = True
-    config_dir.update_fqrouter_config(china_shortcut_enabled=True)
+    config_file.update_config(china_shortcut_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -168,7 +168,7 @@ def handle_enable_china_shortcut(environ, start_response):
 @httpd.http_handler('POST', 'china-shortcut/disable')
 def handle_disable_china_shortcut(environ, start_response):
     proxy_client.china_shortcut_enabled = False
-    config_dir.update_fqrouter_config(china_shortcut_enabled=False)
+    config_file.update_config(china_shortcut_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -176,7 +176,7 @@ def handle_disable_china_shortcut(environ, start_response):
 @httpd.http_handler('POST', 'direct-access/enable')
 def handle_enable_direct_access(environ, start_response):
     proxy_client.direct_access_enabled = True
-    config_dir.update_fqrouter_config(direct_access_enabled=True)
+    config_file.update_config(direct_access_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -184,7 +184,7 @@ def handle_enable_direct_access(environ, start_response):
 @httpd.http_handler('POST', 'direct-access/disable')
 def handle_disable_direct_access(environ, start_response):
     proxy_client.direct_access_enabled = False
-    config_dir.update_fqrouter_config(direct_access_enabled=False)
+    config_file.update_config(direct_access_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 

@@ -22,7 +22,7 @@ from .gateways import proxy_client
 from .gateways import tcp_gateway
 from .gateways import http_gateway
 from .pages import lan_device
-from . import config_dir
+from . import config_file
 
 
 __import__('fqsocks.pages')
@@ -81,14 +81,14 @@ def setup_logging(log_level, log_file=None):
 
 def main(argv):
     argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument('--tcp-listen')
-    argument_parser.add_argument('--http-listen')
-    argument_parser.add_argument('--dns-listen')
-    argument_parser.add_argument('--manager-listen')
+    argument_parser.add_argument('--tcp-gateway-listen')
+    argument_parser.add_argument('--http-gateway-listen')
+    argument_parser.add_argument('--dns-server-listen')
+    argument_parser.add_argument('--http-manager-listen')
     argument_parser.add_argument('--outbound-ip')
     argument_parser.add_argument('--ip-command')
     argument_parser.add_argument('--ifconfig-command')
-    argument_parser.add_argument('--config-dir')
+    argument_parser.add_argument('--config-file')
     argument_parser.add_argument('--log-level', default='INFO')
     argument_parser.add_argument('--log-file')
     argument_parser.add_argument('--proxy', action='append', default=[], help='for example --proxy goagent,appid=abcd')
@@ -111,9 +111,8 @@ def main(argv):
     args = argument_parser.parse_args(argv)
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level, args.log_file)
-    read_configs(args)
-    LOGGER.info('fqsocks args: %s' % argv)
-    LOGGER.info('fqrouter config: %s' % args.fqrouter_config)
+    config = read_config(args)
+    LOGGER.info('config: %s' % config)
     if args.ip_command:
         fqlan.IP_COMMAND = args.ip_command
     if args.ifconfig_command:
@@ -122,11 +121,11 @@ def main(argv):
     fqdns.OUTBOUND_IP = args.outbound_ip
     if args.google_host:
         GoAgentProxy.GOOGLE_HOSTS = args.google_host
-    proxy_client.china_shortcut_enabled = args.china_shortcut_enabled
-    proxy_client.direct_access_enabled = args.direct_access_enabled
-    proxy_client.access_check_enabled = args.access_check_enabled
-    HTTP_TRY_PROXY.tcp_scrambler_enabled = args.tcp_scrambler_enabled
-    HTTP_TRY_PROXY.youtube_scrambler_enabled = args.youtube_scrambler_enabled
+    proxy_client.china_shortcut_enabled = config['china_shortcut_enabled']
+    proxy_client.direct_access_enabled = config['direct_access_enabled']
+    proxy_client.access_check_enabled = config['access_check_enabled']
+    HTTP_TRY_PROXY.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
+    HTTP_TRY_PROXY.youtube_scrambler_enabled = config['youtube_scrambler_enabled']
     for props in args.proxy:
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
@@ -137,19 +136,19 @@ def main(argv):
     except:
         LOGGER.exception('failed to patch ssl')
     greenlets = []
-    if args.dns_listen:
-        dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_listen), DNS_HANDLER)
+    if args.dns_server_listen:
+        dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_server_listen), DNS_HANDLER)
         greenlets.append(gevent.spawn(dns_server.serve_forever))
-    if args.http_listen:
-        http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = parse_ip_colon_port(args.http_listen)
+    http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
+    if config['http_gateway']['enabled']:
         http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
         greenlets.append(http_gateway.server_greenlet)
-    if args.tcp_listen:
-        tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_listen)
+    if args.tcp_gateway_listen:
+        tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_gateway_listen)
         tcp_gateway.server_greenlet = gevent.spawn(tcp_gateway.serve_forever)
         greenlets.append(tcp_gateway.server_greenlet)
-    if args.manager_listen:
-        httpd.LISTEN_IP, httpd.LISTEN_PORT = parse_ip_colon_port(args.manager_listen)
+    httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
+    if config['http_manager']['enabled']:
         httpd.server_greenlet = gevent.spawn(httpd.serve_forever)
         greenlets.append(httpd.server_greenlet)
     greenlets.append(gevent.spawn(proxy_client.init_proxies))
@@ -165,19 +164,26 @@ def main(argv):
             return
 
 
-def read_configs(args):
-    config_dir.CONFIG_DIR = args.config_dir
-    args.fqrouter_config = config_dir.read_fqrouter_config()
-    if args.china_shortcut_enabled is None:
-        args.china_shortcut_enabled = args.fqrouter_config.get('china_shortcut_enabled', True)
-    if args.direct_access_enabled is None:
-        args.direct_access_enabled = args.fqrouter_config.get('direct_access_enabled', True)
-    if args.youtube_scrambler_enabled is None:
-        args.youtube_scrambler_enabled = args.fqrouter_config.get('youtube_scrambler_enabled', True)
-    if args.tcp_scrambler_enabled is None:
-        args.tcp_scrambler_enabled = args.fqrouter_config.get('tcp_scrambler_enabled', True)
-    if args.access_check_enabled is None:
-        args.access_check_enabled = args.fqrouter_config.get('access_check_enabled', True)
+def read_config(args):
+    config_file.path = args.config_file
+    config = config_file.read_config()
+    if args.china_shortcut_enabled is not None:
+        config['china_shortcut_enabled'] = args.china_shortcut_enabled
+    if args.direct_access_enabled is not None:
+        config['direct_access_enabled'] = args.direct_access_enabled
+    if args.youtube_scrambler_enabled is not None:
+        config['youtube_scrambler_enabled'] = args.youtube_scrambler_enabled
+    if args.tcp_scrambler_enabled is not None:
+        config['tcp_scrambler_enabled'] = args.tcp_scrambler_enabled
+    if args.access_check_enabled is not None:
+        config['access_check_enabled'] = args.access_check_enabled
+    if args.http_manager_listen:
+        config['http_manager']['enabled'] = True
+        config['http_manager']['ip'], config['http_manager']['port'] = parse_ip_colon_port(args.http_manager_listen)
+    if args.http_gateway_listen:
+        config['http_gateway']['enabled'] = True
+        config['http_gateway']['ip'], config['http_gateway']['port'] = parse_ip_colon_port(args.http_gateway_listen)
+    return config
 
 
 def parse_ip_colon_port(ip_colon_port):

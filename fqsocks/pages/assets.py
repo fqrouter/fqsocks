@@ -31,8 +31,8 @@ httpd.HANDLERS[('GET', 'assets/bootstrap/fonts/glyphicons-halflings-regular.svg'
 httpd.HANDLERS[('GET', 'assets/bootstrap/fonts/glyphicons-halflings-regular.woff')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'bootstrap', 'fonts', 'glyphicons-halflings-regular.woff'), 'font/x-woff')
 
-httpd.HANDLERS[('GET', 'assets/bootstrap/js/bootstrap.min.js')] = functools.partial(
-    get_asset, os.path.join(ASSETS_DIR, 'bootstrap', 'js', 'bootstrap.min.js'), 'text/javascript')
+httpd.HANDLERS[('GET', 'assets/bootstrap/js/bootstrap.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'bootstrap', 'js', 'bootstrap.js'), 'text/javascript')
 
 httpd.HANDLERS[('GET', 'assets/jquery.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'jquery.min.js'), 'text/javascript')

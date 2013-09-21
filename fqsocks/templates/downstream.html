@@ -121,11 +121,13 @@
         </div>
     </div>
 </div>
-<div class="col-xs-6">
+<div class="col-sm-6">
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">{{ _('Remote Access', '远程访问') }}</h3>
-            <a data-toggle="modal" href="#myModal" class="btn btn-default pull-right" id="config-http-manager">{{ _('Config', '配置') }}</a>
+            <a data-toggle="modal" href="#http-manager-dialog" class="btn btn-default pull-right" id="config-http-manager">
+                {{ _('Config', '配置') }}
+            </a>
             <div style="clear: both;"></div>
         </div>
         <div class="panel-body">
@@ -139,31 +141,40 @@
             """) }}
             <div style="margin-top: 8px;">
                 <label class="label label-info" style="font-size: 16px; ">
-                    http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/downstream
+                    http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
                 </label>
             </div>
         </div>
     </div>
 </div>
 <!-- Modal -->
-<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+<div class="modal fade" id="http-manager-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="http-manager-dialog-title" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-                <h4 class="modal-title">Modal title</h4>
+                <h4 class="modal-title" id="http-manager-dialog-title">
+                    {{ _('Configure Remote Access', '配置远程访问') }}
+                </h4>
             </div>
             <div class="modal-body">
-                ...
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="http-manager-port">{{ _('Port', '端口') }}</label>
+                        <input type="text" class="form-control" id="http-manager-port" value="{{ httpd.LISTEN_PORT }}">
+                    </div>
+                </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary">Save changes</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="http-manager-dialog-save">保存改动</button>
             </div>
         </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->
 </div><!-- /.modal -->
-<div class="col-xs-6">
+<div class="col-sm-6">
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">{{ _('HTTP Proxy', 'HTTP代理') }}</h3>
@@ -181,7 +192,7 @@
             """
             把翻墙网络共享给周围的朋友。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
             """) }}
-            <ul class="list-group" style="margin-bottom: 0;">
+            <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;">
                 <li class="list-group-item">
                     <label class="label label-default">HTTP</label>
                     <label class="label label-info" style="font-size: 16px;">{{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}</label>
@@ -195,7 +206,7 @@
     </div>
 </div>
 <script src="/assets/jquery.min.js"></script>
-<script src="/assets/bootstrap/js/bootstrap.min.js"></script>
+<script src="/assets/bootstrap/js/bootstrap.js"></script>
 <script src="/assets/tablesort.min.js"></script>
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
@@ -207,8 +218,11 @@
         var timerId;
 
         function refreshLanDevices() {
-            $('#lan-devices').removeClass('hide');
             $.get('/lan/devices', function (html) {
+                if ($(html).find('tr').length == 0) {
+                    return;
+                }
+                $('#lan-devices').removeClass('hide');
                 $('#lan-devices tbody').replaceWith(html);
                 tablesort.refresh();
                 if ($('#lan-devices tbody').data('isScanCompleted')) {
@@ -218,6 +232,7 @@
                 }
             });
         }
+        refreshLanDevices();
 
         $('#lan-devices').on('click', 'tr input[type=checkbox]', function () {
             var ip = $(this).parents('tr').data('ip');
@@ -227,6 +242,7 @@
         });
 
         $('#scan').click(function () {
+            $('#lan-devices').removeClass('hide');
             $('#ajax-loader').removeClass('hide');
             $.post('/lan/scan');
             refreshLanDevices();
@@ -241,6 +257,30 @@
             } else {
                 $.post('/http-gateway/disable');
             }
+        });
+
+        $('#http-manager-dialog-save').click(function() {
+            $('#http-manager-dialog form').submit();
+        });
+        $('#http-manager-dialog form').submit(function(e) {
+            e.preventDefault();
+            var newConfig = {
+                port: $('#http-manager-port').val()
+            };
+            $.post('/http-manager/config/validate', newConfig, function(error) {
+                if (error) {
+                    $('#http-manager-dialog .alert').html(error).removeClass('hide');
+                } else {
+                    $('#http-manager-dialog .alert').addClass('hide');
+                    $.post('/http-manager/config/update', newConfig, function(error) {
+                        if (error) {
+                            $('#http-manager-dialog .alert').html(error).removeClass('hide');
+                        } else {
+                            window.location.href = 'http://{{ default_interface_ip }}:' + newConfig.port + '/downstream';
+                        }
+                    });
+                }
+            });
         });
     });
 </script>

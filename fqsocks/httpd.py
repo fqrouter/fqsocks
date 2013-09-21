@@ -59,9 +59,9 @@ def http_handler(method, url):
 
 def serve_forever():
     try:
-        httpd = WSGIServer((LISTEN_IP, LISTEN_PORT), handle_request)
+        server = WSGIServer((LISTEN_IP, LISTEN_PORT), handle_request)
         LOGGER.info('serving HTTP on port %s:%s...' % (LISTEN_IP, LISTEN_PORT))
     except:
         LOGGER.exception('failed to start HTTP server on port %s:%s' % (LISTEN_IP, LISTEN_PORT))
         os._exit(1)
-    httpd.serve_forever()
+    server.serve_forever()
