@@ -158,8 +158,11 @@ def main(argv):
     for greenlet in greenlets:
         try:
             greenlet.join()
+        except KeyboardInterrupt:
+            return
         except:
-            pass
+            LOGGER.exception('greenlet join failed')
+            return
 
 
 def read_configs(args):

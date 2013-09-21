@@ -98,7 +98,7 @@ class HttpTryProxy(Proxy):
         client.headers['Host'] = client.host
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
         request_data += '\r\n'
-        if HTTP_TRY_PROXY.tcp_scrambler_enabled:
+        if not scrambles_youtube and HTTP_TRY_PROXY.tcp_scrambler_enabled:
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0xbabe)
         try:
             upstream_sock.sendall(request_data + client.payload)
@@ -127,9 +127,13 @@ class HttpTryProxy(Proxy):
                     if http_response:
                         if scrambles_youtube and httplib.FORBIDDEN == http_response.status:
                             client.fall_back(reason='403 forbidden')
+                        if scrambles_youtube and httplib.NOT_FOUND == http_response.status:
+                            client.fall_back(reason='404 not found')
                         content_length = http_response.msg.dict.get('content-length')
-                        if scrambles_youtube and content_length and httplib.PARTIAL_CONTENT != http_response.status and 0 < int(
-                                content_length) < 10:
+                        if scrambles_youtube \
+                            and content_length \
+                            and httplib.PARTIAL_CONTENT != http_response.status \
+                            and 0 < int(content_length) < 10:
                             client.fall_back('content length is too small: %s' % http_response.msg.dict)
                         if http_response.body and 'gzip' == http_response.msg.dict.get('content-encoding'):
                             stream = StringIO.StringIO(http_response.body)
