@@ -6,6 +6,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <link href="/assets/bootstrap/css/bootstrap.css" rel="stylesheet" media="screen">
     <link href="/assets/bootstrap/css/bootstrap-theme.css" rel="stylesheet" media="screen">
+    <link href="/assets/bootstrap-switch.css" rel="stylesheet" media="screen">
     <style type="text/css">
         th.sort-header {
             cursor: pointer;
@@ -67,97 +68,6 @@
             opacity: 0.5;
         }
 
-        .onoffswitch {
-            position: relative;
-            width: 90px;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-        }
-
-        .onoffswitch-checkbox {
-            display: none;
-        }
-
-        .onoffswitch-label {
-            display: block;
-            overflow: hidden;
-            cursor: pointer;
-            border: 2px solid #666666;
-            border-radius: 30px;
-        }
-
-        .onoffswitch-inner {
-            width: 200%;
-            margin-left: -100%;
-            -moz-transition: margin 0.3s ease-in 0s;
-            -webkit-transition: margin 0.3s ease-in 0s;
-            -o-transition: margin 0.3s ease-in 0s;
-            transition: margin 0.3s ease-in 0s;
-        }
-
-        .onoffswitch-inner:before, .onoffswitch-inner:after {
-            float: left;
-            width: 50%;
-            height: 30px;
-            padding: 0;
-            line-height: 30px;
-            font-size: 16px;
-            color: white;
-            font-family: Trebuchet, Arial, sans-serif;
-            font-weight: bold;
-            -moz-box-sizing: border-box;
-            -webkit-box-sizing: border-box;
-            box-sizing: border-box;
-            border-radius: 30px;
-            box-shadow: 0px 15px 0px rgba(0, 0, 0, 0.08) inset;
-        }
-
-        .onoffswitch-inner:before {
-            content: "ON";
-            padding-left: 15px;
-            background-color: #6BB2ED;
-            color: #FFFFFF;
-            border-radius: 30px 0 0 30px;
-        }
-
-        .onoffswitch-inner:after {
-            content: "OFF";
-            padding-right: 15px;
-            background-color: #FFFFFF;
-            color: #666666;
-            text-align: right;
-            border-radius: 0 30px 30px 0;
-        }
-
-        .onoffswitch-switch {
-            width: 30px;
-            margin: 0px;
-            background: #FFFFFF;
-            border: 2px solid #666666;
-            border-radius: 30px;
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            right: 56px;
-            -moz-transition: all 0.3s ease-in 0s;
-            -webkit-transition: all 0.3s ease-in 0s;
-            -o-transition: all 0.3s ease-in 0s;
-            transition: all 0.3s ease-in 0s;
-            background-image: -moz-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            background-image: -webkit-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            background-image: -o-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            background-image: linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            box-shadow: 0 1px 1px white inset;
-        }
-
-        .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-inner {
-            margin-left: 0;
-        }
-
-        .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-switch {
-            right: 0px;
-        }
     </style>
 </head>
 <body>
@@ -211,7 +121,7 @@
         </div>
     </div>
 </div>
-<div class="col-sm-4">
+<div class="col-xs-6">
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">{{ _('Remote Access', '远程访问') }}</h3>
@@ -227,7 +137,11 @@
             """
             Pick & Play 也可以从另外一端来控制。把下面的URL给你的朋友们，这样TA们就可以自己控制是否要通过你的手机代理上网了。
             """) }}
-            <h3>http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/downstream</h3>
+            <div style="margin-top: 8px;">
+                <label class="label label-info" style="font-size: 16px; ">
+                    http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/downstream
+                </label>
+            </div>
         </div>
     </div>
 </div>
@@ -249,17 +163,12 @@
         </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->
 </div><!-- /.modal -->
-<div class="col-sm-4">
+<div class="col-xs-6">
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">{{ _('HTTP Proxy', 'HTTP代理') }}</h3>
-            <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="http-gateway-checkbox"
-                {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
-                <label class="onoffswitch-label" for="http-gateway-checkbox">
-                    <div class="onoffswitch-inner"></div>
-                    <div class="onoffswitch-switch"></div>
-                </label>
+            <div class="make-switch pull-right" data-on="success" data-off="default" id="http-gateway-switch">
+                <input type="checkbox" {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
             </div>
             <div style="clear: both;"></div>
         </div>
@@ -273,8 +182,14 @@
             把翻墙网络共享给周围的朋友。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
             """) }}
             <ul class="list-group" style="margin-bottom: 0;">
-                <li class="list-group-item">HTTP: {{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}</li>
-                <li class="list-group-item">PAC: http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/pac</li>
+                <li class="list-group-item">
+                    <label class="label label-default">HTTP</label>
+                    <label class="label label-info" style="font-size: 16px;">{{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}</label>
+                </li>
+                <li class="list-group-item">
+                    <label class="label label-default">PAC</label>
+                    <label class="label label-info" style="font-size: 16px;">http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/pac</label>
+                </li>
             </ul>
         </div>
     </div>
@@ -284,6 +199,7 @@
 <script src="/assets/tablesort.min.js"></script>
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
+<script src="/assets/bootstrap-switch.js"></script>
 <script type="text/javascript">
     $(document).ready(function () {
         var tablesort = new Tablesort($('#lan-devices table')[0]);
@@ -319,8 +235,8 @@
             }
         });
 
-        $('#http-gateway-checkbox').click(function () {
-            if ($(this).is(':checked')) {
+        $('#http-gateway-switch').on('switch-change', function (e, data) {
+            if (data.value) {
                 $.post('/http-gateway/enable');
             } else {
                 $.post('/http-gateway/disable');
