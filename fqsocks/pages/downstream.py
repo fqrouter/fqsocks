@@ -19,8 +19,10 @@ def downstream_page(environ, start_response):
     with open(DOWNSTREAM_HTML_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
     start_response(httplib.OK, [('Content-Type', 'text/html')])
+    is_root = 0 == os.getuid()
     return [template.render(
         _=environ['select_text'],
+        is_root=is_root,
         default_interface_ip=fqlan.get_default_interface_ip(),
         http_gateway=http_gateway,
         httpd=httpd).encode('utf8')]

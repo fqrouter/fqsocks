@@ -74,15 +74,32 @@
 <div class="col-sm-12">
     <div class="panel panel-default">
         <div class="panel-heading">
-            <h3 class="panel-title pull-left">我的小伙伴们</h3>
-            <button class="btn btn-default pull-right">Expand</button>
+            <h3 class="panel-title pull-left">{{ _('My Friends', '我的小伙伴们') }}</h3>
             <div style="clear: both;"></div>
         </div>
-        <div class="panel-body hide">
-            asdafsdf
+        <div class="panel-body">
+            {{ _(
+            """
+            fqrouter can share the uncensored internet to your friends via various ways.
+            If it is running as root user, you can use any System built-in internet sharing methods to share
+            uncensored internet, such as 3G portable hotspot, bluetooth, USB.
+            Besides those built-in methods, fqrouter adds two additional ways to the list: Pick &amp; Play
+            and Wifi Repeater. However, due to hardware or network limitation, they might not work for you.
+            If fqrouter is not running as root user, then http proxy is only one way to share the uncensored internet.
+            Right now, all sharing methods are limited to small range. In the future, fqrouter will allow you
+            sharing over internet, then friends far away can also benefit from your kindness.
+            """,
+            """
+            fqrouter可以通过好几种方式把翻墙网络共享给你的朋友们。
+            如果是以ROOT权限运行的，你可以使用任意系统内置的互联网共享方式来共享翻墙网络，比如3G移动热点，蓝牙和USB。
+            除了这些内置的方式，fqrouter还添加了两种办法：Pick &amp; Play和无线中继。然而，由于硬件和网络的限制，它们未必在你的环境下好使。
+            如果fqrouter不是以ROOT权限运行的，那么HTTP代理是唯一的共享翻墙网络方式。现在所有的共享方式都局限在很小的范围内。
+            将来fqrouter会提供面向互联网共享的方式，那时远方的朋友也可以享受到你提供的便利。
+            """) }}
         </div>
     </div>
 </div>
+{% if is_root %}
 <div class="col-sm-12">
     <div class="panel panel-default">
         <div class="panel-heading">
@@ -121,6 +138,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 <div class="col-sm-6">
     <div class="panel panel-default">
         <div class="panel-heading">
@@ -133,11 +151,10 @@
         <div class="panel-body">
             {{ _(
             """
-            Pick & Play can be controlled from the other end.
-            Give following url to your friends, so they can control if they want to tunnel via your mobile or not.
+            This page can also be accessed within the same local area network (LAN).
             """,
             """
-            Pick & Play 也可以从另外一端来控制。把下面的URL给你的朋友们，这样TA们就可以自己控制是否要通过你的手机代理上网了。
+            本页面可以在同一个局域网内的其他机器上访问。
             """) }}
             <div style="margin-top: 8px;">
                 <label class="label label-info" style="font-size: 16px; ">
@@ -186,11 +203,11 @@
         <div class="panel-body">
             {{ _(
             """
-            Share uncensored internet to friends nearby. They just need to set http proxy in their device
+            Share uncensored internet to friends nearby (within the same local area network). They just need to set http proxy in their device
             to the following values. If you do not know what is this about, just google for it :
             """,
             """
-            把翻墙网络共享给周围的朋友。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
+            把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
             """) }}
             <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;">
                 <li class="list-group-item">
