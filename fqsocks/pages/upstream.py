@@ -34,7 +34,8 @@ def upstream_page(environ, start_response):
         tcp_scrambler_enabled=HTTP_TRY_PROXY.tcp_scrambler_enabled,
         youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
-        direct_access_enabled=proxy_client.direct_access_enabled).encode('utf8')
+        direct_access_enabled=proxy_client.direct_access_enabled,
+        config=config_file.read_config()).encode('utf8')
 
 
 @httpd.http_handler('POST', 'refresh-proxies')
@@ -105,22 +106,28 @@ def handle_list_proxies(environ, start_response):
     return template.render(proxies_stats=proxies_stats).encode('utf8')
 
 
-@httpd.http_handler('POST', 'proxies/enable')
-def handle_enable_proxies(environ, start_response):
+def enable_proxies():
     proxy_client.clear_proxy_states()
     proxy_client.reset_proxy_directories()
     proxy_client.last_refresh_started_at = 0
     gevent.spawn(proxy_client.init_proxies)
+
+
+@httpd.http_handler('POST', 'proxies/enable')
+def handle_enable_proxies(environ, start_response):
+    enable_proxies()
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
 
-@httpd.http_handler('POST', 'proxies/disable')
-def handle_disable_proxies(environ, start_response):
-    global is_free_internet_connected
-    is_free_internet_connected = False
+def disable_proxies():
     proxy_client.proxies = []
     proxy_client.clear_proxy_states()
+
+
+@httpd.http_handler('POST', 'proxies/disable')
+def handle_disable_proxies(environ, start_response):
+    disable_proxies()
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
@@ -185,6 +192,22 @@ def handle_enable_direct_access(environ, start_response):
 def handle_disable_direct_access(environ, start_response):
     proxy_client.direct_access_enabled = False
     config_file.update_config(direct_access_enabled=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'public-servers/config/update')
+def handle_update_public_servers_config(environ, start_response):
+    goagent_enabled = 'true' == environ['REQUEST_ARGUMENTS']['goagent_enabled'].value
+    ss_enabled = 'true' == environ['REQUEST_ARGUMENTS']['ss_enabled'].value
+
+    def apply(config):
+        config['public_servers']['goagent_enabled'] = goagent_enabled
+        config['public_servers']['ss_enabled'] = ss_enabled
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 

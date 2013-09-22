@@ -92,8 +92,14 @@
             <h3 class="panel-title pull-left">
                 {{ _('Proxies', '代理列表') }}
             </h3>
-            <div class="make-switch pull-right" data-on="success" data-off="default" id="proxies-switch">
-                <input type="checkbox" {{ 'checked="checked"' if proxies_enabled else '' }}>
+            <div class="pull-right">
+                <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default"
+                   id="config-http-manager">
+                    {{ _('Config', '配置') }}
+                </a>
+                <div class="make-switch" data-on="success" data-off="default" id="proxies-switch">
+                    <input type="checkbox" {{ 'checked="checked"' if proxies_enabled else '' }}>
+                </div>
             </div>
             <div style="clear:both;"></div>
         </div>
@@ -203,8 +209,55 @@
         </div>
     </div>
 </div>
+
+<!-- Modal -->
+<div class="modal fade" id="proxies-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="proxies-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="proxies-dialog-title">
+                    {{ _('Configure Proxies', '配置代理') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="goagent-public-servers-switch">{{ _('GoAgent Public Servers', 'GoAgent 公共代理') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="goagent-public-servers-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['goagent_enabled'] else '' }}>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-goagent-private-server">{{ _('GoAgent Private Server', 'GoAgent 个人代理') }}</label>
+                        <button type="button" id="add-goagent-private-server" class="btn btn-default pull-right">
+                            <span class="glyphicon glyphicon-plus"></span>
+                            {{ _('Add', '添加') }}
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label for="ss-public-servers-switch">{{ _('Shadowsocks Public Servers', 'Shadowsocks 公共代理') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="ss-public-servers-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['ss_enabled'] else '' }}>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="proxies-dialog-save">{{ _('Save', '保存') }}</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<!-- /.modal -->
+
 <script src="/assets/jquery.min.js"></script>
-<script src="/assets/bootstrap/js/bootstrap.min.js"></script>
+<script src="/assets/bootstrap/js/bootstrap.js"></script>
 <script src="/assets/tablesort.min.js"></script>
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
@@ -271,6 +324,22 @@
                 $.post('/direct-access/disable');
             }
         });
+
+        $('#proxies-dialog-save').click(function() {
+            $('#proxies-dialog form').submit();
+        });
+
+
+        $('#proxies-dialog form').submit(function (e) {
+            e.preventDefault();
+            var newConfig = {
+                goagent_enabled: $('#goagent-public-servers-switch').bootstrapSwitch('status'),
+                ss_enabled: $('#ss-public-servers-switch').bootstrapSwitch('status')
+            };
+            $.post('/public-servers/config/update', newConfig);
+            $('#proxies-dialog').modal('hide');
+        });
+
 
         showHideSpeed();
         refreshProxyList();

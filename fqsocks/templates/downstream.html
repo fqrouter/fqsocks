@@ -275,8 +275,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-primary" id="http-manager-dialog-save">保存改动</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="http-manager-dialog-save">{{ _('Save', '保存') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->
@@ -315,8 +315,8 @@
                 <button type="button" class="btn btn-danger pull-left" id="wifi-repeater-dialog-reset">{{ _('My Wifi
                     Broken', '我的无线挂了') }}
                 </button>
-                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-primary" id="wifi-repeater-dialog-save">保存改动</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="wifi-repeater-dialog-save">{{ _('Save', '保存') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->
@@ -340,15 +340,15 @@
                 <div class="alert alert-danger hide"></div>
                 <form role="form">
                     <div class="form-group">
-                        <label for="http-manager-port">{{ _('Port', '端口') }}</label>
+                        <label for="http-gateway-port">{{ _('Port', '端口') }}</label>
                         <input type="text" class="form-control" id="http-gateway-port"
                                value="{{ http_gateway.LISTEN_PORT }}">
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-primary" id="http-gateway-dialog-save">保存改动</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="http-gateway-dialog-save">{{ _('Save', '保存') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->

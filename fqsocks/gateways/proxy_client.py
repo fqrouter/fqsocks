@@ -33,6 +33,7 @@ from .. import china_ip
 from ..proxies.direct import DIRECT_PROXY
 from ..proxies.direct import HTTPS_TRY_PROXY
 from ..proxies.direct import NONE_PROXY
+from .. import config_file
 
 
 dns_polluted_at = 0
@@ -46,7 +47,7 @@ TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
 LOGGER = logging.getLogger(__name__)
 proxy_directories = []
-initial_proxy_directories = []
+cli_proxy_directories = []
 proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
@@ -417,7 +418,7 @@ def pick_proxy_supports(client, protocol):
     for proxy in supported_proxies:
         prioritized_proxies.setdefault(proxy.priority, []).append(proxy)
     highest_priority = sorted(prioritized_proxies.keys())[0]
-    picked_proxy = sorted(prioritized_proxies[highest_priority], key=lambda proxy: proxy.latency)[0]
+    picked_proxy = random.choice(sorted(prioritized_proxies[highest_priority], key=lambda proxy: proxy.latency)[:3])
     if picked_proxy.latency == 0:
         return random.choice(prioritized_proxies[highest_priority])
     return picked_proxy
@@ -523,8 +524,7 @@ def add_proxies(proxy_type, prop_dict):
             proxies.append(proxy)
     else:
         if 'directory' == proxy_type:
-            proxy_directories.append(prop_dict)
-            initial_proxy_directories.append(prop_dict)
+            cli_proxy_directories.append(prop_dict)
         else:
             proxy = proxy_types[proxy_type](**prop_dict)
             proxies.append(proxy)
@@ -567,7 +567,15 @@ def load_proxies_from_directories():
 
 def reset_proxy_directories():
     global proxy_directories
-    proxy_directories = list(initial_proxy_directories)
+    proxy_directories = list(cli_proxy_directories)
+    config = config_file.read_config()
+    if config['public_servers']['source']:
+        proxy_directory = {'source': config['public_servers']['source']}
+        if config['public_servers']['goagent_enabled']:
+            proxy_directory['goagent'] = 'True'
+        if config['public_servers']['ss_enabled']:
+            proxy_directory['ss'] = 'True'
+        proxy_directories.append(proxy_directory)
 
 
 def load_proxy_from_directory(proxy_directory):
@@ -577,7 +585,7 @@ def load_proxy_from_directory(proxy_directory):
         with contextlib.closing(sock):
             sock.settimeout(10)
             request = dpkt.dns.DNS(
-                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy_directory['src'], type=dpkt.dns.DNS_TXT)])
+                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(proxy_directory['source']), type=dpkt.dns.DNS_TXT)])
             sock.sendto(str(request), ('8.8.8.8', 53))
             gevent.sleep(0.1)
             for an in dpkt.dns.DNS(sock.recv(1024)).an:

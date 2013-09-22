@@ -1,6 +1,6 @@
 {% for proxy_public_name, proxy_stats in proxies_stats.items() %}
 <tr>
-    <td><label class="label {{ 'label-danger' if proxy_stats.died else 'label-success' }}">{{ proxy_public_name }}</label></td>
+    <td><button type="button" class="btn btn-xs {{ 'btn-danger' if proxy_stats.died else 'btn-success' }}">{{ proxy_public_name }}</button></td>
     <td class="rx-speed" data-sort="{{ proxy_stats.rx_speed_value }}">{{ proxy_stats.rx_speed_label }}</td>
     <td data-sort="{{ proxy_stats.rx_bytes_value }}">{{ proxy_stats.rx_bytes_label }}</td>
     <td class="tx-speed" data-sort="{{ proxy_stats.tx_speed_value }}">{{ proxy_stats.tx_speed_label }}</td>

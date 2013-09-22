@@ -131,6 +131,7 @@ def main(argv):
         props = props.split(',')
         prop_dict = dict(p.split('=') for p in props[1:])
         proxy_client.add_proxies(props[0], prop_dict)
+    proxy_client.reset_proxy_directories()
     gevent.monkey.patch_all(ssl=False)
     try:
         gevent.monkey.patch_ssl()

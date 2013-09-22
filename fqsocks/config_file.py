@@ -20,6 +20,11 @@ DEFAULT_CONFIG = {
     'wifi_repeater': {
         'ssid': 'fqrouter',
         'password': '12345678'
+    },
+    'public_servers': {
+        'source': 'proxies.fqrouter.com',
+        'goagent_enabled': True,
+        'ss_enabled': True
     }
 }
 
