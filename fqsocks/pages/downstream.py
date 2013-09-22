@@ -19,13 +19,16 @@ def downstream_page(environ, start_response):
     with open(DOWNSTREAM_HTML_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
     start_response(httplib.OK, [('Content-Type', 'text/html')])
-    is_root = 0 == os.getuid()
     return [template.render(
         _=environ['select_text'],
-        is_root=is_root,
+        is_root=is_root(),
         default_interface_ip=fqlan.get_default_interface_ip(),
         http_gateway=http_gateway,
         httpd=httpd).encode('utf8')]
+
+
+def is_root():
+    return 0 == os.getuid()
 
 
 @httpd.http_handler('POST', 'http-gateway/enable')
@@ -63,7 +66,7 @@ def handle_validate_http_manager_config(environ, start_response):
         port = int(port)
     except:
         return [environ['select_text']('must be a number', '只能是数字')]
-    if 0 != os.getuid():
+    if not is_root():
         if port < 1024:
             return [environ['select_text']('must > 1024', '端口号不能小于1024')]
     return []
@@ -86,5 +89,40 @@ def handle_update_http_manager_config(environ, start_response):
     gevent.sleep(0.5)
     if httpd.server_greenlet.ready():
         httpd.server_greenlet = None
+        return [environ['select_text']('failed to start on new port', '用新端口启动失败')]
+    return []
+
+
+@httpd.http_handler('POST', 'http-gateway/config/validate')
+def handle_validate_http_gateway_config(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    port = environ['REQUEST_ARGUMENTS']['port'].value
+    try:
+        port = int(port)
+    except:
+        return [environ['select_text']('must be a number', '只能是数字')]
+    if not is_root():
+        if port < 1024:
+            return [environ['select_text']('must > 1024', '端口号不能小于1024')]
+    return []
+
+
+@httpd.http_handler('POST', 'http-gateway/config/update')
+def handle_update_http_gateway_config(environ, start_response):
+    port = environ['REQUEST_ARGUMENTS']['port'].value
+    http_gateway.LISTEN_PORT = int(port)
+
+    def apply(config):
+        config['http_gateway']['port'] = http_gateway.LISTEN_PORT
+
+    config_file.update_config(apply)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    if http_gateway.server_greenlet is not None:
+        http_gateway.server_greenlet.kill()
+        http_gateway.server_greenlet = None
+    http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
+    gevent.sleep(0.5)
+    if http_gateway.server_greenlet.ready():
+        http_gateway.server_greenlet = None
         return [environ['select_text']('failed to start on new port', '用新端口启动失败')]
     return []

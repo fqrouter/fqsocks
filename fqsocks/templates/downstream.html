@@ -195,8 +195,13 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">{{ _('HTTP Proxy', 'HTTP代理') }}</h3>
-            <div class="make-switch pull-right" data-on="success" data-off="default" id="http-gateway-switch">
-                <input type="checkbox" {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
+            <div class="pull-right">
+                <a data-toggle="modal" href="#http-gateway-dialog" class="btn btn-default" id="config-http-gateway">
+                    {{ _('Config', '配置') }}
+                </a>
+                <div class="make-switch" data-on="success" data-off="default" id="http-gateway-switch">
+                    <input type="checkbox" {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
+                </div>
             </div>
             <div style="clear: both;"></div>
         </div>
@@ -222,6 +227,33 @@
         </div>
     </div>
 </div>
+<!-- Modal -->
+<div class="modal fade" id="http-gateway-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="http-gateway-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="http-gateway-dialog-title">
+                    {{ _('Configure Remote Access', '配置远程访问') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="http-manager-port">{{ _('Port', '端口') }}</label>
+                        <input type="text" class="form-control" id="http-gateway-port" value="{{ http_gateway.LISTEN_PORT }}">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="http-gateway-dialog-save">保存改动</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap/js/bootstrap.js"></script>
 <script src="/assets/tablesort.min.js"></script>
@@ -279,6 +311,7 @@
         $('#http-manager-dialog-save').click(function() {
             $('#http-manager-dialog form').submit();
         });
+
         $('#http-manager-dialog form').submit(function(e) {
             e.preventDefault();
             var newConfig = {
@@ -294,6 +327,31 @@
                             $('#http-manager-dialog .alert').html(error).removeClass('hide');
                         } else {
                             window.location.href = 'http://{{ default_interface_ip }}:' + newConfig.port + '/downstream';
+                        }
+                    });
+                }
+            });
+        });
+
+        $('#http-gateway-dialog-save').click(function() {
+            $('#http-gateway-dialog form').submit();
+        });
+
+        $('#http-gateway-dialog form').submit(function(e) {
+            e.preventDefault();
+            var newConfig = {
+                port: $('#http-gateway-port').val()
+            };
+            $.post('/http-gateway/config/validate', newConfig, function(error) {
+                if (error) {
+                    $('#http-gateway-dialog .alert').html(error).removeClass('hide');
+                } else {
+                    $('#http-gateway-dialog .alert').addClass('hide');
+                    $.post('/http-gateway/config/update', newConfig, function(error) {
+                        if (error) {
+                            $('#http-gateway-dialog .alert').html(error).removeClass('hide');
+                        } else {
+                            window.location.reload();
                         }
                     });
                 }
