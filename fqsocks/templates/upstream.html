@@ -6,6 +6,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <link href="/assets/bootstrap/css/bootstrap.css" rel="stylesheet" media="screen">
     <link href="/assets/bootstrap/css/bootstrap-theme.css" rel="stylesheet" media="screen">
+    <link href="/assets/bootstrap-switch.css" rel="stylesheet" media="screen">
     <style type="text/css">
         th.sort-header {
             cursor: pointer;
@@ -53,98 +54,6 @@
         body {
             margin-top: 16px;
         }
-
-        .onoffswitch {
-            position: relative;
-            width: 90px;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-        }
-
-        .onoffswitch-checkbox {
-            display: none;
-        }
-
-        .onoffswitch-label {
-            display: block;
-            overflow: hidden;
-            cursor: pointer;
-            border: 2px solid #666666;
-            border-radius: 30px;
-        }
-
-        .onoffswitch-inner {
-            width: 200%;
-            margin-left: -100%;
-            -moz-transition: margin 0.3s ease-in 0s;
-            -webkit-transition: margin 0.3s ease-in 0s;
-            -o-transition: margin 0.3s ease-in 0s;
-            transition: margin 0.3s ease-in 0s;
-        }
-
-        .onoffswitch-inner:before, .onoffswitch-inner:after {
-            float: left;
-            width: 50%;
-            height: 30px;
-            padding: 0;
-            line-height: 30px;
-            font-size: 16px;
-            color: white;
-            font-family: Trebuchet, Arial, sans-serif;
-            font-weight: bold;
-            -moz-box-sizing: border-box;
-            -webkit-box-sizing: border-box;
-            box-sizing: border-box;
-            border-radius: 30px;
-            box-shadow: 0px 15px 0px rgba(0, 0, 0, 0.08) inset;
-        }
-
-        .onoffswitch-inner:before {
-            content: "ON";
-            padding-left: 15px;
-            background-color: #6BB2ED;
-            color: #FFFFFF;
-            border-radius: 30px 0 0 30px;
-        }
-
-        .onoffswitch-inner:after {
-            content: "OFF";
-            padding-right: 15px;
-            background-color: #FFFFFF;
-            color: #666666;
-            text-align: right;
-            border-radius: 0 30px 30px 0;
-        }
-
-        .onoffswitch-switch {
-            width: 30px;
-            margin: 0px;
-            background: #FFFFFF;
-            border: 2px solid #666666;
-            border-radius: 30px;
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            right: 56px;
-            -moz-transition: all 0.3s ease-in 0s;
-            -webkit-transition: all 0.3s ease-in 0s;
-            -o-transition: all 0.3s ease-in 0s;
-            transition: all 0.3s ease-in 0s;
-            background-image: -moz-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            background-image: -webkit-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            background-image: -o-linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            background-image: linear-gradient(center top, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 80%);
-            box-shadow: 0 1px 1px white inset;
-        }
-
-        .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-inner {
-            margin-left: 0;
-        }
-
-        .onoffswitch-checkbox:checked + .onoffswitch-label .onoffswitch-switch {
-            right: 0px;
-        }
     </style>
 </head>
 <body>
@@ -183,13 +92,8 @@
             <h3 class="panel-title pull-left">
                 {{ _('Proxies', '代理列表') }}
             </h3>
-            <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="proxies-checkbox"
-                {{ 'checked="checked"' if proxies_enabled else '' }}>
-                <label class="onoffswitch-label" for="proxies-checkbox">
-                    <div class="onoffswitch-inner"></div>
-                    <div class="onoffswitch-switch"></div>
-                </label>
+            <div class="make-switch pull-right" data-on="success" data-off="default" id="proxies-switch">
+                <input type="checkbox" {{ 'checked="checked"' if proxies_enabled else '' }}>
             </div>
             <div style="clear:both;"></div>
         </div>
@@ -216,13 +120,8 @@
             <h3 class="panel-title pull-left">
                 {{ _('TCP Scrambler', 'TCP 混淆器') }}
             </h3>
-            <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="tcp-scrambler-checkbox"
-                {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
-                <label class="onoffswitch-label" for="tcp-scrambler-checkbox">
-                    <div class="onoffswitch-inner"></div>
-                    <div class="onoffswitch-switch"></div>
-                </label>
+            <div class="make-switch pull-right" data-on="success" data-off="default" id="tcp-scrambler-switch">
+                <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
             </div>
             <div style="clear: both;"></div>
         </div>
@@ -244,14 +143,8 @@
             <h3 class="panel-title" style="display: inline;">
                 {{ _('Youtube Scrambler', 'Youtube 混淆器') }}
             </h3>
-
-            <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="youtube-scrambler-checkbox"
-                {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
-                <label class="onoffswitch-label" for="youtube-scrambler-checkbox">
-                    <div class="onoffswitch-inner"></div>
-                    <div class="onoffswitch-switch"></div>
-                </label>
+            <div class="make-switch pull-right" data-on="success" data-off="default" id="youtube-scrambler-switch">
+                <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
             </div>
             <div style="clear: both;"></div>
         </div>
@@ -272,14 +165,8 @@
             <h3 class="panel-title" style="display: inline;">
                 {{ _('China Shortcut', '直连中国的服务器') }}
             </h3>
-
-            <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="china-shortcut-checkbox"
-                {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
-                <label class="onoffswitch-label" for="china-shortcut-checkbox">
-                    <div class="onoffswitch-inner"></div>
-                    <div class="onoffswitch-switch"></div>
-                </label>
+            <div class="make-switch pull-right" data-on="success" data-off="default" id="china-shortcut-switch">
+                <input type="checkbox" {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
             </div>
             <div style="clear: both;"></div>
         </div>
@@ -300,14 +187,8 @@
             <h3 class="panel-title" style="display: inline;">
                 {{ _('Direct Access', '直接可以直连的服务器') }}
             </h3>
-
-            <div class="onoffswitch pull-right">
-                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="direct-access-checkbox"
-                {{ 'checked="checked"' if direct_access_enabled else '' }}>
-                <label class="onoffswitch-label" for="direct-access-checkbox">
-                    <div class="onoffswitch-inner"></div>
-                    <div class="onoffswitch-switch"></div>
-                </label>
+            <div class="make-switch pull-right" data-on="success" data-off="default" id="direct-access-switch">
+                <input type="checkbox" {{ 'checked="checked"' if direct_access_enabled else '' }}>
             </div>
             <div style="clear: both;"></div>
         </div>
@@ -327,6 +208,7 @@
 <script src="/assets/tablesort.min.js"></script>
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
+<script src="/assets/bootstrap-switch.js"></script>
 <script>
     $(document).ready(function () {
 
@@ -350,40 +232,40 @@
             showHideSpeed();
         });
 
-        $('#proxies-checkbox').click(function (e) {
-            if ($(this).is(':checked')) {
+        $('#proxies-switch').on('switch-change', function (e, data) {
+            if (data.value) {
                 $.post('/proxies/enable');
             } else {
                 $.post('/proxies/disable');
             }
         });
 
-        $('#tcp-scrambler-checkbox').click(function (e) {
-            if ($(this).is(':checked')) {
+        $('#tcp-scrambler-switch').on('switch-change', function (e, data) {
+            if (data.value) {
                 $.post('/tcp-scrambler/enable');
             } else {
                 $.post('/tcp-scrambler/disable');
             }
         });
 
-        $('#youtube-scrambler-checkbox').click(function (e) {
-            if ($(this).is(':checked')) {
+        $('#youtube-scrambler-switch').on('switch-change', function (e, data) {
+            if (data.value) {
                 $.post('/youtube-scrambler/enable');
             } else {
                 $.post('/youtube-scrambler/disable');
             }
         });
 
-        $('#china-shortcut-checkbox').click(function (e) {
-            if ($(this).is(':checked')) {
+        $('#china-shortcut-switch').on('switch-change', function (e, data) {
+            if (data.value) {
                 $.post('/china-shortcut/enable');
             } else {
                 $.post('/china-shortcut/disable');
             }
         });
 
-        $('#direct-access-checkbox').click(function (e) {
-            if ($(this).is(':checked')) {
+        $('#direct-access-switch').on('switch-change', function (e, data) {
+            if (data.value) {
                 $.post('/direct-access/enable');
             } else {
                 $.post('/direct-access/disable');
