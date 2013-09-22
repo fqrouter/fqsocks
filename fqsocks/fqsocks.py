@@ -85,6 +85,7 @@ def main(argv):
     argument_parser.add_argument('--http-gateway-listen')
     argument_parser.add_argument('--dns-server-listen')
     argument_parser.add_argument('--http-manager-listen')
+    argument_parser.add_argument('--no-http-manager', action='store_true')
     argument_parser.add_argument('--outbound-ip')
     argument_parser.add_argument('--ip-command')
     argument_parser.add_argument('--ifconfig-command')
@@ -177,6 +178,8 @@ def read_config(args):
         config['tcp_scrambler_enabled'] = args.tcp_scrambler_enabled
     if args.access_check_enabled is not None:
         config['access_check_enabled'] = args.access_check_enabled
+    if args.no_http_manager:
+        config['http_manager']['enabled'] = False
     if args.http_manager_listen:
         config['http_manager']['enabled'] = True
         config['http_manager']['ip'], config['http_manager']['port'] = parse_ip_colon_port(args.http_manager_listen)
