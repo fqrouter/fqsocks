@@ -49,11 +49,14 @@ httpd.HANDLERS[('GET', 'assets/visibility.timer.js')] = functools.partial(
 httpd.HANDLERS[('GET', 'assets/masonry.pkgd.min.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'masonry.pkgd.min.js'), 'text/javascript')
 
+httpd.HANDLERS[('GET', 'assets/bootbox.min.js')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'bootbox.min.js'), 'text/javascript')
+
 httpd.HANDLERS[('GET', 'assets/bootstrap-switch.css')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'bootstrap-switch.css'), 'text/css')
 
 httpd.HANDLERS[('GET', 'assets/bootstrap-switch.js')] = functools.partial(
     get_asset, os.path.join(ASSETS_DIR, 'bootstrap-switch.js'), 'text/javascript')
 
-httpd.HANDLERS[('GET', 'assets/ajax-loader.gif')] = functools.partial(
-    get_asset, os.path.join(ASSETS_DIR, 'ajax-loader.gif'), 'image/gif')
+httpd.HANDLERS[('GET', 'assets/busy-indicator.gif')] = functools.partial(
+    get_asset, os.path.join(ASSETS_DIR, 'busy-indicator.gif'), 'image/gif')

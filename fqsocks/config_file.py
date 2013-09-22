@@ -16,6 +16,10 @@ DEFAULT_CONFIG = {
         'enabled': False,
         'ip': '',
         'port': 2516
+    },
+    'wifi_repeater': {
+        'ssid': 'fqrouter',
+        'password': '12345678'
     }
 }
 
