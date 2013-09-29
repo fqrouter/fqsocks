@@ -68,7 +68,9 @@
             """
             fqrouter is designed to minimize the server usage to maximize
             the number of users who can enjoy the benefit.
-            The methods used to archive the goal including direct access any China ip,
+            Use a lot of cheap servers to archive moderate user experience
+            instead of relying on one or two high value proxies.
+            Uses methods like direct access any China ip,
             direct access any website that is not blocked, and using scrambler
             to scramble the traffic to avoid being censored instead of always tunnelling
             via proxy servers.
@@ -78,7 +80,8 @@
             """,
             """
             fqrouter的设计理念是尽量减少对服务器资源的消耗以尽可能地扩大受益用户的数量。
-            使用的手段包括对于中国的IP不走代理，如果目标服务器可以直接访问则不会走代理
+            使用一堆廉价的服务器而不是依赖于少数一两个高价值的代理。
+            同时对于中国的IP不走代理，如果目标服务器可以直接访问则不会走代理
             以及尽量采用混淆流量的技术从而能够不经过代理也不会被阻断。
             即便如此，代理服务器仍然是必要的。默认内置的公共代理流量有限，而且速度不佳。
             如果个人有代理服务器，最好使用自己的代理服务器。
@@ -95,11 +98,13 @@
             <div class="pull-right">
                 <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default"
                    id="config-http-manager">
+                    <span class="glyphicon glyphicon-wrench"></span>
                     {{ _('Config', '配置') }}
                 </a>
-                <div class="make-switch" data-on="success" data-off="default" id="proxies-switch">
-                    <input type="checkbox" {{ 'checked="checked"' if proxies_enabled else '' }}>
-                </div>
+                <a class="btn btn-primary">
+                    <span class="glyphicon glyphicon-plus"></span>
+                    {{ _('Add', '添加') }}
+                </a>
             </div>
             <div style="clear:both;"></div>
         </div>
@@ -120,96 +125,6 @@
         </div>
     </div>
 </div>
-<div class="col-sm-4">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title pull-left">
-                {{ _('TCP Scrambler', 'TCP 混淆器') }}
-            </h3>
-            <div class="make-switch pull-right" data-on="success" data-off="default" id="tcp-scrambler-switch">
-                <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
-            </div>
-            <div style="clear: both;"></div>
-        </div>
-        <div class="panel-body">
-            {{ _(
-            """
-            scramble HTTP request at TCP level, so that GFW can let us go, without using a proxy
-            server. disable this scrambler will make internet speed much slower!
-            """,
-            """
-            混淆 TCP 层面混淆HTTP请求迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
-            """) }}
-        </div>
-    </div>
-</div>
-<div class="col-sm-4">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title" style="display: inline;">
-                {{ _('Youtube Scrambler', 'Youtube 混淆器') }}
-            </h3>
-            <div class="make-switch pull-right" data-on="success" data-off="default" id="youtube-scrambler-switch">
-                <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
-            </div>
-            <div style="clear: both;"></div>
-        </div>
-        <div class="panel-body">
-            {{ _(
-            """
-            scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this scrambler will make internet speed much slower!
-            """,
-            """
-            混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
-            """) }}
-        </div>
-    </div>
-</div>
-<div class="col-sm-4">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title" style="display: inline;">
-                {{ _('China Shortcut', '直连中国的服务器') }}
-            </h3>
-            <div class="make-switch pull-right" data-on="success" data-off="default" id="china-shortcut-switch">
-                <input type="checkbox" {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
-            </div>
-            <div style="clear: both;"></div>
-        </div>
-        <div class="panel-body">
-            {{ _(
-            """
-            if server is china ip, access directly. disable this shortcut will make internet speed much slower!
-            """,
-            """
-            如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
-            """) }}
-        </div>
-    </div>
-</div>
-<div class="col-sm-4">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title" style="display: inline;">
-                {{ _('Direct Access', '直接可以直连的服务器') }}
-            </h3>
-            <div class="make-switch pull-right" data-on="success" data-off="default" id="direct-access-switch">
-                <input type="checkbox" {{ 'checked="checked"' if direct_access_enabled else '' }}>
-            </div>
-            <div style="clear: both;"></div>
-        </div>
-        <div class="panel-body">
-            {{ _(
-            """
-            try access directly first, use proxy only if tried and failed. disable this shortcut will make internet speed much slower!
-            """,
-            """
-            每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
-            """) }}
-        </div>
-    </div>
-</div>
-
 <!-- Modal -->
 <div class="modal fade" id="proxies-dialog" tabindex="-1" role="dialog"
      aria-labelledby="proxies-dialog-title" aria-hidden="true">
@@ -231,11 +146,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="add-goagent-private-server">{{ _('GoAgent Private Server', 'GoAgent 个人代理') }}</label>
-                        <button type="button" id="add-goagent-private-server" class="btn btn-default pull-right">
-                            <span class="glyphicon glyphicon-plus"></span>
-                            {{ _('Add', '添加') }}
-                        </button>
+                        {{ _('goagent appids shared by others, especially thanks the gfanqiang', '由网友共享的goagent appid，尤其是要感谢gfanqiang项目') }}
                     </div>
                     <div class="form-group">
                         <label for="ss-public-servers-switch">{{ _('Shadowsocks Public Servers', 'Shadowsocks 公共代理') }}</label>
@@ -243,11 +154,71 @@
                             <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['ss_enabled'] else '' }}>
                         </div>
                     </div>
+                    <div class="form-group">
+                        {{ _('shadowsocks servers shared by others', '由网友共享的代理帐号') }}
+                    </div>
+                    <div class="form-group">
+                        <label for="tcp-scrambler-switch">{{ _('TCP Scrambler', 'TCP 混淆器') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="tcp-scrambler-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ _(
+                        """
+                        scramble HTTP request at TCP level, so that GFW can let us go, without using a proxy
+                        server. disable this scrambler will make internet speed much slower!
+                        """,
+                        """
+                        混淆 TCP 层面混淆HTTP请求迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+                        """) }}
+                    </div>
+                    <div class="form-group">
+                        <label for="youtube-scrambler-switch">{{ _('Youtube Scrambler', 'Youtube 混淆器') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="youtube-scrambler-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ _(
+                        """
+                        scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this scrambler will make internet speed much slower!
+                        """,
+                        """
+                        混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+                        """) }}
+                    </div>
+                    <div class="form-group">
+                        <label for="china-shortcut-switch">{{ _('China Shortcut', '直连中国的服务器') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="china-shortcut-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ _(
+                        """
+                        if server is china ip, access directly. disable this shortcut will make internet speed much slower!
+                        """,
+                        """
+                        如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
+                        """) }}
+                    </div>
+                    <div class="form-group">
+                        <label for="direct-access-switch">{{ _('Direct Access', '直接可以直连的服务器') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="direct-access-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if direct_access_enabled else '' }}>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ _(
+                        """
+                        try access directly first, use proxy only if tried and failed. disable this shortcut will make internet speed much slower!
+                        """,
+                        """
+                        每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
+                        """) }}
+                    </div>
                 </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
-                <button type="button" class="btn btn-primary" id="proxies-dialog-save">{{ _('Save', '保存') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->
@@ -285,11 +256,19 @@
             showHideSpeed();
         });
 
-        $('#proxies-switch').on('switch-change', function (e, data) {
+        $('#goagent-public-servers-switch').on('switch-change', function (e, data) {
             if (data.value) {
-                $.post('/proxies/enable');
+                $.post('/goagent-public-servers/enable');
             } else {
-                $.post('/proxies/disable');
+                $.post('/goagent-public-servers/disable');
+            }
+        });
+
+        $('#ss-public-servers-switch').on('switch-change', function (e, data) {
+            if (data.value) {
+                $.post('/ss-public-servers/enable');
+            } else {
+                $.post('/ss-public-servers/disable');
             }
         });
 
@@ -324,22 +303,6 @@
                 $.post('/direct-access/disable');
             }
         });
-
-        $('#proxies-dialog-save').click(function() {
-            $('#proxies-dialog form').submit();
-        });
-
-
-        $('#proxies-dialog form').submit(function (e) {
-            e.preventDefault();
-            var newConfig = {
-                goagent_enabled: $('#goagent-public-servers-switch').bootstrapSwitch('status'),
-                ss_enabled: $('#ss-public-servers-switch').bootstrapSwitch('status')
-            };
-            $.post('/public-servers/config/update', newConfig);
-            $('#proxies-dialog').modal('hide');
-        });
-
 
         showHideSpeed();
         refreshProxyList();

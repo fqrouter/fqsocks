@@ -113,23 +113,9 @@ def enable_proxies():
     gevent.spawn(proxy_client.init_proxies)
 
 
-@httpd.http_handler('POST', 'proxies/enable')
-def handle_enable_proxies(environ, start_response):
-    enable_proxies()
-    start_response(httplib.OK, [('Content-Type', 'text/plain')])
-    return []
-
-
 def disable_proxies():
     proxy_client.proxies = []
     proxy_client.clear_proxy_states()
-
-
-@httpd.http_handler('POST', 'proxies/disable')
-def handle_disable_proxies(environ, start_response):
-    disable_proxies()
-    start_response(httplib.OK, [('Content-Type', 'text/plain')])
-    return []
 
 
 @httpd.http_handler('POST', 'tcp-scrambler/enable')
@@ -196,14 +182,46 @@ def handle_disable_direct_access(environ, start_response):
     return []
 
 
-@httpd.http_handler('POST', 'public-servers/config/update')
-def handle_update_public_servers_config(environ, start_response):
-    goagent_enabled = 'true' == environ['REQUEST_ARGUMENTS']['goagent_enabled'].value
-    ss_enabled = 'true' == environ['REQUEST_ARGUMENTS']['ss_enabled'].value
-
+@httpd.http_handler('POST', 'goagent-public-servers/enable')
+def handle_enable_goagent_public_servers(environ, start_response):
     def apply(config):
-        config['public_servers']['goagent_enabled'] = goagent_enabled
-        config['public_servers']['ss_enabled'] = ss_enabled
+        config['public_servers']['goagent_enabled'] = True
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'goagent-public-servers/disable')
+def handle_disable_goagent_public_servers(environ, start_response):
+    def apply(config):
+        config['public_servers']['goagent_enabled'] = False
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'ss-public-servers/enable')
+def handle_enable_ss_public_servers(environ, start_response):
+    def apply(config):
+        config['public_servers']['ss_enabled'] = True
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'ss-public-servers/disable')
+def handle_disable_ss_public_servers(environ, start_response):
+    def apply(config):
+        config['public_servers']['ss_enabled'] = False
 
     config_file.update_config(apply)
     disable_proxies()
