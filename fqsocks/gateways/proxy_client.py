@@ -36,18 +36,10 @@ from ..proxies.direct import NONE_PROXY
 from .. import config_file
 
 
-dns_polluted_at = 0
-auto_fix_enabled = True
-china_shortcut_enabled = True
-direct_access_enabled = True
-last_refresh_started_at = 0
-access_check_enabled = True
-force_us_ip = False
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
 LOGGER = logging.getLogger(__name__)
-proxy_directories = []
-cli_proxy_directories = []
+
 proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
@@ -58,15 +50,20 @@ proxy_types = {
     'ss': ShadowSocksProxy,
     'ssh': SshProxy
 }
-
-proxies = []
-
 NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com',
     'google.com',
     'www.google.com.hk',
     'google.com.hk'
 }
+
+proxies = []
+dns_polluted_at = 0
+auto_fix_enabled = True
+china_shortcut_enabled = True
+direct_access_enabled = True
+last_refresh_started_at = -1
+force_us_ip = False
 
 class ProxyClient(object):
     def __init__(self, downstream_sock, src_ip, src_port, dst_ip, dst_port):
@@ -435,7 +432,7 @@ def fix_by_refreshing_proxies():
 def refresh_proxies():
     global proxies
     global last_refresh_started_at
-    if proxy_directories: # wait for proxy directories to load
+    if last_refresh_started_at == -1: # wait for proxy directories to load
         LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
         return False
     if time.time() - last_refresh_started_at < 60:
@@ -515,27 +512,17 @@ def check_access(url):
         return False
 
 
-def add_proxies(proxy_type, prop_dict):
-    n = prop_dict.pop('n', 0)
-    n = int(n)
-    if n:
-        for i in range(1, 1 + n):
-            proxy = proxy_types[proxy_type](**{k: v.replace('#n#', str(i)) for k, v in prop_dict.items()})
-            proxies.append(proxy)
-    else:
-        if 'directory' == proxy_type:
-            cli_proxy_directories.append(prop_dict)
-        else:
-            proxy = proxy_types[proxy_type](**prop_dict)
-            proxies.append(proxy)
-
-
-def init_proxies():
-    global proxies
+def init_proxies(config):
+    global last_refresh_started_at
+    last_refresh_started_at = -1
+    for private_server in config['private_servers'].values():
+        proxy_type = private_server.pop('proxy_type')
+        proxies.append(proxy_types[proxy_type](**private_server))
     try:
         success = False
         for i in range(8):
-            if load_proxies_from_directories():
+            if load_public_proxies(config['public_servers']):
+                last_refresh_started_at = 0
                 if refresh_proxies():
                     success = True
                     break
@@ -544,7 +531,7 @@ def init_proxies():
             gevent.sleep(retry_interval)
         if success:
             LOGGER.critical('proxies init successfully')
-            if access_check_enabled:
+            if config['access_check_enabled']:
                 LOGGER.info('check access in 10 seconds')
                 gevent.sleep(10)
                 check_access_many_times('https://twitter.com', 5)
@@ -557,48 +544,26 @@ def init_proxies():
         LOGGER.exception('failed to init proxies')
 
 
-def load_proxies_from_directories():
-    for proxy_directory in list(proxy_directories):
-        if not load_proxy_from_directory(proxy_directory):
-            return False
-    assert not proxy_directories
-    return True
-
-
-def reset_proxy_directories():
-    global proxy_directories
-    proxy_directories = list(cli_proxy_directories)
-    config = config_file.read_config()
-    if config['public_servers']['source']:
-        proxy_directory = {'source': config['public_servers']['source']}
-        if config['public_servers']['goagent_enabled']:
-            proxy_directory['goagent'] = 'True'
-        if config['public_servers']['ss_enabled']:
-            proxy_directory['ss'] = 'True'
-        proxy_directories.append(proxy_directory)
-
-
-def load_proxy_from_directory(proxy_directory):
+def load_public_proxies(public_servers):
     try:
         sock = networking.create_udp_socket()
         more_proxies = []
         with contextlib.closing(sock):
             sock.settimeout(10)
             request = dpkt.dns.DNS(
-                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(proxy_directory['source']), type=dpkt.dns.DNS_TXT)])
+                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(public_servers['source']), type=dpkt.dns.DNS_TXT)])
             sock.sendto(str(request), ('8.8.8.8', 53))
             gevent.sleep(0.1)
             for an in dpkt.dns.DNS(sock.recv(1024)).an:
                 priority, proxy_type, count, partial_dns_record = an.text[0].split(':')[:4]
                 count = int(count)
                 priority = int(priority)
-                if proxy_type in proxy_directory and proxy_type in proxy_types:
+                if public_servers.get('%s_enabled' % proxy_type) and proxy_type in proxy_types:
                     for i in range(count):
                         dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i+1))
                         more_proxies.append(DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority))
         proxies.extend(more_proxies)
-        LOGGER.info('loaded proxy directory: %s' % proxy_directory)
-        proxy_directories.remove(proxy_directory)
+        LOGGER.info('loaded public servers: %s' % public_servers)
         return True
     except:
         LOGGER.exception('failed to load proxy from directory')

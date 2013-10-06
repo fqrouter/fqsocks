@@ -108,9 +108,7 @@ def handle_list_proxies(environ, start_response):
 
 def enable_proxies():
     proxy_client.clear_proxy_states()
-    proxy_client.reset_proxy_directories()
-    proxy_client.last_refresh_started_at = 0
-    gevent.spawn(proxy_client.init_proxies)
+    gevent.spawn(proxy_client.init_proxies, config_file.read_config())
 
 
 def disable_proxies():
@@ -222,6 +220,22 @@ def handle_enable_ss_public_servers(environ, start_response):
 def handle_disable_ss_public_servers(environ, start_response):
     def apply(config):
         config['public_servers']['ss_enabled'] = False
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'proxies/add')
+def handle_add_proxy(environ, start_response):
+    proxy_type = environ['REQUEST_ARGUMENTS']['proxy_type'].value
+    appid = environ['REQUEST_ARGUMENTS']['appid'].value
+    path = environ['REQUEST_ARGUMENTS']['path'].value
+    password = environ['REQUEST_ARGUMENTS']['password'].value
+    def apply(config):
+        config_file.add_proxy(config, 'goagent', appid=appid, path=path, password=password)
 
     config_file.update_config(apply)
     disable_proxies()

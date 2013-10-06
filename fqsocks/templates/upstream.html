@@ -54,6 +54,14 @@
         body {
             margin-top: 16px;
         }
+
+        #proxy-dialog .input-group {
+            width: 100%;
+        }
+
+        #proxy-dialog .input-group-addon {
+            width: 128px;
+        }
     </style>
 </head>
 <body>
@@ -61,6 +69,7 @@
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title pull-left">{{ _('Uncensored Internet', '墙外的世界') }}</h3>
+
             <div style="clear: both;"></div>
         </div>
         <div class="panel-body">
@@ -95,13 +104,14 @@
             <h3 class="panel-title pull-left">
                 {{ _('Proxies', '代理列表') }}
             </h3>
+
             <div class="pull-right">
                 <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default"
                    id="config-http-manager">
                     <span class="glyphicon glyphicon-wrench"></span>
                     {{ _('Config', '配置') }}
                 </a>
-                <a class="btn btn-primary">
+                <a data-toggle="modal" href="#proxy-dialog" class="btn btn-primary">
                     <span class="glyphicon glyphicon-plus"></span>
                     {{ _('Add', '添加') }}
                 </a>
@@ -126,6 +136,73 @@
     </div>
 </div>
 <!-- Modal -->
+<div class="modal fade" id="proxy-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="proxy-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="proxy-dialog-title">
+                    {{ _('Add Proxy', '添加代理') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <form role="form">
+                    <div class="form-group">
+                        <label>{{ _('Proxy Type', '代理类型') }}</label>
+
+                        <div class="dropdown pull-right">
+                            <a id="proxy-type" data-toggle="dropdown" href="#">{{ _('Please Select...', '请选择...') }}</a>
+                            <ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+                                <li role="presentation"><a href="javascript:void(0);">GoAgent</a></li>
+                                <li><a href="javascript:void(0);">Shadowsocks</a></li>
+                                <li><a href="javascript:void(0);">SSH</a></li>
+                                <li><a href="javascript:void(0);">HTTP</a></li>
+                                <li><a href="javascript:void(0);">SPDY</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="basic">
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="GoAgent">
+                                <span class="input-group-addon">App Id</span>
+                                <input name="appid" type="text" class="form-control"
+                                       placeholder="{{ _('xxx of xxx.appspot.com', 'xxx.appspot.com中的xxx') }}">
+                                <span class="input-group-addon">.appspot.com</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group hide" id="advanced-toggle">
+                        <button type="button" class="btn btn-default pull-right">
+                            {{ _('Advanced Settings', '高级设置') }}
+                            <span class="glyphicon glyphicon-collapse-down"></span>
+                        </button>
+                        <div style="clear: both"></div>
+                    </div>
+                    <div class="advanced hide">
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="GoAgent">
+                                <span class="input-group-addon">{{ _('Path', '路径') }}</span>
+                                <input name="path" type="text" class="form-control" value="/2">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="GoAgent">
+                                <span class="input-group-addon">{{ _('Password', '密码') }}</span>
+                                <input name="password" type="text" class="form-control" placeholder="{{ _('No password by default', '缺省无密码') }}">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button class="btn btn-primary" id="add-proxy">{{ _('Add', '添加') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal -->
 <div class="modal fade" id="proxies-dialog" tabindex="-1" role="dialog"
      aria-labelledby="proxies-dialog-title" aria-hidden="true">
     <div class="modal-dialog">
@@ -140,18 +217,27 @@
                 <div class="alert alert-danger hide"></div>
                 <form role="form">
                     <div class="form-group">
-                        <label for="goagent-public-servers-switch">{{ _('GoAgent Public Servers', 'GoAgent 公共代理') }}</label>
-                        <div class="make-switch pull-right" data-on="success" data-off="default" id="goagent-public-servers-switch">
-                            <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['goagent_enabled'] else '' }}>
+                        <label for="goagent-public-servers-switch">{{ _('GoAgent Public Servers', 'GoAgent 公共代理')
+                            }}</label>
+
+                        <div class="make-switch pull-right" data-on="success" data-off="default"
+                             id="goagent-public-servers-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['goagent_enabled']
+                            else '' }}>
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ _('goagent appids shared by others, especially thanks the gfanqiang', '由网友共享的goagent appid，尤其是要感谢gfanqiang项目') }}
+                        {{ _('goagent appids shared by others, especially thanks the gfanqiang', '由网友共享的goagent
+                        appid，尤其是要感谢gfanqiang项目') }}
                     </div>
                     <div class="form-group">
-                        <label for="ss-public-servers-switch">{{ _('Shadowsocks Public Servers', 'Shadowsocks 公共代理') }}</label>
-                        <div class="make-switch pull-right" data-on="success" data-off="default" id="ss-public-servers-switch">
-                            <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['ss_enabled'] else '' }}>
+                        <label for="ss-public-servers-switch">{{ _('Shadowsocks Public Servers', 'Shadowsocks 公共代理')
+                            }}</label>
+
+                        <div class="make-switch pull-right" data-on="success" data-off="default"
+                             id="ss-public-servers-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if config['public_servers']['ss_enabled'] else
+                            '' }}>
                         </div>
                     </div>
                     <div class="form-group">
@@ -159,7 +245,9 @@
                     </div>
                     <div class="form-group">
                         <label for="tcp-scrambler-switch">{{ _('TCP Scrambler', 'TCP 混淆器') }}</label>
-                        <div class="make-switch pull-right" data-on="success" data-off="default" id="tcp-scrambler-switch">
+
+                        <div class="make-switch pull-right" data-on="success" data-off="default"
+                             id="tcp-scrambler-switch">
                             <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
                         </div>
                     </div>
@@ -175,14 +263,17 @@
                     </div>
                     <div class="form-group">
                         <label for="youtube-scrambler-switch">{{ _('Youtube Scrambler', 'Youtube 混淆器') }}</label>
-                        <div class="make-switch pull-right" data-on="success" data-off="default" id="youtube-scrambler-switch">
+
+                        <div class="make-switch pull-right" data-on="success" data-off="default"
+                             id="youtube-scrambler-switch">
                             <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
                         </div>
                     </div>
                     <div class="form-group">
                         {{ _(
                         """
-                        scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this scrambler will make internet speed much slower!
+                        scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this
+                        scrambler will make internet speed much slower!
                         """,
                         """
                         混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
@@ -190,14 +281,17 @@
                     </div>
                     <div class="form-group">
                         <label for="china-shortcut-switch">{{ _('China Shortcut', '直连中国的服务器') }}</label>
-                        <div class="make-switch pull-right" data-on="success" data-off="default" id="china-shortcut-switch">
+
+                        <div class="make-switch pull-right" data-on="success" data-off="default"
+                             id="china-shortcut-switch">
                             <input type="checkbox" {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
                         </div>
                     </div>
                     <div class="form-group">
                         {{ _(
                         """
-                        if server is china ip, access directly. disable this shortcut will make internet speed much slower!
+                        if server is china ip, access directly. disable this shortcut will make internet speed much
+                        slower!
                         """,
                         """
                         如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
@@ -205,20 +299,26 @@
                     </div>
                     <div class="form-group">
                         <label for="direct-access-switch">{{ _('Direct Access', '直接可以直连的服务器') }}</label>
-                        <div class="make-switch pull-right" data-on="success" data-off="default" id="direct-access-switch">
+
+                        <div class="make-switch pull-right" data-on="success" data-off="default"
+                             id="direct-access-switch">
                             <input type="checkbox" {{ 'checked="checked"' if direct_access_enabled else '' }}>
                         </div>
                     </div>
                     <div class="form-group">
                         {{ _(
                         """
-                        try access directly first, use proxy only if tried and failed. disable this shortcut will make internet speed much slower!
+                        try access directly first, use proxy only if tried and failed. disable this shortcut will make
+                        internet speed much slower!
                         """,
                         """
                         每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
                         """) }}
                     </div>
                 </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->
@@ -302,6 +402,40 @@
             } else {
                 $.post('/direct-access/disable');
             }
+        });
+
+        $('#proxy-dialog .dropdown li a').click(function () {
+            var proxyType = $(this).html();
+            $('#proxy-dialog #proxy-type').html(proxyType);
+            $('#proxy-dialog [data-for-type]').addClass('hide');
+            $('#proxy-dialog #advanced-toggle').addClass('hide');
+            $('#proxy-dialog [data-for-type="' + proxyType + '"]').removeClass('hide');
+            if ($('#proxy-dialog .advanced [data-for-type="' + proxyType + '"]').length > 0) {
+                $('#proxy-dialog #advanced-toggle').removeClass('hide');
+            }
+        });
+
+        $('#proxy-dialog #advanced-toggle button').click(function() {
+            if ($('#proxy-dialog .advanced').hasClass('hide')) {
+                $('#proxy-dialog .advanced').removeClass('hide');
+                $(this).find('span').removeClass('glyphicon-collapse-down').addClass('glyphicon-collapse-up');
+            } else {
+                $('#proxy-dialog .advanced').addClass('hide');
+                $(this).find('span').removeClass('glyphicon-collapse-up').addClass('glyphicon-collapse-down');
+            }
+        });
+
+        $('#proxy-dialog #add-proxy').click(function() {
+            var args = {
+                proxy_type: $('#proxy-dialog #proxy-type').html()
+            };
+            $('#proxy-dialog input').each(function(i, $input) {
+                $input = $($input);
+                args[$input.attr('name')] = $input.val();
+            });
+            $.post('/proxies/add', args, function() {
+                $('#proxy-dialog').modal('hide');
+            });
         });
 
         showHideSpeed();

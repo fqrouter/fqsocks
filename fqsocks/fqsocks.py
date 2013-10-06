@@ -110,50 +110,46 @@ def main(argv):
     argument_parser.add_argument('--no-youtube-scrambler', dest='youtube_scrambler_enabled', action='store_false')
     argument_parser.set_defaults(youtube_scrambler_enabled=None)
     args = argument_parser.parse_args(argv)
-    log_level = getattr(logging, args.log_level)
-    setup_logging(log_level, args.log_file)
-    config = read_config(args)
+    config_file.cli_args = args
+    config = config_file.read_config()
+    log_level = getattr(logging, config['log_level'])
+    setup_logging(log_level, config['log_file'])
     LOGGER.info('config: %s' % config)
-    if args.ip_command:
-        fqlan.IP_COMMAND = args.ip_command
-    if args.ifconfig_command:
-        fqlan.IFCONFIG_COMMAND = args.ifconfig_command
-    networking.OUTBOUND_IP = args.outbound_ip
-    fqdns.OUTBOUND_IP = args.outbound_ip
-    if args.google_host:
-        GoAgentProxy.GOOGLE_HOSTS = args.google_host
-    proxy_client.china_shortcut_enabled = config['china_shortcut_enabled']
-    proxy_client.direct_access_enabled = config['direct_access_enabled']
-    proxy_client.access_check_enabled = config['access_check_enabled']
-    HTTP_TRY_PROXY.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
-    HTTP_TRY_PROXY.youtube_scrambler_enabled = config['youtube_scrambler_enabled']
-    for props in args.proxy:
-        props = props.split(',')
-        prop_dict = dict(p.split('=') for p in props[1:])
-        proxy_client.add_proxies(props[0], prop_dict)
-    proxy_client.reset_proxy_directories()
     gevent.monkey.patch_all(ssl=False)
     try:
         gevent.monkey.patch_ssl()
     except:
         LOGGER.exception('failed to patch ssl')
+    if config['ip_command']:
+        fqlan.IP_COMMAND = config['ip_command']
+    if config['ifconfig_command']:
+        fqlan.IFCONFIG_COMMAND = config['ifconfig_command']
+    networking.OUTBOUND_IP = config['outbound_ip']
+    fqdns.OUTBOUND_IP = config['outbound_ip']
+    if config['google_host']:
+        GoAgentProxy.GOOGLE_HOSTS = config['google_host']
+    proxy_client.china_shortcut_enabled = config['china_shortcut_enabled']
+    proxy_client.direct_access_enabled = config['direct_access_enabled']
+    HTTP_TRY_PROXY.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
+    HTTP_TRY_PROXY.youtube_scrambler_enabled = config['youtube_scrambler_enabled']
     greenlets = []
-    if args.dns_server_listen:
-        dns_server = fqdns.HandlerDatagramServer(parse_ip_colon_port(args.dns_server_listen), DNS_HANDLER)
+    if config['dns_server']['enabled']:
+        dns_server_address = (config['dns_server']['ip'], config['dns_server']['port'])
+        dns_server = fqdns.HandlerDatagramServer(dns_server_address, DNS_HANDLER)
         greenlets.append(gevent.spawn(dns_server.serve_forever))
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     if config['http_gateway']['enabled']:
         http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
         greenlets.append(http_gateway.server_greenlet)
-    if args.tcp_gateway_listen:
-        tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = parse_ip_colon_port(args.tcp_gateway_listen)
+    if config['tcp_gateway']['enabled']:
+        tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
         tcp_gateway.server_greenlet = gevent.spawn(tcp_gateway.serve_forever)
         greenlets.append(tcp_gateway.server_greenlet)
     httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
     if config['http_manager']['enabled']:
         httpd.server_greenlet = gevent.spawn(httpd.serve_forever)
         greenlets.append(httpd.server_greenlet)
-    greenlets.append(gevent.spawn(proxy_client.init_proxies))
+    greenlets.append(gevent.spawn(proxy_client.init_proxies, config))
     if HTTP_TRY_PROXY.tcp_scrambler_enabled:
         greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
     for greenlet in greenlets:
@@ -165,41 +161,6 @@ def main(argv):
             LOGGER.exception('greenlet join failed')
             return
 
-
-def read_config(args):
-    config_file.path = args.config_file
-    config = config_file.read_config()
-    if args.china_shortcut_enabled is not None:
-        config['china_shortcut_enabled'] = args.china_shortcut_enabled
-    if args.direct_access_enabled is not None:
-        config['direct_access_enabled'] = args.direct_access_enabled
-    if args.youtube_scrambler_enabled is not None:
-        config['youtube_scrambler_enabled'] = args.youtube_scrambler_enabled
-    if args.tcp_scrambler_enabled is not None:
-        config['tcp_scrambler_enabled'] = args.tcp_scrambler_enabled
-    if args.access_check_enabled is not None:
-        config['access_check_enabled'] = args.access_check_enabled
-    if args.no_http_manager:
-        config['http_manager']['enabled'] = False
-    if args.http_manager_listen:
-        config['http_manager']['enabled'] = True
-        config['http_manager']['ip'], config['http_manager']['port'] = parse_ip_colon_port(args.http_manager_listen)
-    if args.http_gateway_listen:
-        config['http_gateway']['enabled'] = True
-        config['http_gateway']['ip'], config['http_gateway']['port'] = parse_ip_colon_port(args.http_gateway_listen)
-    return config
-
-
-def parse_ip_colon_port(ip_colon_port):
-    if not isinstance(ip_colon_port, basestring):
-        return ip_colon_port
-    if ':' in ip_colon_port:
-        server_ip, server_port = ip_colon_port.split(':')
-        server_port = int(server_port)
-    else:
-        server_ip = ip_colon_port
-        server_port = 53
-    return '' if '*' == server_ip else server_ip, server_port
 
 # TODO add socks4 proxy
 # TODO add socks5 proxy
