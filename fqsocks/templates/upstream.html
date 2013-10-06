@@ -190,7 +190,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-group hide" id="advanced-toggle">
+                    <div class="form-group hide advanced-toggle">
                         <button type="button" class="btn btn-default pull-right">
                             {{ _('Advanced Settings', '高级设置') }}
                             <span class="glyphicon glyphicon-collapse-down"></span>
@@ -263,6 +263,14 @@
                     <div class="form-group">
                         {{ _('shadowsocks servers shared by others', '由网友共享的代理帐号') }}
                     </div>
+                    <div class="form-group advanced-toggle">
+                        <button type="button" class="btn btn-default pull-right">
+                            {{ _('Advanced Settings', '高级设置') }}
+                            <span class="glyphicon glyphicon-collapse-down"></span>
+                        </button>
+                        <div style="clear: both"></div>
+                    </div>
+                    <div class="advanced hide">
                     <div class="form-group">
                         <label for="tcp-scrambler-switch">{{ _('TCP Scrambler', 'TCP 混淆器') }}</label>
 
@@ -335,6 +343,7 @@
                         每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
                         """) }}
                     </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -375,10 +384,10 @@
         function selectedProxyType(proxyType) {
             $('#proxy-dialog #proxy-type').html(proxyType);
             $('#proxy-dialog [data-for-type]').addClass('hide');
-            $('#proxy-dialog #advanced-toggle').addClass('hide');
+            $('#proxy-dialog .advanced-toggle').addClass('hide');
             $('#proxy-dialog [data-for-type="' + proxyType + '"]').removeClass('hide');
             if ($('#proxy-dialog .advanced [data-for-type="' + proxyType + '"]').length > 0) {
-                $('#proxy-dialog #advanced-toggle').removeClass('hide');
+                $('#proxy-dialog .advanced-toggle').removeClass('hide');
             }
         }
 
@@ -465,12 +474,22 @@
             selectedProxyType(proxyType);
         });
 
-        $('#proxy-dialog #advanced-toggle button').click(function() {
+        $('#proxy-dialog .advanced-toggle button').click(function() {
             if ($('#proxy-dialog .advanced').hasClass('hide')) {
                 $('#proxy-dialog .advanced').removeClass('hide');
                 $(this).find('span').removeClass('glyphicon-collapse-down').addClass('glyphicon-collapse-up');
             } else {
                 $('#proxy-dialog .advanced').addClass('hide');
+                $(this).find('span').removeClass('glyphicon-collapse-up').addClass('glyphicon-collapse-down');
+            }
+        });
+
+        $('#proxies-dialog .advanced-toggle button').click(function() {
+            if ($('#proxies-dialog .advanced').hasClass('hide')) {
+                $('#proxies-dialog .advanced').removeClass('hide');
+                $(this).find('span').removeClass('glyphicon-collapse-down').addClass('glyphicon-collapse-up');
+            } else {
+                $('#proxies-dialog .advanced').addClass('hide');
                 $(this).find('span').removeClass('glyphicon-collapse-up').addClass('glyphicon-collapse-down');
             }
         });
