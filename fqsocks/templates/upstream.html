@@ -62,6 +62,22 @@
         #proxy-dialog .input-group-addon {
             width: 128px;
         }
+
+        #proxy-dialog.add-mode .add-mode {
+            display: inline-block;
+        }
+
+        #proxy-dialog.add-mode .update-mode {
+            display: none;
+        }
+
+        #proxy-dialog.update-mode .add-mode {
+            display: none;
+        }
+
+        #proxy-dialog.update-mode .update-mode {
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -111,7 +127,7 @@
                     <span class="glyphicon glyphicon-wrench"></span>
                     {{ _('Config', '配置') }}
                 </a>
-                <a data-toggle="modal" href="#proxy-dialog" class="btn btn-primary">
+                <a id="show-add-proxy" class="btn btn-primary">
                     <span class="glyphicon glyphicon-plus"></span>
                     {{ _('Add', '添加') }}
                 </a>
@@ -136,14 +152,16 @@
     </div>
 </div>
 <!-- Modal -->
-<div class="modal fade" id="proxy-dialog" tabindex="-1" role="dialog"
-     aria-labelledby="proxy-dialog-title" aria-hidden="true">
+<div class="modal fade add-mode" id="proxy-dialog" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-                <h4 class="modal-title" id="proxy-dialog-title">
+                <h4 class="modal-title add-mode">
                     {{ _('Add Proxy', '添加代理') }}
+                </h4>
+                <h4 class="modal-title update-mode">
+                    {{ _('Update Proxy', '更新代理') }}
                 </h4>
             </div>
             <div class="modal-body">
@@ -152,7 +170,7 @@
                         <label>{{ _('Proxy Type', '代理类型') }}</label>
 
                         <div class="dropdown pull-right">
-                            <a id="proxy-type" data-toggle="dropdown" href="#">{{ _('Please Select...', '请选择...') }}</a>
+                            <a id="proxy-type" data-toggle="dropdown" href="#"></a>
                             <ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
                                 <li role="presentation"><a href="javascript:void(0);">GoAgent</a></li>
                                 <li><a href="javascript:void(0);">Shadowsocks</a></li>
@@ -196,8 +214,10 @@
                 </form>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-danger update-mode pull-left" id="delete-proxy">{{ _('Delete', '删除') }}</button>
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
-                <button class="btn btn-primary" id="add-proxy">{{ _('Add', '添加') }}</button>
+                <button class="btn btn-primary add-mode" id="add-proxy">{{ _('Add', '添加') }}</button>
+                <button class="btn btn-primary update-mode" id="update-proxy">{{ _('Update', '更新') }}</button>
             </div>
         </div>
     </div>
@@ -352,8 +372,36 @@
             });
         }
 
+        function selectedProxyType(proxyType) {
+            $('#proxy-dialog #proxy-type').html(proxyType);
+            $('#proxy-dialog [data-for-type]').addClass('hide');
+            $('#proxy-dialog #advanced-toggle').addClass('hide');
+            $('#proxy-dialog [data-for-type="' + proxyType + '"]').removeClass('hide');
+            if ($('#proxy-dialog .advanced [data-for-type="' + proxyType + '"]').length > 0) {
+                $('#proxy-dialog #advanced-toggle').removeClass('hide');
+            }
+        }
+
         $(window).bind('orientationchange', function () {
             showHideSpeed();
+        });
+
+        $('#proxies').on('click', 'button.proxy', function() {
+            var proxyId = $(this).data('proxyId');
+            if (proxyId) {
+                $('#proxy-dialog form')[0].reset();
+                $.get('/proxy?proxy_id=' + proxyId, function(proxy) {
+                    for (var k in proxy.properties) {
+                        $('#proxy-dialog [name=' + k +  ']').val(proxy.properties[k]);
+                    }
+                    selectedProxyType(proxy.proxy_type);
+                    $('#proxy-dialog').data('proxyId', proxy.proxy_id);
+                    $('#proxy-dialog').removeClass('add-mode').addClass('update-mode');
+                    $('#proxy-dialog').modal('show');
+                });
+            } else {
+                $('#proxies-dialog').modal('show');
+            }
         });
 
         $('#goagent-public-servers-switch').on('switch-change', function (e, data) {
@@ -404,15 +452,23 @@
             }
         });
 
+        $('#show-add-proxy').click(function() {
+            $('#proxy-dialog form')[0].reset();
+            selectedProxyType("{{ _('Please Select...', '请选择...') }}");
+            $('#proxy-dialog').data('proxyId', '');
+            $('#proxy-dialog').removeClass('update-mode').addClass('add-mode');
+            $('#proxy-dialog').modal('show');
+        });
+
+        $('#delete-proxy').click(function() {
+            $.post('/proxies/delete?proxy_id=' + $('#proxy-dialog').data('proxyId'), function() {
+                $('#proxy-dialog').modal('hide');
+            });
+        });
+
         $('#proxy-dialog .dropdown li a').click(function () {
             var proxyType = $(this).html();
-            $('#proxy-dialog #proxy-type').html(proxyType);
-            $('#proxy-dialog [data-for-type]').addClass('hide');
-            $('#proxy-dialog #advanced-toggle').addClass('hide');
-            $('#proxy-dialog [data-for-type="' + proxyType + '"]').removeClass('hide');
-            if ($('#proxy-dialog .advanced [data-for-type="' + proxyType + '"]').length > 0) {
-                $('#proxy-dialog #advanced-toggle').removeClass('hide');
-            }
+            selectedProxyType(proxyType);
         });
 
         $('#proxy-dialog #advanced-toggle button').click(function() {

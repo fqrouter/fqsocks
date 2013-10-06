@@ -515,9 +515,14 @@ def check_access(url):
 def init_proxies(config):
     global last_refresh_started_at
     last_refresh_started_at = -1
-    for private_server in config['private_servers'].values():
+    for proxy_id, private_server in config['private_servers'].items():
         proxy_type = private_server.pop('proxy_type')
-        proxies.append(proxy_types[proxy_type](**private_server))
+        if 'GoAgent' == proxy_type:
+            proxy = GoAgentProxy(**private_server)
+            proxy.proxy_id = proxy_id
+            proxies.append(proxy)
+        else:
+            raise NotImplementedError()
     try:
         success = False
         for i in range(8):

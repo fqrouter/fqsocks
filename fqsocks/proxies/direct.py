@@ -10,6 +10,7 @@ class Proxy(object):
         self.died = False
         self.flags = set()
         self.priority = 0
+        self.proxy_id = None
         self._proxy_ip = None
         self.latency_records_total = 0
         self.latency_records_count = 0

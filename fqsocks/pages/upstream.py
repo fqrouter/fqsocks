@@ -3,6 +3,7 @@ import httplib
 import time
 import logging
 import os.path
+import json
 from datetime import datetime
 
 import gevent
@@ -74,6 +75,7 @@ def handle_list_proxies(environ, start_response):
         if not proxy_public_name:
             continue
         proxies_stats[proxy_public_name] = {
+            'proxy_id': None,
             'rx_speed_value': rx_speed,
             'rx_speed_label': '%05.2f KB/s' % rx_speed,
             'rx_bytes_value': rx_bytes,
@@ -89,8 +91,10 @@ def handle_list_proxies(environ, start_response):
             continue
         if proxy_public_name in proxies_stats:
             proxies_stats[proxy_public_name]['died'] = proxy.died
+            proxies_stats[proxy_public_name]['proxy_id'] = proxy.proxy_id
         else:
             proxies_stats[proxy_public_name] = {
+                'proxy_id': proxy.proxy_id,
                 'died': proxy.died,
                 'rx_speed_value': 0,
                 'rx_speed_label': '00.00 KB/s',
@@ -235,7 +239,36 @@ def handle_add_proxy(environ, start_response):
     path = environ['REQUEST_ARGUMENTS']['path'].value
     password = environ['REQUEST_ARGUMENTS']['password'].value
     def apply(config):
-        config_file.add_proxy(config, 'goagent', appid=appid, path=path, password=password)
+        config_file.add_proxy(config, proxy_type, appid=appid, path=path, password=password)
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('GET', 'proxy')
+def handle_get_proxy(environ, start_response):
+    proxy_id = environ['REQUEST_ARGUMENTS']['proxy_id'].value
+    proxy = config_file.read_config()['private_servers'].get(proxy_id)
+    start_response(httplib.OK, [('Content-Type', 'application/json')])
+    if proxy:
+        proxy_type = proxy.pop('proxy_type')
+        yield json.dumps({
+            'proxy_id': proxy_id,
+            'proxy_type': proxy_type,
+            'properties': proxy
+        })
+    else:
+        yield json.dumps({})
+
+
+@httpd.http_handler('POST', 'proxies/delete')
+def handle_get_proxy(environ, start_response):
+    proxy_id = environ['REQUEST_ARGUMENTS']['proxy_id'].value
+    def apply(config):
+        config['private_servers'].pop(proxy_id, None)
 
     config_file.update_config(apply)
     disable_proxies()
