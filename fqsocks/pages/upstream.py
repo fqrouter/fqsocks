@@ -248,6 +248,25 @@ def handle_add_proxy(environ, start_response):
     return []
 
 
+@httpd.http_handler('POST', 'proxies/update')
+def handle_update_proxy(environ, start_response):
+    proxy_id = environ['REQUEST_ARGUMENTS']['proxy_id'].value
+    proxy_type = environ['REQUEST_ARGUMENTS']['proxy_type'].value
+    appid = environ['REQUEST_ARGUMENTS']['appid'].value
+    path = environ['REQUEST_ARGUMENTS']['path'].value
+    password = environ['REQUEST_ARGUMENTS']['password'].value
+    def apply(config):
+        config['private_servers'][proxy_id] = dict(
+            proxy_type=proxy_type, appid=appid,
+            path=path, password=password)
+
+    config_file.update_config(apply)
+    disable_proxies()
+    enable_proxies()
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
 @httpd.http_handler('GET', 'proxy')
 def handle_get_proxy(environ, start_response):
     proxy_id = environ['REQUEST_ARGUMENTS']['proxy_id'].value

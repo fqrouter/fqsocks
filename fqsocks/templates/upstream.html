@@ -460,12 +460,6 @@
             $('#proxy-dialog').modal('show');
         });
 
-        $('#delete-proxy').click(function() {
-            $.post('/proxies/delete?proxy_id=' + $('#proxy-dialog').data('proxyId'), function() {
-                $('#proxy-dialog').modal('hide');
-            });
-        });
-
         $('#proxy-dialog .dropdown li a').click(function () {
             var proxyType = $(this).html();
             selectedProxyType(proxyType);
@@ -490,6 +484,26 @@
                 args[$input.attr('name')] = $input.val();
             });
             $.post('/proxies/add', args, function() {
+                $('#proxy-dialog').modal('hide');
+            });
+        });
+
+        $('#proxy-dialog #update-proxy').click(function() {
+            var args = {
+                proxy_id: $('#proxy-dialog').data('proxyId'),
+                proxy_type: $('#proxy-dialog #proxy-type').html()
+            };
+            $('#proxy-dialog input').each(function(i, $input) {
+                $input = $($input);
+                args[$input.attr('name')] = $input.val();
+            });
+            $.post('/proxies/update', args, function() {
+                $('#proxy-dialog').modal('hide');
+            });
+        });
+
+        $('#proxy-dialog #delete-proxy').click(function() {
+            $.post('/proxies/delete?proxy_id=' + $('#proxy-dialog').data('proxyId'), function() {
                 $('#proxy-dialog').modal('hide');
             });
         });
