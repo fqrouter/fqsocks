@@ -165,6 +165,7 @@
                 </h4>
             </div>
             <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
                 <form role="form">
                     <div class="form-group">
                         <label>{{ _('Proxy Type', '代理类型') }}</label>
@@ -190,16 +191,16 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH">
+                            <div class="input-group hide" data-for-type="SSH,Shadowsocks">
                                 <span class="input-group-addon">{{ _('Host', '主机') }}</span>
                                 <input name="host" type="text" class="form-control"
                                        placeholder="{{ _('ip or domain', 'ip 或者域名') }}">
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH">
+                            <div class="input-group hide" data-for-type="SSH,Shadowsocks">
                                 <span class="input-group-addon">{{ _('Port', '端口') }}</span>
-                                <input name="port" type="text" class="form-control" value="22">
+                                <input name="port" type="text" class="form-control">
                             </div>
                         </div>
                         <div class="form-group">
@@ -209,7 +210,7 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH">
+                            <div class="input-group hide" data-for-type="SSH,Shadowsocks">
                                 <span class="input-group-addon">{{ _('Password', '密码') }}</span>
                                 <input name="password" type="text" class="form-control">
                             </div>
@@ -222,6 +223,18 @@
                                 如果你想要使用私钥认证就不要填密码，然后把私钥上传到
                                 """) }}
                                 <span id="ssh-host"></span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="Shadowsocks">
+                                <span class="input-group-addon">{{ _('Encrypt Method', '加密方式') }}</span>
+                                <select name="encrypt_method"  class="form-control">
+                                    {% for m in ["table", "rc4", "aes-128-cfb", "aes-192-cfb", "aes-256-cfb", "bf-cfb",
+                                    "camellia-128-cfb", "camellia-192-cfb", "camellia-256-cfb", "cast5-cfb",
+                                    "des-cfb", "idea-cfb", "rc2-cfb", "seed-cfb"] %}
+                                    <option value="{{ m }}">{{ m }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -242,7 +255,14 @@
                         <div class="form-group">
                             <div class="input-group hide" data-for-type="GoAgent">
                                 <span class="input-group-addon">{{ _('Password', '密码') }}</span>
-                                <input name="password" type="text" class="form-control" placeholder="{{ _('No password by default', '缺省无密码') }}">
+                                <input name="goagent_password" type="text" class="form-control"
+                                       placeholder="{{ _('No password by default', '缺省无密码') }}">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH">
+                                <span class="input-group-addon">{{ _('Connections Count', '连接数量') }}</span>
+                                <input name="connections_count" type="text" class="form-control" value="4">
                             </div>
                         </div>
                     </div>
@@ -417,13 +437,20 @@
         }
 
         function selectedProxyType(proxyType) {
+            $('#proxy-dialog .alert').addClass('hide');
             $('#proxy-dialog #proxy-type').html(proxyType);
-            $('#proxy-dialog [data-for-type]').addClass('hide');
             $('#proxy-dialog .advanced-toggle').addClass('hide');
-            $('#proxy-dialog [data-for-type="' + proxyType + '"]').removeClass('hide');
-            if ($('#proxy-dialog .advanced [data-for-type="' + proxyType + '"]').length > 0) {
-                $('#proxy-dialog .advanced-toggle').removeClass('hide');
-            }
+            $('#proxy-dialog [data-for-type]').each(function(i, $input) {
+                var $input = $($input);
+                if ($input.data('forType').indexOf(proxyType) >= 0) {
+                    $input.removeClass('hide');
+                    if ($input.parents('.advanced').length > 0) {
+                        $('#proxy-dialog .advanced-toggle').removeClass('hide');
+                    }
+                } else {
+                    $input.addClass('hide');
+                }
+            });
         }
 
         $(window).bind('orientationchange', function () {
@@ -433,6 +460,7 @@
         $('#proxies').on('click', 'button.proxy', function() {
             var proxyId = $(this).data('proxyId');
             if (proxyId) {
+                $('#proxy-dialog .alert').addClass('hide');
                 $('#proxy-dialog form')[0].reset();
                 $.get('/proxy?proxy_id=' + proxyId, function(proxy) {
                     for (var k in proxy.properties) {
@@ -497,6 +525,7 @@
         });
 
         $('#show-add-proxy').click(function() {
+            $('#proxy-dialog .alert').addClass('hide');
             $('#proxy-dialog form')[0].reset();
             selectedProxyType("{{ _('Please Select...', '请选择...') }}");
             $('#proxy-dialog').data('proxyId', '');
@@ -534,15 +563,32 @@
         });
 
         $('#proxy-dialog #add-proxy').click(function() {
+            var validProxyTypes = [];
+            $('#proxy-dialog .dropdown li a').each(function(i, a) {
+                validProxyTypes.push($(a).html())
+            });
+            var proxyType = $('#proxy-dialog #proxy-type').html();
+            console.log(proxyType);
+            console.log(validProxyTypes);
+            if ($.inArray(proxyType, validProxyTypes) == -1) {
+                $('#proxy-dialog .alert').html("{{ _('Please select proxy type', '请选择代理类型') }}");
+                $('#proxy-dialog .alert').removeClass('hide');
+                return;
+            }
             var args = {
-                proxy_type: $('#proxy-dialog #proxy-type').html()
+                proxy_type: proxyType
             };
-            $('#proxy-dialog input').each(function(i, $input) {
+            $('#proxy-dialog input,select').each(function(i, $input) {
                 $input = $($input);
                 args[$input.attr('name')] = $input.val();
             });
-            $.post('/proxies/add', args, function() {
-                $('#proxy-dialog').modal('hide');
+            $.post('/proxies/add', args, function(error) {
+                if (error) {
+                    $('#proxy-dialog .alert').html(error);
+                    $('#proxy-dialog .alert').removeClass('hide');
+                } else {
+                    $('#proxy-dialog').modal('hide');
+                }
             });
         });
 
@@ -551,12 +597,17 @@
                 proxy_id: $('#proxy-dialog').data('proxyId'),
                 proxy_type: $('#proxy-dialog #proxy-type').html()
             };
-            $('#proxy-dialog input').each(function(i, $input) {
+            $('#proxy-dialog input,select').each(function(i, $input) {
                 $input = $($input);
                 args[$input.attr('name')] = $input.val();
             });
-            $.post('/proxies/update', args, function() {
-                $('#proxy-dialog').modal('hide');
+            $.post('/proxies/update', args, function(error) {
+                if (error) {
+                    $('#proxy-dialog .alert').html(error);
+                    $('#proxy-dialog .alert').removeClass('hide');
+                } else {
+                    $('#proxy-dialog').modal('hide');
+                }
             });
         });
 

@@ -234,7 +234,10 @@ def handle_disable_ss_public_servers(environ, start_response):
 
 @httpd.http_handler('POST', 'proxies/add')
 def handle_add_proxy(environ, start_response):
-    private_server = to_private_server(environ['REQUEST_ARGUMENTS'])
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    private_server = to_private_server(environ)
+    if isinstance(private_server, basestring):
+        return [private_server]
     proxy_type = environ['REQUEST_ARGUMENTS']['proxy_type'].value
 
     def apply(config):
@@ -243,15 +246,17 @@ def handle_add_proxy(environ, start_response):
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()
-    start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
 
 @httpd.http_handler('POST', 'proxies/update')
 def handle_update_proxy(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
     proxy_id = environ['REQUEST_ARGUMENTS']['proxy_id'].value
     proxy_type = environ['REQUEST_ARGUMENTS']['proxy_type'].value
-    private_server = to_private_server(environ['REQUEST_ARGUMENTS'])
+    private_server = to_private_server(environ)
+    if isinstance(private_server, basestring):
+        return [private_server]
     private_server['proxy_type'] = proxy_type
     def apply(config):
         config['private_servers'][proxy_id] = private_server
@@ -259,29 +264,67 @@ def handle_update_proxy(environ, start_response):
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()
-    start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
 
-def to_private_server(request_arguments):
-    args = {key: request_arguments[key].value for key in request_arguments.keys()}
+def to_private_server(environ):
+    _ = environ['select_text']
+    args = {key: environ['REQUEST_ARGUMENTS'][key].value for key in environ['REQUEST_ARGUMENTS'].keys()}
     args.pop('proxy_id', None)
     proxy_type = args['proxy_type']
     if 'GoAgent' == proxy_type:
+        appid = args['appid']
+        if not appid:
+            return _('App Id must not be empty', 'App Id 必填')
         return {
-            'appid': args['appid'],
-            'path': args.get('path', '/2'),
-            'password': args.get('password')
+            'appid': appid,
+            'path': args.get('path') or '/2',
+            'goagent_password': args.get('goagent_password')
         }
     elif 'SSH' == proxy_type:
+        host = args['host']
+        if not host:
+            return _('Host must not be empty', '主机必填')
+        port = args['port']
+        if not port:
+            return _('Port must not be empty', '端口必填')
+        try:
+            port = int(port)
+        except:
+            return _('Port must be number', '端口必须是数字')
+        username = args['username']
+        if not username:
+            return _('User name must not be empty', '用户名必填')
+        password = args.get('password')
+        connections_count = int(args.get('connections_count') or 4)
         return {
-            'host': args['host'],
-            'port': args['port'],
-            'username': args['username'],
-            'password': args.get('password'),
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password,
+            'connections_count': connections_count
+        }
+    elif 'Shadowsocks' == proxy_type:
+        host = args['host']
+        if not host:
+            return _('Host must not be empty', '主机必填')
+        port = args['port']
+        if not port:
+            return _('Port must not be empty', '端口必填')
+        password = args.get('password')
+        if not password:
+            return _('Password must not be empty', '密码必填')
+        encrypt_method = args.get('encrypt_method')
+        if not encrypt_method:
+            return _('Encrypt method must not be empty', '加密方式必填')
+        return {
+            'host': host,
+            'port': port,
+            'password': password,
+            'encrypt_method': encrypt_method
         }
     else:
-        raise NotImplementedError()
+        return _('Internal Error', '内部错误')
 
 
 @httpd.http_handler('GET', 'proxy')

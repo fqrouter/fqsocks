@@ -520,15 +520,24 @@ def init_proxies(config):
         if 'GoAgent' == proxy_type:
             proxy = GoAgentProxy(
                 private_server['appid'], private_server.get('path'),
-                private_server.get('password'))
+                private_server.get('goagent_password'))
+            proxy.proxy_id = proxy_id
+            proxies.append(proxy)
         elif 'SSH' == proxy_type:
-            proxy = SshProxy(
+            for i in range(private_server.get('connections_count') or 4):
+                proxy = SshProxy(
+                    private_server['host'], private_server['port'],
+                    private_server['username'], private_server.get('password'))
+                proxy.proxy_id = proxy_id
+                proxies.append(proxy)
+        elif 'Shadowsocks' == proxy_type:
+            proxy = ShadowSocksProxy(
                 private_server['host'], private_server['port'],
-                private_server.get('username'), private_server.get('password'))
+                private_server['password'], private_server['encrypt_method'])
+            proxy.proxy_id = proxy_id
+            proxies.append(proxy)
         else:
             raise NotImplementedError()
-        proxy.proxy_id = proxy_id
-        proxies.append(proxy)
     try:
         success = False
         for i in range(8):
