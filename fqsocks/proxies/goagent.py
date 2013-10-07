@@ -95,14 +95,12 @@ class GoAgentProxy(Proxy):
     GOOGLE_IPS = []
     proxies = []
 
-    def __init__(self, appid, path='/2', password=False, validate=0):
+    def __init__(self, appid, path='/2', password=''):
         super(GoAgentProxy, self).__init__()
+        assert appid
         self.appid = appid
-        self.path = path
+        self.path = path or '/2'
         self.password = password
-        self.validate = validate
-        if not self.appid:
-            self.died = True
         self.version = 'UNKNOWN'
         self.flags.add('PUBLIC')
 
@@ -218,8 +216,6 @@ def forward(client, proxy, appids):
         kwargs = {}
         if proxy.password:
             kwargs['password'] = proxy.password
-        if proxy.validate:
-            kwargs['validate'] = 1
 
         try:
             response = gae_urlfetch(

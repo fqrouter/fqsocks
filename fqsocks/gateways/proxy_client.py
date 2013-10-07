@@ -518,11 +518,17 @@ def init_proxies(config):
     for proxy_id, private_server in config['private_servers'].items():
         proxy_type = private_server.pop('proxy_type')
         if 'GoAgent' == proxy_type:
-            proxy = GoAgentProxy(**private_server)
-            proxy.proxy_id = proxy_id
-            proxies.append(proxy)
+            proxy = GoAgentProxy(
+                private_server['appid'], private_server.get('path'),
+                private_server.get('password'))
+        elif 'SSH' == proxy_type:
+            proxy = SshProxy(
+                private_server['host'], private_server['port'],
+                private_server.get('username'), private_server.get('password'))
         else:
             raise NotImplementedError()
+        proxy.proxy_id = proxy_id
+        proxies.append(proxy)
     try:
         success = False
         for i in range(8):

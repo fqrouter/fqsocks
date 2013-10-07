@@ -189,6 +189,41 @@
                                 <span class="input-group-addon">.appspot.com</span>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH">
+                                <span class="input-group-addon">{{ _('Host', '主机') }}</span>
+                                <input name="host" type="text" class="form-control"
+                                       placeholder="{{ _('ip or domain', 'ip 或者域名') }}">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH">
+                                <span class="input-group-addon">{{ _('Port', '端口') }}</span>
+                                <input name="port" type="text" class="form-control" value="22">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH">
+                                <span class="input-group-addon">{{ _('User Name', '用户名') }}</span>
+                                <input name="username" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH">
+                                <span class="input-group-addon">{{ _('Password', '密码') }}</span>
+                                <input name="password" type="text" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH">
+                                {{ _("""
+                                leave password empty if you are using private key authentication. put private key at
+                                """, """
+                                如果你想要使用私钥认证就不要填密码，然后把私钥上传到
+                                """) }}
+                                <span id="ssh-host"></span>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group hide advanced-toggle">
                         <button type="button" class="btn btn-default pull-right">
@@ -467,6 +502,10 @@
             $('#proxy-dialog').data('proxyId', '');
             $('#proxy-dialog').removeClass('update-mode').addClass('add-mode');
             $('#proxy-dialog').modal('show');
+        });
+
+        $('#proxy-dialog [name=host]').blur(function() {
+            $('#proxy-dialog #ssh-host').html('/data/data/fq.router2/etc/ssh/' + $(this).val());
         });
 
         $('#proxy-dialog .dropdown li a').click(function () {

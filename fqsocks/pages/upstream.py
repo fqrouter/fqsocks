@@ -234,12 +234,11 @@ def handle_disable_ss_public_servers(environ, start_response):
 
 @httpd.http_handler('POST', 'proxies/add')
 def handle_add_proxy(environ, start_response):
+    private_server = to_private_server(environ['REQUEST_ARGUMENTS'])
     proxy_type = environ['REQUEST_ARGUMENTS']['proxy_type'].value
-    appid = environ['REQUEST_ARGUMENTS']['appid'].value
-    path = environ['REQUEST_ARGUMENTS']['path'].value
-    password = environ['REQUEST_ARGUMENTS']['password'].value
+
     def apply(config):
-        config_file.add_proxy(config, proxy_type, appid=appid, path=path, password=password)
+        config_file.add_proxy(config, proxy_type=proxy_type,**private_server)
 
     config_file.update_config(apply)
     disable_proxies()
@@ -252,19 +251,37 @@ def handle_add_proxy(environ, start_response):
 def handle_update_proxy(environ, start_response):
     proxy_id = environ['REQUEST_ARGUMENTS']['proxy_id'].value
     proxy_type = environ['REQUEST_ARGUMENTS']['proxy_type'].value
-    appid = environ['REQUEST_ARGUMENTS']['appid'].value
-    path = environ['REQUEST_ARGUMENTS']['path'].value
-    password = environ['REQUEST_ARGUMENTS']['password'].value
+    private_server = to_private_server(environ['REQUEST_ARGUMENTS'])
+    private_server['proxy_type'] = proxy_type
     def apply(config):
-        config['private_servers'][proxy_id] = dict(
-            proxy_type=proxy_type, appid=appid,
-            path=path, password=password)
+        config['private_servers'][proxy_id] = private_server
 
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
+
+
+def to_private_server(request_arguments):
+    args = {key: request_arguments[key].value for key in request_arguments.keys()}
+    args.pop('proxy_id', None)
+    proxy_type = args['proxy_type']
+    if 'GoAgent' == proxy_type:
+        return {
+            'appid': args['appid'],
+            'path': args.get('path', '/2'),
+            'password': args.get('password')
+        }
+    elif 'SSH' == proxy_type:
+        return {
+            'host': args['host'],
+            'port': args['port'],
+            'username': args['username'],
+            'password': args.get('password'),
+        }
+    else:
+        raise NotImplementedError()
 
 
 @httpd.http_handler('GET', 'proxy')
