@@ -131,5 +131,5 @@ class SpdyConnectProxy(Proxy):
 
     @property
     def public_name(self):
-        return 'HTTP\t%s' % self.proxy_host
+        return 'SPDY\t%s' % self.proxy_host
 

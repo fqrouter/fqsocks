@@ -33,7 +33,6 @@ from .. import china_ip
 from ..proxies.direct import DIRECT_PROXY
 from ..proxies.direct import HTTPS_TRY_PROXY
 from ..proxies.direct import NONE_PROXY
-from .. import config_file
 
 
 TLS1_1_VERSION = 0x0302
@@ -64,6 +63,7 @@ china_shortcut_enabled = True
 direct_access_enabled = True
 last_refresh_started_at = -1
 force_us_ip = False
+
 
 class ProxyClient(object):
     def __init__(self, downstream_sock, src_ip, src_port, dst_ip, dst_port):
@@ -233,6 +233,7 @@ class ProxyFallBack(Exception):
 
 ProxyClient.ProxyFallBack = ProxyFallBack
 
+
 def handle_client(client):
     try:
         if LOGGER.isEnabledFor(logging.DEBUG):
@@ -249,6 +250,7 @@ def handle_client(client):
             LOGGER.info('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
     finally:
         client.close()
+
 
 def pick_proxy_and_forward(client):
     global dns_polluted_at
@@ -536,6 +538,36 @@ def init_proxies(config):
                 private_server['password'], private_server['encrypt_method'])
             proxy.proxy_id = proxy_id
             proxies.append(proxy)
+        elif 'HTTP' == proxy_type:
+            is_secured = 'SSL' == private_server.get('transport_type')
+            if 'HTTP' in private_server.get('traffic_type'):
+                proxy = HttpRelayProxy(
+                    private_server['host'], private_server['port'],
+                    private_server['username'], private_server['password'],
+                    is_secured=is_secured)
+                proxy.proxy_id = proxy_id
+                proxies.append(proxy)
+            if 'HTTPS' in private_server.get('traffic_type'):
+                proxy = HttpConnectProxy(
+                    private_server['host'], private_server['port'],
+                    private_server['username'], private_server['password'],
+                    is_secured=is_secured)
+                proxy.proxy_id = proxy_id
+                proxies.append(proxy)
+        elif 'SPDY' == proxy_type:
+            for i in range(private_server.get('connections_count') or 4):
+                if 'HTTP' in private_server.get('traffic_type'):
+                    proxy = SpdyRelayProxy(
+                        private_server['host'], private_server['port'], 'auto',
+                        private_server['username'], private_server['password'])
+                    proxy.proxy_id = proxy_id
+                    proxies.append(proxy)
+                if 'HTTPS' in private_server.get('traffic_type'):
+                    proxy = SpdyConnectProxy(
+                        private_server['host'], private_server['port'], 'auto',
+                        private_server['username'], private_server['password'])
+                    proxy.proxy_id = proxy_id
+                    proxies.append(proxy)
         else:
             raise NotImplementedError()
     try:
@@ -571,7 +603,8 @@ def load_public_proxies(public_servers):
         with contextlib.closing(sock):
             sock.settimeout(10)
             request = dpkt.dns.DNS(
-                id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(public_servers['source']), type=dpkt.dns.DNS_TXT)])
+                id=random.randint(1, 65535),
+                qd=[dpkt.dns.DNS.Q(name=str(public_servers['source']), type=dpkt.dns.DNS_TXT)])
             sock.sendto(str(request), ('8.8.8.8', 53))
             gevent.sleep(0.1)
             for an in dpkt.dns.DNS(sock.recv(1024)).an:
@@ -580,7 +613,7 @@ def load_public_proxies(public_servers):
                 priority = int(priority)
                 if public_servers.get('%s_enabled' % proxy_type) and proxy_type in proxy_types:
                     for i in range(count):
-                        dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i+1))
+                        dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i + 1))
                         more_proxies.append(DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority))
         proxies.extend(more_proxies)
         LOGGER.info('loaded public servers: %s' % public_servers)

@@ -323,6 +323,57 @@ def to_private_server(environ):
             'password': password,
             'encrypt_method': encrypt_method
         }
+    elif 'HTTP' == proxy_type:
+        host = args['host']
+        if not host:
+            return _('Host must not be empty', '主机必填')
+        port = args['port']
+        if not port:
+            return _('Port must not be empty', '端口必填')
+        try:
+            port = int(port)
+        except:
+            return _('Port must be number', '端口必须是数字')
+        username = args['username']
+        if not username:
+            return _('User name must not be empty', '用户名必填')
+        password = args.get('password')
+        if not password:
+            return _('Password must not be empty', '密码必填')
+        return {
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password,
+            'traffic_type': args.get('traffic_type') or 'HTTP/HTTPS',
+            'transport_type': args.get('transport_type') or 'HTTP'
+        }
+    elif 'SPDY' == proxy_type:
+        host = args['host']
+        if not host:
+            return _('Host must not be empty', '主机必填')
+        port = args['port']
+        if not port:
+            return _('Port must not be empty', '端口必填')
+        try:
+            port = int(port)
+        except:
+            return _('Port must be number', '端口必须是数字')
+        username = args['username']
+        if not username:
+            return _('User name must not be empty', '用户名必填')
+        password = args.get('password')
+        if not password:
+            return _('Password must not be empty', '密码必填')
+        connections_count = int(args.get('connections_count') or 4)
+        return {
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password,
+            'traffic_type': args.get('traffic_type') or 'HTTP/HTTPS',
+            'connections_count': connections_count
+        }
     else:
         return _('Internal Error', '内部错误')
 

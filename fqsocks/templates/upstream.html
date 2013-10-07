@@ -191,26 +191,26 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH,Shadowsocks">
+                            <div class="input-group hide" data-for-type="SSH,Shadowsocks,HTTP,SPDY">
                                 <span class="input-group-addon">{{ _('Host', '主机') }}</span>
                                 <input name="host" type="text" class="form-control"
                                        placeholder="{{ _('ip or domain', 'ip 或者域名') }}">
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH,Shadowsocks">
+                            <div class="input-group hide" data-for-type="SSH,Shadowsocks,HTTP,SPDY">
                                 <span class="input-group-addon">{{ _('Port', '端口') }}</span>
                                 <input name="port" type="text" class="form-control">
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH">
+                            <div class="input-group hide" data-for-type="SSH,HTTP,SPDY">
                                 <span class="input-group-addon">{{ _('User Name', '用户名') }}</span>
                                 <input name="username" type="text" class="form-control">
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH,Shadowsocks">
+                            <div class="input-group hide" data-for-type="SSH,Shadowsocks,HTTP,SPDY">
                                 <span class="input-group-addon">{{ _('Password', '密码') }}</span>
                                 <input name="password" type="text" class="form-control">
                             </div>
@@ -260,7 +260,26 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <div class="input-group hide" data-for-type="SSH">
+                            <div class="input-group hide" data-for-type="HTTP,SPDY">
+                                <span class="input-group-addon">{{ _('Traffic Type', '可以代理的内容') }}</span>
+                                <select name="traffic_type" class="form-control">
+                                    <option value="HTTP/HTTPS">HTTP/HTTPS</option>
+                                    <option value="HTTP">HTTP</option>
+                                    <option value="HTTPS">HTTPS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="HTTP">
+                                <span class="input-group-addon">{{ _('Transport Type', '代理连接方式') }}</span>
+                                <select name="transport_type" class="form-control">
+                                    <option value="HTTP">HTTP</option>
+                                    <option value="SSL">HTTPS (shrpx, stunnel)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="SSH,SPDY">
                                 <span class="input-group-addon">{{ _('Connections Count', '连接数量') }}</span>
                                 <input name="connections_count" type="text" class="form-control" value="4">
                             </div>
