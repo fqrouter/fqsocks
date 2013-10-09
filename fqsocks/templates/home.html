@@ -195,6 +195,47 @@
             </ul>
         </div>
     </div>
+    <hr/>
+    <div class="row">
+        <div class="col-xs-6">
+            <h3>
+                Pick &amp; Play
+            </h3>
+        </div>
+        <div class="col-xs-6">
+            <button class="btn btn-primary pull-right" style="margin-top: 20px;" id="scan">{{ _('Scan', '扫描') }}</button>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            {{ _(
+            """
+            Scan the currently connected wifi network to discover your other devices (iphone, windows pc, etc).
+            Pick any device from the list, then that device will route via fqrouter to access restricted website such as
+            youtube or twitter.
+            """,
+            """
+            扫描当前网络中的其他设备（iPhone，个人电脑等）。然后从扫描出来的列表中选取你希望翻墙的设备，这样那台设备就可以通过fqrouter翻墙了。
+            """) }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-12 hide" id="lan-devices">
+            <div class="busy-indicator" class="hide"></div>
+            <table class="table table-striped" style="margin-bottom: 0;">
+                <thead>
+                <tr>
+                    <th>{{ _('ip', 'ip') }}</th>
+                    <th>{{ _('hostname', '机器名') }}</th>
+                    <th class="no-sort">{{ _('picked', '已选中') }}</th>
+                </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <hr/>
 </div>
 
 <!-- Modal -->
@@ -548,7 +589,7 @@
 <script>
     $(document).ready(function () {
 
-        var tablesort = new Tablesort($('#proxies')[0]);
+        var proxies_tablesort = new Tablesort($('#proxies')[0]);
 
         function showHideSpeed() {
             if (typeof(this.orientation) === "undefined" || window.orientation == -90 || window.orientation == 90) {
@@ -560,7 +601,7 @@
 
         function refreshProxyList() {
             $('#proxies tbody').load('/proxies?list-only=True', function () {
-                tablesort.refresh();
+                proxies_tablesort.refresh();
             });
         }
 
@@ -779,6 +820,45 @@
             });
         });
 
+        var lan_tablesort = new Tablesort($('#lan-devices table')[0]);
+
+        var timerId;
+
+        function refreshLanDevices() {
+            $.get('/lan/devices', function (html) {
+                if ($(html).find('tr').length == 0) {
+                    return;
+                }
+                $('#lan-devices').removeClass('hide');
+                $('#lan-devices tbody').replaceWith(html);
+                lan_tablesort.refresh();
+                if ($('#lan-devices tbody').data('isScanCompleted')) {
+                    $('#lan-devices .busy-indicator').addClass('hide');
+                    Visibility.stop(timerId);
+                    timerId = null;
+                }
+            });
+        }
+
+        $('#lan-devices').on('click', 'tr input[type=checkbox]', function () {
+            var ip = $(this).parents('tr').data('ip');
+            $.post('/lan/update', {ip: ip, is_picked: $(this).is(':checked')}, function () {
+                refreshLanDevices();
+            });
+        });
+
+        $('#scan').click(function () {
+            $('#lan-devices').removeClass('hide');
+            $('#lan-devices .busy-indicator').removeClass('hide');
+            $.post('/lan/scan');
+            refreshLanDevices();
+            if (!timerId) {
+                timerId = Visibility.every(1000, refreshLanDevices);
+            }
+        });
+
+
+        refreshLanDevices();
         showHideSpeed();
         refreshProxyList();
         Visibility.every(1000, refreshProxyList);
