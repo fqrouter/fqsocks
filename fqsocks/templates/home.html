@@ -78,20 +78,169 @@
         #proxy-dialog.update-mode .update-mode {
             display: inline-block;
         }
+
+        /*
+         * Side navigation
+         *
+         * Scrollspy and affixed enhanced navigation to highlight sections and secondary
+         * sections of docs content.
+         */
+
+        /* By default it's not affixed in mobile views, so undo that */
+        .bs-sidebar.affix {
+            position: static;
+        }
+
+            /* First level of nav */
+        .bs-sidenav {
+            margin-top: 30px;
+            margin-bottom: 30px;
+            padding-top:    10px;
+            padding-bottom: 10px;
+            text-shadow: 0 1px 0 #fff;
+            background-color: #f7f5fa;
+            border-radius: 5px;
+        }
+
+            /* All levels of nav */
+        .bs-sidebar .nav > li > a {
+            display: block;
+            color: #716b7a;
+            padding: 5px 20px;
+            font-size: 20px;
+        }
+        .bs-sidebar .nav > li > a:hover,
+        .bs-sidebar .nav > li > a:focus {
+            text-decoration: none;
+            background-color: #e5e3e9;
+            border-right: 1px solid #dbd8e0;
+        }
+        .bs-sidebar .nav > .active > a,
+        .bs-sidebar .nav > .active:hover > a,
+        .bs-sidebar .nav > .active:focus > a {
+            font-weight: bold;
+            color: #563d7c;
+            background-color: transparent;
+            border-right: 1px solid #563d7c;
+        }
+
+        .bs-sidebar .nav .nav > li > a {
+            padding-top:    3px;
+            padding-bottom: 3px;
+            padding-left: 30px;
+            font-size: 90%;
+        }
+
+            /* Show and affix the side nav when space allows it */
+        @media screen and (min-width: 992px) {
+            .bs-sidebar .nav > .active > ul {
+                display: block;
+            }
+            /* Widen the fixed sidebar */
+            .bs-sidebar.affix,
+            .bs-sidebar.affix-bottom {
+                width: 213px;
+            }
+            .bs-sidebar.affix {
+                position: fixed; /* Undo the static from mobile first approach */
+                top: 80px;
+            }
+            .bs-sidebar.affix-bottom {
+                position: absolute; /* Undo the static from mobile first approach */
+            }
+            .bs-sidebar.affix-bottom .bs-sidenav,
+            .bs-sidebar.affix .bs-sidenav {
+                margin-top: 0;
+                margin-bottom: 0;
+            }
+        }
+        @media screen and (min-width: 1200px) {
+            /* Widen the fixed sidebar again */
+            .bs-sidebar.affix-bottom,
+            .bs-sidebar.affix {
+                width: 263px;
+            }
+        }
+
+        .section-action {
+            margin-top: 16px;
+        }
+
+        .go-top {
+            position: fixed;
+            bottom: 2em;
+            right: 2em;
+            text-decoration: none;
+            color: white;
+            background-color: rgba(0,0,0,0.3);
+            font-size: 12px;
+            padding: 1em;
+            display: none;
+        }
+
+        .go-top:hover {
+            background-color: rgba(0,0,0,0.6);
+        }
+
+        a.go-top:hover{
+            color: white;
+        }
+
+        .busy-indicator {
+            background: url('/assets/busy-indicator.gif') center center no-repeat white;
+            position: absolute;
+            height: 100%;
+            width: 100%;
+            top: 0;
+            left: 0;
+            border-radius: 10px;
+            zoom: 1;
+            filter: alpha(opacity=50);
+            opacity: 0.5;
+            display: inline-block;
+        }
+
     </style>
 </head>
 <body>
+<a name="top"></a>
 <div class="container">
+    <div class="col-md-3 col-sm-12">
+        <div class="bs-sidebar hidden-print" role="complementary" data-spy="affix">
+            <ul class="nav bs-sidenav">
+                <li>
+                    <a href="#remote-access">{{ _('This page can be viewed remotely', '本页面可以远程访问') }}</a>
+                </li>
+                <li>
+                    <a href="#proxy-list">{{ _('Proxies', '代理列表') }}</a>
+                </li>
+                <li>
+                    <a href="#share-uncensored-internet">{{ _('Share Uncensored Internet', '共享翻墙网络') }}</a>
+                    <ul class="nav">
+                        <li>
 
+                            <a href="#http-proxy">{{ _('HTTP Proxy', 'HTTP代理') }}</a>
+                        </li>
+                        <li>
+                            <a href="#pick-and-play">Pick &amp; Play</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-9" role="main">
 
     <div class="row">
         <div class="col-xs-6">
+            <a name="remote-access">
+            </a>
             <h3>
-                {{ _('Remote Access', '远程访问') }}
+                {{ _('This page can be viewed remotely', '本页面可以远程访问') }}
             </h3>
         </div>
         <div class="col-xs-6">
-            <div class="pull-right" style="margin-top: 20px;">
+            <div class="pull-right section-action">
                 <a data-toggle="modal" href="#http-manager-dialog" class="btn btn-default pull-right"
                    id="config-http-manager">
                     {{ _('Config', '配置') }}
@@ -103,10 +252,10 @@
         <div class="col-xs-12">
             {{ _(
             """
-            This page can also be accessed within the same local area network (LAN).
+            Open following URL from device within the same local area network (LAN).
             """,
             """
-            本页面可以在同一个局域网内的其他机器上访问。
+            在同一个局域网内的其他机器上访问下面的网址
             """) }}
             <div style="margin-top: 8px;">
                 <label class="label label-info" style="font-size: 16px; ">
@@ -118,19 +267,21 @@
     <hr/>
     <div class="row">
         <div class="col-xs-6">
+            <a name="proxy-list">
+            </a>
             <h3>
                 {{ _('Proxies', '代理列表') }}
             </h3>
         </div>
         <div class="col-xs-6">
-            <div class="pull-right" style="margin-top: 20px;">
-            <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
-            {{ _('Configure', '配置') }}
-            </a>
-            <a id="show-add-proxy" class="btn btn-primary">
-                <span class="glyphicon glyphicon-plus"></span>
-                {{ _('Add', '添加') }}
-            </a>
+            <div class="pull-right section-action">
+                <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
+                    {{ _('Configure', '配置') }}
+                </a>
+                <a id="show-add-proxy" class="btn btn-primary">
+                    <span class="glyphicon glyphicon-plus"></span>
+                    {{ _('Add', '添加') }}
+                </a>
             </div>
         </div>
     </div>
@@ -154,12 +305,13 @@
     <hr/>
     <div class="row">
         <div class="col-xs-6">
+            <a name="http-proxy"></a>
             <h3>
                 {{ _('HTTP Proxy', 'HTTP代理') }}
             </h3>
         </div>
         <div class="col-xs-6">
-            <div class="pull-right" style="margin-top: 20px;">
+            <div class="pull-right section-action">
                 <a data-toggle="modal" href="#http-gateway-dialog" class="btn btn-default" id="config-http-gateway">
                     {{ _('Config', '配置') }}
                 </a>
@@ -198,12 +350,13 @@
     <hr/>
     <div class="row">
         <div class="col-xs-6">
+            <a name="pick-and-play"></a>
             <h3>
                 Pick &amp; Play
             </h3>
         </div>
         <div class="col-xs-6">
-            <button class="btn btn-primary pull-right" style="margin-top: 20px;" id="scan">{{ _('Scan', '扫描') }}</button>
+            <button class="btn btn-primary pull-right section-action" id="scan">{{ _('Scan', '扫描') }}</button>
         </div>
     </div>
     <div class="row">
@@ -236,6 +389,7 @@
         </div>
     </div>
     <hr/>
+</div>
 </div>
 
 <!-- Modal -->
@@ -579,7 +733,10 @@
     <!-- /.modal-dialog -->
 </div>
 <!-- /.modal -->
-
+<footer>
+    <div style="height: 800px"></div>
+    <a href="#top" class="go-top"><span class="glyphicon glyphicon-arrow-up"></span></a>
+</footer>
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap/js/bootstrap.js"></script>
 <script src="/assets/tablesort.min.js"></script>
@@ -588,6 +745,21 @@
 <script src="/assets/bootstrap-switch.js"></script>
 <script>
     $(document).ready(function () {
+        // Show or hide the sticky footer button
+        $(window).scroll(function() {
+            if ($(this).scrollTop() > 200) {
+                $('.go-top').fadeIn(200);
+            } else {
+                $('.go-top').fadeOut(200);
+            }
+        });
+
+        // Animate the scroll to top
+        $('.go-top').click(function(event) {
+            event.preventDefault();
+
+            $('html, body').animate({scrollTop: 0}, 300);
+        });
 
         var proxies_tablesort = new Tablesort($('#proxies')[0]);
 
