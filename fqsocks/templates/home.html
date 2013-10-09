@@ -82,6 +82,40 @@
 </head>
 <body>
 <div class="container">
+
+
+    <div class="row">
+        <div class="col-xs-6">
+            <h3>
+                {{ _('Remote Access', '远程访问') }}
+            </h3>
+        </div>
+        <div class="col-xs-6">
+            <div class="pull-right" style="margin-top: 20px;">
+                <a data-toggle="modal" href="#http-manager-dialog" class="btn btn-default pull-right"
+                   id="config-http-manager">
+                    {{ _('Config', '配置') }}
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            {{ _(
+            """
+            This page can also be accessed within the same local area network (LAN).
+            """,
+            """
+            本页面可以在同一个局域网内的其他机器上访问。
+            """) }}
+            <div style="margin-top: 8px;">
+                <label class="label label-info" style="font-size: 16px; ">
+                    http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
+                </label>
+            </div>
+        </div>
+    </div>
+    <hr/>
     <div class="row">
         <div class="col-xs-6">
             <h3>
@@ -117,19 +151,22 @@
             </table>
         </div>
     </div>
-
+    <hr/>
     <div class="row">
         <div class="col-xs-6">
             <h3>
-                {{ _('Remote Access', '远程访问') }}
+                {{ _('HTTP Proxy', 'HTTP代理') }}
             </h3>
         </div>
         <div class="col-xs-6">
             <div class="pull-right" style="margin-top: 20px;">
-                <a data-toggle="modal" href="#http-manager-dialog" class="btn btn-default pull-right"
-                   id="config-http-manager">
+                <a data-toggle="modal" href="#http-gateway-dialog" class="btn btn-default" id="config-http-gateway">
                     {{ _('Config', '配置') }}
                 </a>
+
+                <div class="make-switch" data-on="success" data-off="default" id="http-gateway-switch">
+                    <input type="checkbox" {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
+                </div>
             </div>
         </div>
     </div>
@@ -137,16 +174,25 @@
         <div class="col-xs-12">
             {{ _(
             """
-            This page can also be accessed within the same local area network (LAN).
+            Share uncensored internet to friends nearby (within the same local area network). They just need to set http
+            proxy in their device
+            to the following values. If you do not know what is this about, just google for it :
             """,
             """
-            本页面可以在同一个局域网内的其他机器上访问。
+            把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
             """) }}
-            <div style="margin-top: 8px;">
-                <label class="label label-info" style="font-size: 16px; ">
-                    http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
-                </label>
-            </div>
+            <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;">
+                <li class="list-group-item">
+                    <label class="label label-default">HTTP</label>
+                    <label class="label label-info" style="font-size: 16px;">{{ default_interface_ip }}:{{
+                        http_gateway.LISTEN_PORT }}</label>
+                </li>
+                <li class="list-group-item">
+                    <label class="label label-default">PAC</label>
+                    <label class="label label-info" style="font-size: 16px;">http://{{ default_interface_ip }}:{{
+                        httpd.LISTEN_PORT }}/pac</label>
+                </li>
+            </ul>
         </div>
     </div>
 </div>
@@ -461,6 +507,37 @@
 </div>
 <!-- /.modal -->
 
+<!-- Modal -->
+<div class="modal fade" id="http-gateway-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="http-gateway-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="http-gateway-dialog-title">
+                    {{ _('Configure Remote Access', '配置HTTP代理') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="http-gateway-port">{{ _('Port', '端口') }}</label>
+                        <input type="text" class="form-control" id="http-gateway-port"
+                               value="{{ http_gateway.LISTEN_PORT }}">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="http-gateway-dialog-save">{{ _('Save', '保存') }}</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<!-- /.modal -->
 
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap/js/bootstrap.js"></script>
@@ -672,6 +749,32 @@
                     $('#http-manager-dialog .alert').html(error).removeClass('hide');
                 } else {
                     window.location.href = 'http://{{ default_interface_ip }}:' + newConfig.port;
+                }
+            });
+        });
+
+        $('#http-gateway-switch').on('switch-change', function (e, data) {
+            if (data.value) {
+                $.post('/http-gateway/enable');
+            } else {
+                $.post('/http-gateway/disable');
+            }
+        });
+
+        $('#http-gateway-dialog-save').click(function () {
+            $('#http-gateway-dialog form').submit();
+        });
+
+        $('#http-gateway-dialog form').submit(function (e) {
+            e.preventDefault();
+            var newConfig = {
+                port: $('#http-gateway-port').val()
+            };
+            $.post('/http-gateway/config/update', newConfig, function (error) {
+                if (error) {
+                    $('#http-gateway-dialog .alert').html(error).removeClass('hide');
+                } else {
+                    window.location.reload();
                 }
             });
         });
