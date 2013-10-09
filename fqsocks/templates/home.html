@@ -133,7 +133,24 @@
             </div>
         </div>
     </div>
+    <div class="row">
+        <div class="col-xs-12">
+            {{ _(
+            """
+            This page can also be accessed within the same local area network (LAN).
+            """,
+            """
+            本页面可以在同一个局域网内的其他机器上访问。
+            """) }}
+            <div style="margin-top: 8px;">
+                <label class="label label-info" style="font-size: 16px; ">
+                    http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
+                </label>
+            </div>
+        </div>
+    </div>
 </div>
+
 <!-- Modal -->
 <div class="modal fade add-mode" id="proxy-dialog" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog">
@@ -277,6 +294,7 @@
 
 
 </div>
+<!-- /.modal -->
 
 <!-- Modal -->
 <div class="modal fade" id="proxies-dialog" tabindex="-1" role="dialog"
@@ -404,6 +422,37 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<!-- /.modal -->
+
+<!-- Modal -->
+<div class="modal fade" id="http-manager-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="http-manager-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="http-manager-dialog-title">
+                    {{ _('Configure Remote Access', '配置远程访问') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="http-manager-port">{{ _('Port', '端口') }}</label>
+                        <input type="text" class="form-control" id="http-manager-port" value="{{ httpd.LISTEN_PORT }}">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="http-manager-dialog-save">{{ _('Save', '保存') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->
@@ -606,6 +655,24 @@
         $('#proxy-dialog #delete-proxy').click(function() {
             $.post('/proxies/delete?proxy_id=' + $('#proxy-dialog').data('proxyId'), function() {
                 $('#proxy-dialog').modal('hide');
+            });
+        });
+
+        $('#http-manager-dialog-save').click(function () {
+            $('#http-manager-dialog form').submit();
+        });
+
+        $('#http-manager-dialog form').submit(function (e) {
+            e.preventDefault();
+            var newConfig = {
+                port: $('#http-manager-port').val()
+            };
+            $.post('/http-manager/config/update', newConfig, function (error) {
+                if (error) {
+                    $('#http-manager-dialog .alert').html(error).removeClass('hide');
+                } else {
+                    window.location.href = 'http://{{ default_interface_ip }}:' + newConfig.port;
+                }
             });
         });
 

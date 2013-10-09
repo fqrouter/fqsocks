@@ -5,15 +5,18 @@ import os.path
 from datetime import datetime
 
 import jinja2
+import fqlan
 
 from .. import httpd
 from ..gateways import proxy_client
 from ..proxies.http_try import HTTP_TRY_PROXY
 from .. import config_file
+from ..gateways import http_gateway
 
 
 HOME_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'home.html')
 LOGGER = logging.getLogger(__name__)
+spi_wifi_repeater = None
 
 @httpd.http_handler('GET', '')
 def home_page(environ, start_response):
@@ -29,4 +32,12 @@ def home_page(environ, start_response):
         youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
         direct_access_enabled=proxy_client.direct_access_enabled,
-        config=config_file.read_config()).encode('utf8')
+        config=config_file.read_config(),
+        is_root=is_root(),
+        default_interface_ip=fqlan.get_default_interface_ip(),
+        http_gateway=http_gateway,
+        httpd=httpd,
+        spi_wifi_repeater=spi_wifi_repeater).encode('utf8')
+
+def is_root():
+    return 0 == os.getuid()
