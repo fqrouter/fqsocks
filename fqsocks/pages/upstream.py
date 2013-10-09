@@ -22,21 +22,6 @@ LOGGER = logging.getLogger(__name__)
 MAX_TIME_RANGE = 60 * 10
 
 
-@httpd.http_handler('GET', 'upstream')
-def upstream_page(environ, start_response):
-    with open(UPSTREAM_HTML_FILE) as f:
-        template = jinja2.Template(unicode(f.read(), 'utf8'))
-    last_refresh_started_at = datetime.fromtimestamp(proxy_client.last_refresh_started_at)
-    start_response(httplib.OK, [('Content-Type', 'text/html')])
-    return template.render(
-        _=environ['select_text'],
-        last_refresh_started_at=last_refresh_started_at,
-        proxies_enabled=len(proxy_client.proxies) > 0,
-        tcp_scrambler_enabled=HTTP_TRY_PROXY.tcp_scrambler_enabled,
-        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
-        china_shortcut_enabled=proxy_client.china_shortcut_enabled,
-        direct_access_enabled=proxy_client.direct_access_enabled,
-        config=config_file.read_config()).encode('utf8')
 
 
 @httpd.http_handler('POST', 'refresh-proxies')

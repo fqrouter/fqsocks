@@ -81,60 +81,27 @@
     </style>
 </head>
 <body>
-<div class="col-sm-12">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title pull-left">{{ _('Uncensored Internet', '墙外的世界') }}</h3>
-
-            <div style="clear: both;"></div>
-        </div>
-        <div class="panel-body">
-            {{ _(
-            """
-            fqrouter is designed to minimize the server usage to maximize
-            the number of users who can enjoy the benefit.
-            Use a lot of cheap servers to archive moderate user experience
-            instead of relying on one or two high value proxies.
-            Uses methods like direct access any China ip,
-            direct access any website that is not blocked, and using scrambler
-            to scramble the traffic to avoid being censored instead of always tunnelling
-            via proxy servers.
-            Despite all those efforts, proxy servers are still very necessary.
-            Builtin public servers have limited bandwidth and they are slow.
-            If you have private proxy servers, please add your own.
-            """,
-            """
-            fqrouter的设计理念是尽量减少对服务器资源的消耗以尽可能地扩大受益用户的数量。
-            使用一堆廉价的服务器而不是依赖于少数一两个高价值的代理。
-            同时对于中国的IP不走代理，如果目标服务器可以直接访问则不会走代理
-            以及尽量采用混淆流量的技术从而能够不经过代理也不会被阻断。
-            即便如此，代理服务器仍然是必要的。默认内置的公共代理流量有限，而且速度不佳。
-            如果个人有代理服务器，最好使用自己的代理服务器。
-            """) }}
-        </div>
-    </div>
-</div>
-<div class="col-sm-12">
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title pull-left">
+<div class="container">
+    <div class="row">
+        <div class="col-xs-6">
+            <h3>
                 {{ _('Proxies', '代理列表') }}
             </h3>
-
-            <div class="pull-right">
-                <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default"
-                   id="config-http-manager">
-                    <span class="glyphicon glyphicon-wrench"></span>
-                    {{ _('Config', '配置') }}
-                </a>
-                <a id="show-add-proxy" class="btn btn-primary">
-                    <span class="glyphicon glyphicon-plus"></span>
-                    {{ _('Add', '添加') }}
-                </a>
-            </div>
-            <div style="clear:both;"></div>
         </div>
-        <div class="panel-body">
+        <div class="col-xs-6">
+            <div class="pull-right" style="margin-top: 20px;">
+            <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
+            {{ _('Configure', '配置') }}
+            </a>
+            <a id="show-add-proxy" class="btn btn-primary">
+                <span class="glyphicon glyphicon-plus"></span>
+                {{ _('Add', '添加') }}
+            </a>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
             <table class="table table-striped" id="proxies">
                 <thead>
                 <tr>
@@ -148,6 +115,22 @@
                 <tbody>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xs-6">
+            <h3>
+                {{ _('Remote Access', '远程访问') }}
+            </h3>
+        </div>
+        <div class="col-xs-6">
+            <div class="pull-right" style="margin-top: 20px;">
+                <a data-toggle="modal" href="#http-manager-dialog" class="btn btn-default pull-right"
+                   id="config-http-manager">
+                    {{ _('Config', '配置') }}
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -169,17 +152,14 @@
                 <form role="form">
                     <div class="form-group">
                         <label>{{ _('Proxy Type', '代理类型') }}</label>
-
-                        <div class="dropdown pull-right">
-                            <a id="proxy-type" data-toggle="dropdown" href="#"></a>
-                            <ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
-                                <li role="presentation"><a href="javascript:void(0);">GoAgent</a></li>
-                                <li><a href="javascript:void(0);">Shadowsocks</a></li>
-                                <li><a href="javascript:void(0);">SSH</a></li>
-                                <li><a href="javascript:void(0);">HTTP</a></li>
-                                <li><a href="javascript:void(0);">SPDY</a></li>
-                            </ul>
-                        </div>
+                        <select name="proxy_type" class="form-control">
+                            <option value="">{{ _('Please Select...','请选择...') }}</option>
+                            <option value="GoAgent">GoAgent</option>
+                            <option value="Shadowsocks">Shadowsocks</option>
+                            <option value="SSH">SSH</option>
+                            <option value="HTTP">HTTP</option>
+                            <option value="SPDY">SPDY</option>
+                        </select>
                     </div>
                     <div class="basic">
                         <div class="form-group">
@@ -187,7 +167,6 @@
                                 <span class="input-group-addon">App Id</span>
                                 <input name="appid" type="text" class="form-control"
                                        placeholder="{{ _('xxx of xxx.appspot.com', 'xxx.appspot.com中的xxx') }}">
-                                <span class="input-group-addon">.appspot.com</span>
                             </div>
                         </div>
                         <div class="form-group">
@@ -295,7 +274,10 @@
             </div>
         </div>
     </div>
+
+
 </div>
+
 <!-- Modal -->
 <div class="modal fade" id="proxies-dialog" tabindex="-1" role="dialog"
      aria-labelledby="proxies-dialog-title" aria-hidden="true">
@@ -345,78 +327,78 @@
                         <div style="clear: both"></div>
                     </div>
                     <div class="advanced hide">
-                    <div class="form-group">
-                        <label for="tcp-scrambler-switch">{{ _('TCP Scrambler', 'TCP 混淆器') }}</label>
+                        <div class="form-group">
+                            <label for="tcp-scrambler-switch">{{ _('TCP Scrambler', 'TCP 混淆器') }}</label>
 
-                        <div class="make-switch pull-right" data-on="success" data-off="default"
-                             id="tcp-scrambler-switch">
-                            <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
+                            <div class="make-switch pull-right" data-on="success" data-off="default"
+                                 id="tcp-scrambler-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        {{ _(
-                        """
-                        scramble HTTP request at TCP level, so that GFW can let us go, without using a proxy
-                        server. disable this scrambler will make internet speed much slower!
-                        """,
-                        """
-                        混淆 TCP 层面混淆HTTP请求迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
-                        """) }}
-                    </div>
-                    <div class="form-group">
-                        <label for="youtube-scrambler-switch">{{ _('Youtube Scrambler', 'Youtube 混淆器') }}</label>
+                        <div class="form-group">
+                            {{ _(
+                            """
+                            scramble HTTP request at TCP level, so that GFW can let us go, without using a proxy
+                            server. disable this scrambler will make internet speed much slower!
+                            """,
+                            """
+                            混淆 TCP 层面混淆HTTP请求迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+                            """) }}
+                        </div>
+                        <div class="form-group">
+                            <label for="youtube-scrambler-switch">{{ _('Youtube Scrambler', 'Youtube 混淆器') }}</label>
 
-                        <div class="make-switch pull-right" data-on="success" data-off="default"
-                             id="youtube-scrambler-switch">
-                            <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
+                            <div class="make-switch pull-right" data-on="success" data-off="default"
+                                 id="youtube-scrambler-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        {{ _(
-                        """
-                        scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this
-                        scrambler will make internet speed much slower!
-                        """,
-                        """
-                        混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
-                        """) }}
-                    </div>
-                    <div class="form-group">
-                        <label for="china-shortcut-switch">{{ _('China Shortcut', '直连中国的服务器') }}</label>
+                        <div class="form-group">
+                            {{ _(
+                            """
+                            scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this
+                            scrambler will make internet speed much slower!
+                            """,
+                            """
+                            混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+                            """) }}
+                        </div>
+                        <div class="form-group">
+                            <label for="china-shortcut-switch">{{ _('China Shortcut', '直连中国的服务器') }}</label>
 
-                        <div class="make-switch pull-right" data-on="success" data-off="default"
-                             id="china-shortcut-switch">
-                            <input type="checkbox" {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
+                            <div class="make-switch pull-right" data-on="success" data-off="default"
+                                 id="china-shortcut-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if china_shortcut_enabled else '' }}>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        {{ _(
-                        """
-                        if server is china ip, access directly. disable this shortcut will make internet speed much
-                        slower!
-                        """,
-                        """
-                        如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
-                        """) }}
-                    </div>
-                    <div class="form-group">
-                        <label for="direct-access-switch">{{ _('Direct Access', '直接可以直连的服务器') }}</label>
+                        <div class="form-group">
+                            {{ _(
+                            """
+                            if server is china ip, access directly. disable this shortcut will make internet speed much
+                            slower!
+                            """,
+                            """
+                            如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
+                            """) }}
+                        </div>
+                        <div class="form-group">
+                            <label for="direct-access-switch">{{ _('Direct Access', '直接可以直连的服务器') }}</label>
 
-                        <div class="make-switch pull-right" data-on="success" data-off="default"
-                             id="direct-access-switch">
-                            <input type="checkbox" {{ 'checked="checked"' if direct_access_enabled else '' }}>
+                            <div class="make-switch pull-right" data-on="success" data-off="default"
+                                 id="direct-access-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if direct_access_enabled else '' }}>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        {{ _(
-                        """
-                        try access directly first, use proxy only if tried and failed. disable this shortcut will make
-                        internet speed much slower!
-                        """,
-                        """
-                        每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
-                        """) }}
-                    </div>
+                        <div class="form-group">
+                            {{ _(
+                            """
+                            try access directly first, use proxy only if tried and failed. disable this shortcut will make
+                            internet speed much slower!
+                            """,
+                            """
+                            每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
+                            """) }}
+                        </div>
                     </div>
                 </form>
             </div>
@@ -429,6 +411,7 @@
     <!-- /.modal-dialog -->
 </div>
 <!-- /.modal -->
+
 
 <script src="/assets/jquery.min.js"></script>
 <script src="/assets/bootstrap/js/bootstrap.js"></script>
@@ -457,11 +440,10 @@
 
         function selectedProxyType(proxyType) {
             $('#proxy-dialog .alert').addClass('hide');
-            $('#proxy-dialog #proxy-type').html(proxyType);
             $('#proxy-dialog .advanced-toggle').addClass('hide');
             $('#proxy-dialog [data-for-type]').each(function(i, $input) {
                 var $input = $($input);
-                if ($input.data('forType').indexOf(proxyType) >= 0) {
+                if (proxyType && $input.data('forType').indexOf(proxyType) >= 0) {
                     $input.removeClass('hide');
                     if ($input.parents('.advanced').length > 0) {
                         $('#proxy-dialog .advanced-toggle').removeClass('hide');
@@ -556,8 +538,8 @@
             $('#proxy-dialog #ssh-host').html('/data/data/fq.router2/etc/ssh/' + $(this).val());
         });
 
-        $('#proxy-dialog .dropdown li a').click(function () {
-            var proxyType = $(this).html();
+        $('#proxy-dialog [name=proxy_type]').change(function () {
+            var proxyType = $(this).val();
             selectedProxyType(proxyType);
         });
 
@@ -582,25 +564,16 @@
         });
 
         $('#proxy-dialog #add-proxy').click(function() {
-            var validProxyTypes = [];
-            $('#proxy-dialog .dropdown li a').each(function(i, a) {
-                validProxyTypes.push($(a).html())
-            });
-            var proxyType = $('#proxy-dialog #proxy-type').html();
-            console.log(proxyType);
-            console.log(validProxyTypes);
-            if ($.inArray(proxyType, validProxyTypes) == -1) {
-                $('#proxy-dialog .alert').html("{{ _('Please select proxy type', '请选择代理类型') }}");
-                $('#proxy-dialog .alert').removeClass('hide');
-                return;
-            }
-            var args = {
-                proxy_type: proxyType
-            };
+            var args = {};
             $('#proxy-dialog input,select').each(function(i, $input) {
                 $input = $($input);
                 args[$input.attr('name')] = $input.val();
             });
+            if (!args.proxy_type) {
+                $('#proxy-dialog .alert').html("{{ _('Please select proxy type', '请选择代理类型') }}");
+                $('#proxy-dialog .alert').removeClass('hide');
+                return;
+            }
             $.post('/proxies/add', args, function(error) {
                 if (error) {
                     $('#proxy-dialog .alert').html(error);
