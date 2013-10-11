@@ -76,10 +76,11 @@ def setup_logging(log_level, log_file=None):
             log_file, maxBytes=1024 * 512, backupCount=1)
         handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
         handler.setLevel(log_level)
+        logging.getLogger('fqsocks').setLevel(log_level)
         logging.getLogger('fqsocks').addHandler(handler)
 
 
-def main(argv):
+def init_config(argv):
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument('--tcp-gateway-listen')
     argument_parser.add_argument('--http-gateway-listen')
@@ -104,13 +105,17 @@ def main(argv):
     argument_parser.add_argument('--no-china-shortcut', dest='china_shortcut_enabled', action='store_false')
     argument_parser.set_defaults(china_shortcut_enabled=None)
     argument_parser.add_argument('--tcp-scrambler', dest='tcp_scrambler_enabled', action='store_true')
-    argument_parser.add_argument('--no-tcp-scrambler', dest='youtube_scrambler_enabled', action='store_false')
+    argument_parser.add_argument('--no-tcp-scrambler', dest='tcp_scrambler_enabled', action='store_false')
     argument_parser.set_defaults(tcp_scrambler_enabled=None)
     argument_parser.add_argument('--youtube-scrambler', dest='youtube_scrambler_enabled', action='store_true')
     argument_parser.add_argument('--no-youtube-scrambler', dest='youtube_scrambler_enabled', action='store_false')
     argument_parser.set_defaults(youtube_scrambler_enabled=None)
     args = argument_parser.parse_args(argv)
     config_file.cli_args = args
+
+def main(argv=None):
+    if argv:
+        init_config(argv)
     config = config_file.read_config()
     log_level = getattr(logging, config['log_level'])
     setup_logging(log_level, config['log_file'])

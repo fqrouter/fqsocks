@@ -12,11 +12,11 @@ from ..gateways import proxy_client
 from ..proxies.http_try import HTTP_TRY_PROXY
 from .. import config_file
 from ..gateways import http_gateway
+from . import downstream
 
 
 HOME_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'home.html')
 LOGGER = logging.getLogger(__name__)
-spi_wifi_repeater = None
 
 @httpd.http_handler('GET', '')
 def home_page(environ, start_response):
@@ -37,7 +37,7 @@ def home_page(environ, start_response):
         default_interface_ip=fqlan.get_default_interface_ip(),
         http_gateway=http_gateway,
         httpd=httpd,
-        spi_wifi_repeater=spi_wifi_repeater).encode('utf8')
+        spi_wifi_repeater=downstream.spi_wifi_repeater).encode('utf8')
 
 def is_root():
     return 0 == os.getuid()

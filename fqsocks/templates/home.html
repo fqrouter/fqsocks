@@ -224,6 +224,9 @@
                         <li>
                             <a href="#pick-and-play">Pick &amp; Play</a>
                         </li>
+                        <li>
+                            <a href="#wifi-repeater">{{ _('Wifi Repeater', '无线中继') }}</a>
+                        </li>
                     </ul>
                 </li>
             </ul>
@@ -232,14 +235,14 @@
     <div class="col-md-9" role="main">
 
     <div class="row">
-        <div class="col-xs-6">
+        <div class="col-xs-10">
             <a name="remote-access">
             </a>
             <h3>
                 {{ _('This page can be viewed remotely', '本页面可以远程访问') }}
             </h3>
         </div>
-        <div class="col-xs-6">
+        <div class="col-xs-2">
             <div class="pull-right section-action">
                 <a data-toggle="modal" href="#http-manager-dialog" class="btn btn-default pull-right"
                    id="config-http-manager">
@@ -264,16 +267,15 @@
             </div>
         </div>
     </div>
+    <a name="proxy-list"></a>
     <hr/>
     <div class="row">
-        <div class="col-xs-6">
-            <a name="proxy-list">
-            </a>
+        <div class="col-xs-5">
             <h3>
                 {{ _('Proxies', '代理列表') }}
             </h3>
         </div>
-        <div class="col-xs-6">
+        <div class="col-xs-7">
             <div class="pull-right section-action">
                 <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
                     {{ _('Configure', '配置') }}
@@ -302,15 +304,16 @@
             </table>
         </div>
     </div>
+    <a name="share-uncensored-internet"></a>
+    <a name="http-proxy"></a>
     <hr/>
     <div class="row">
-        <div class="col-xs-6">
-            <a name="http-proxy"></a>
+        <div class="col-xs-5">
             <h3>
                 {{ _('HTTP Proxy', 'HTTP代理') }}
             </h3>
         </div>
-        <div class="col-xs-6">
+        <div class="col-xs-7">
             <div class="pull-right section-action">
                 <a data-toggle="modal" href="#http-gateway-dialog" class="btn btn-default" id="config-http-gateway">
                     {{ _('Config', '配置') }}
@@ -347,10 +350,10 @@
             </ul>
         </div>
     </div>
+    <a name="pick-and-play"></a>
     <hr/>
     <div class="row">
         <div class="col-xs-6">
-            <a name="pick-and-play"></a>
             <h3>
                 Pick &amp; Play
             </h3>
@@ -388,10 +391,51 @@
             </table>
         </div>
     </div>
+    <a name="wifi-repeater"></a>
     <hr/>
-</div>
-</div>
 
+    {% if spi_wifi_repeater and spi_wifi_repeater['is_supported']() %}
+    <div class="row">
+        <div class="col-xs-5">
+            <h3>
+                {{ _('Wifi Repeater', '无线中继') }}
+            </h3>
+        </div>
+        <div class="col-xs-7">
+            <div class="pull-right section-action">
+                <a data-toggle="modal" href="#wifi-repeater-dialog" class="btn btn-default" id="config-wifi-repeater">
+                    {{ _('Config', '配置') }}
+                </a>
+
+                <div class="make-switch" data-on="success" data-off="default" id="wifi-repeater-switch">
+                    <input type="checkbox" {{ 'checked="checked"' if spi_wifi_repeater['is_started']() else '' }}>
+                </div>
+                <div id="wifi-repeater-busy-indicator-container" class="hide"
+                     style="width: 100px; height: 30px; position: relative; display: inline-block; text-align: center;">
+                    <div class="busy-indicator"></div>
+                    Working...
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            {{ _(
+            """
+            Start a wifi hotspot to share free internet. Different from Android built-in 3G
+            hotspot, this wifi hotspot shares wifi instead of 3G.
+            I can assure you, it will not do any harm to hardware. However, it
+            might cause mobile restart on unsupported mobile.
+            """,
+            """
+            以无线的方式共享翻墙网络。与系统自带的便携式热点不同之处在于这个共享的是无线而不是3G。
+            无线中继肯定不会对硬件造成任何损坏。然而，在不支持的手机上可能会导致重启。
+            """) }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+</div>
 <!-- Modal -->
 <div class="modal fade add-mode" id="proxy-dialog" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog">
@@ -733,6 +777,47 @@
     <!-- /.modal-dialog -->
 </div>
 <!-- /.modal -->
+
+<!-- Modal -->
+<div class="modal fade" id="wifi-repeater-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="wifi-repeater-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="wifi-repeater-dialog-title">
+                    {{ _('Configure Remote Access', '配置无线中继') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="wifi-repeater-ssid">SSID</label>
+                        <input type="text" class="form-control" id="wifi-repeater-ssid"
+                               value="{{ config['wifi_repeater']['ssid'] }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="wifi-repeater-password">{{ _('Password', '密码') }}</label>
+                        <input type="text" class="form-control" id="wifi-repeater-password"
+                               value="{{ config['wifi_repeater']['password'] }}">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger pull-left" id="wifi-repeater-dialog-reset">{{ _('My Wifi
+                    Broken', '我的无线挂了') }}
+                </button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
+                <button type="button" class="btn btn-primary" id="wifi-repeater-dialog-save">{{ _('Save', '保存') }}</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<!-- /.modal -->
+
 <footer>
     <div style="height: 800px"></div>
     <a href="#top" class="go-top"><span class="glyphicon glyphicon-arrow-up"></span></a>
@@ -743,7 +828,9 @@
 <script src="/assets/visibility.core.js"></script>
 <script src="/assets/visibility.timer.js"></script>
 <script src="/assets/bootstrap-switch.js"></script>
+<script src="/assets/bootbox.min.js"></script>
 <script>
+    bootbox.setDefaults({'locale': '{{ _("en", "zh_CN") }}'});
     $(document).ready(function () {
         // Show or hide the sticky footer button
         $(window).scroll(function() {
@@ -1027,6 +1114,62 @@
             if (!timerId) {
                 timerId = Visibility.every(1000, refreshLanDevices);
             }
+        });
+
+        $('#wifi-repeater-switch').on('switch-change', function (e, data) {
+            $('#wifi-repeater-switch').addClass('hide');
+            $('#wifi-repeater-busy-indicator-container').removeClass('hide');
+            if (data.value) {
+                $.post('/wifi-repeater/enable', function (error) {
+                    $('#wifi-repeater-busy-indicator-container').addClass('hide');
+                    $('#wifi-repeater-switch').removeClass('hide');
+                    if (error) {
+                        bootbox.alert('{{ _("Failed to start wifi repeater: ","无线中继启动失败：") }}' + error, function () {
+                            window.location.reload();
+                        });
+                    }
+                });
+            } else {
+                $.post('/wifi-repeater/disable', function (error) {
+                    $('#wifi-repeater-busy-indicator-container').addClass('hide');
+                    $('#wifi-repeater-switch').removeClass('hide');
+                    if (error) {
+                        bootbox.alert('{{ _("Failed to stop wifi repeater: ","无线中继停止失败：") }}' + error, function () {
+                            window.location.reload();
+                        });
+                    }
+                });
+            }
+        });
+
+
+        $('#wifi-repeater-dialog-reset').click(function () {
+            $('#wifi-repeater-dialog').modal('hide');
+            bootbox.confirm('{{ _("Are you sure? It will reset your wifi configuration to fix problem caused by wifi repeater failure. Use report error button if it does not fix your problem.", "你确定要重置吗？重置无线配置是为了修复无线中继失败导致的无线无法连接的问题。使用后如果问题依旧，请点主界面的报告错误按钮") }}',
+                    function (result) {
+                        if (result) {
+                            $.post('/wifi-repeater/reset');
+                        }
+                    })
+        });
+
+        $('#wifi-repeater-dialog-save').click(function () {
+            $('#wifi-repeater-dialog form').submit();
+        });
+
+        $('#wifi-repeater-dialog form').submit(function (e) {
+            e.preventDefault();
+            var newConfig = {
+                ssid: $('#wifi-repeater-ssid').val(),
+                password: $('#wifi-repeater-password').val()
+            };
+            $.post('/wifi-repeater/config/update', newConfig, function (error) {
+                if (error) {
+                    $('#wifi-repeater-dialog .alert').html(error).removeClass('hide');
+                } else {
+                    window.location.reload();
+                }
+            });
         });
 
 
