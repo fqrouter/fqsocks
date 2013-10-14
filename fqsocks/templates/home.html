@@ -215,12 +215,16 @@
 
                             <a href="#http-proxy">{{ _('HTTP Proxy', 'HTTP代理') }}</a>
                         </li>
+                        {% if is_root %}
                         <li>
                             <a href="#pick-and-play">Pick &amp; Play</a>
                         </li>
+                        {% endif %}
+                        {% if spi_wifi_repeater and spi_wifi_repeater['is_supported']() %}
                         <li>
                             <a href="#wifi-repeater">{{ _('Wifi Repeater', '无线中继') }}</a>
                         </li>
+                        {% endif %}
                     </ul>
                 </li>
                 <li>
@@ -310,6 +314,7 @@
             </ul>
         </div>
     </div>
+    {% if is_root %}
     <a name="pick-and-play"></a>
     <hr/>
     <div class="row">
@@ -351,10 +356,10 @@
             </table>
         </div>
     </div>
+    {% endif %}
+    {% if spi_wifi_repeater and spi_wifi_repeater['is_supported']() %}
     <a name="wifi-repeater"></a>
     <hr/>
-
-    {% if spi_wifi_repeater and spi_wifi_repeater['is_supported']() %}
     <div class="row">
         <div class="col-xs-5">
             <h3>
@@ -816,7 +821,6 @@
 <!-- /.modal -->
 
 <footer>
-    <div style="height: 800px"></div>
     <a href="#top" class="go-top"><span class="glyphicon glyphicon-arrow-up"></span></a>
 </footer>
 <script src="/assets/jquery.min.js"></script>
@@ -1076,42 +1080,45 @@
             });
         });
 
-        var lan_tablesort = new Tablesort($('#lan-devices table')[0]);
+        if ($('#lan-devices table').length) {
+            var lan_tablesort = new Tablesort($('#lan-devices table')[0]);
 
-        var timerId;
+            var timerId;
 
-        function refreshLanDevices() {
-            $.get('/lan/devices', function (html) {
-                if ($(html).find('tr').length == 0) {
-                    return;
-                }
+            function refreshLanDevices() {
+                $.get('/lan/devices', function (html) {
+                    if ($(html).find('tr').length == 0) {
+                        return;
+                    }
+                    $('#lan-devices').removeClass('hide');
+                    $('#lan-devices tbody').replaceWith(html);
+                    lan_tablesort.refresh();
+                    if ($('#lan-devices tbody').data('isScanCompleted')) {
+                        $('#lan-devices .busy-indicator').addClass('hide');
+                        Visibility.stop(timerId);
+                        timerId = null;
+                    }
+                });
+            }
+            refreshLanDevices();
+
+            $('#lan-devices').on('click', 'tr input[type=checkbox]', function () {
+                var ip = $(this).parents('tr').data('ip');
+                $.post('/lan/update', {ip: ip, is_picked: $(this).is(':checked')}, function () {
+                    refreshLanDevices();
+                });
+            });
+
+            $('#scan').click(function () {
                 $('#lan-devices').removeClass('hide');
-                $('#lan-devices tbody').replaceWith(html);
-                lan_tablesort.refresh();
-                if ($('#lan-devices tbody').data('isScanCompleted')) {
-                    $('#lan-devices .busy-indicator').addClass('hide');
-                    Visibility.stop(timerId);
-                    timerId = null;
+                $('#lan-devices .busy-indicator').removeClass('hide');
+                $.post('/lan/scan');
+                refreshLanDevices();
+                if (!timerId) {
+                    timerId = Visibility.every(1000, refreshLanDevices);
                 }
             });
         }
-
-        $('#lan-devices').on('click', 'tr input[type=checkbox]', function () {
-            var ip = $(this).parents('tr').data('ip');
-            $.post('/lan/update', {ip: ip, is_picked: $(this).is(':checked')}, function () {
-                refreshLanDevices();
-            });
-        });
-
-        $('#scan').click(function () {
-            $('#lan-devices').removeClass('hide');
-            $('#lan-devices .busy-indicator').removeClass('hide');
-            $.post('/lan/scan');
-            refreshLanDevices();
-            if (!timerId) {
-                timerId = Visibility.every(1000, refreshLanDevices);
-            }
-        });
 
         $('#wifi-repeater-switch').on('switch-change', function (e, data) {
             $('#wifi-repeater-switch').addClass('hide');
@@ -1170,7 +1177,6 @@
         });
 
 
-        refreshLanDevices();
         showHideSpeed();
         refreshProxyList();
         Visibility.every(1000, refreshProxyList);

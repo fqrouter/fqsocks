@@ -112,19 +112,10 @@ def init_config(argv):
     argument_parser.set_defaults(youtube_scrambler_enabled=None)
     args = argument_parser.parse_args(argv)
     config_file.cli_args = args
-
-def main(argv=None):
-    if argv:
-        init_config(argv)
     config = config_file.read_config()
     log_level = getattr(logging, config['log_level'])
     setup_logging(log_level, config['log_file'])
     LOGGER.info('config: %s' % config)
-    gevent.monkey.patch_all(ssl=False)
-    try:
-        gevent.monkey.patch_ssl()
-    except:
-        LOGGER.exception('failed to patch ssl')
     if config['ip_command']:
         fqlan.IP_COMMAND = config['ip_command']
     if config['ifconfig_command']:
@@ -137,20 +128,30 @@ def main(argv=None):
     proxy_client.direct_access_enabled = config['direct_access_enabled']
     HTTP_TRY_PROXY.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
     HTTP_TRY_PROXY.youtube_scrambler_enabled = config['youtube_scrambler_enabled']
+    http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
+    tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
+    httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
+
+def main(argv=None):
+    if argv:
+        init_config(argv)
+    config = config_file.read_config()
+    gevent.monkey.patch_all(ssl=False)
+    try:
+        gevent.monkey.patch_ssl()
+    except:
+        LOGGER.exception('failed to patch ssl')
     greenlets = []
     if config['dns_server']['enabled']:
         dns_server_address = (config['dns_server']['ip'], config['dns_server']['port'])
         dns_server = fqdns.HandlerDatagramServer(dns_server_address, DNS_HANDLER)
         greenlets.append(gevent.spawn(dns_server.serve_forever))
-    http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     if config['http_gateway']['enabled']:
         http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
         greenlets.append(http_gateway.server_greenlet)
     if config['tcp_gateway']['enabled']:
-        tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
         tcp_gateway.server_greenlet = gevent.spawn(tcp_gateway.serve_forever)
         greenlets.append(tcp_gateway.server_greenlet)
-    httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
     if config['http_manager']['enabled']:
         httpd.server_greenlet = gevent.spawn(httpd.serve_forever)
         greenlets.append(httpd.server_greenlet)

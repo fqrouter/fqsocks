@@ -24,6 +24,7 @@ def home_page(environ, start_response):
         template = jinja2.Template(unicode(f.read(), 'utf8'))
     last_refresh_started_at = datetime.fromtimestamp(proxy_client.last_refresh_started_at)
     start_response(httplib.OK, [('Content-Type', 'text/html')])
+    is_root = 0 == os.getuid()
     return template.render(
         _=environ['select_text'],
         last_refresh_started_at=last_refresh_started_at,
@@ -33,11 +34,9 @@ def home_page(environ, start_response):
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
         direct_access_enabled=proxy_client.direct_access_enabled,
         config=config_file.read_config(),
-        is_root=is_root(),
+        is_root=is_root,
         default_interface_ip=fqlan.get_default_interface_ip(),
         http_gateway=http_gateway,
         httpd=httpd,
-        spi_wifi_repeater=downstream.spi_wifi_repeater).encode('utf8')
+        spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None).encode('utf8')
 
-def is_root():
-    return 0 == os.getuid()
