@@ -209,12 +209,6 @@
         <div class="bs-sidebar hidden-print" role="complementary" data-spy="affix">
             <ul class="nav bs-sidenav">
                 <li>
-                    <a href="#remote-access">{{ _('This page can be viewed remotely', '本页面可以远程访问') }}</a>
-                </li>
-                <li>
-                    <a href="#proxy-list">{{ _('Proxies', '代理列表') }}</a>
-                </li>
-                <li>
                     <a href="#share-uncensored-internet">{{ _('Share Uncensored Internet', '共享翻墙网络') }}</a>
                     <ul class="nav">
                         <li>
@@ -228,6 +222,9 @@
                             <a href="#wifi-repeater">{{ _('Wifi Repeater', '无线中继') }}</a>
                         </li>
                     </ul>
+                </li>
+                <li>
+                    <a href="#proxy-list">{{ _('Proxies', '代理列表') }}</a>
                 </li>
             </ul>
         </div>
@@ -265,43 +262,6 @@
                     http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
                 </label>
             </div>
-        </div>
-    </div>
-    <a name="proxy-list"></a>
-    <hr/>
-    <div class="row">
-        <div class="col-xs-5">
-            <h3>
-                {{ _('Proxies', '代理列表') }}
-            </h3>
-        </div>
-        <div class="col-xs-7">
-            <div class="pull-right section-action">
-                <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
-                    {{ _('Configure', '配置') }}
-                </a>
-                <a id="show-add-proxy" class="btn btn-primary">
-                    <span class="glyphicon glyphicon-plus"></span>
-                    {{ _('Add', '添加') }}
-                </a>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-xs-12">
-            <table class="table table-striped" id="proxies">
-                <thead>
-                <tr>
-                    <th>{{ _('proxy', '代理') }}</th>
-                    <th class="rx-speed">{{ _('download', '下载') }}</th>
-                    <th>{{ _('download', '下载') }}</th>
-                    <th class="tx-speed">{{ _('upload', '上传') }}</th>
-                    <th>{{ _('upload', '上传') }}</th>
-                </tr>
-                </thead>
-                <tbody>
-                </tbody>
-            </table>
         </div>
     </div>
     <a name="share-uncensored-internet"></a>
@@ -434,6 +394,43 @@
         </div>
     </div>
     {% endif %}
+    <a name="proxy-list"></a>
+    <hr/>
+    <div class="row">
+        <div class="col-xs-5">
+            <h3>
+                {{ _('Proxies', '代理列表') }}
+            </h3>
+        </div>
+        <div class="col-xs-7">
+            <div class="pull-right section-action">
+                <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
+                    {{ _('Configure', '配置') }}
+                </a>
+                <a id="show-add-proxy" class="btn btn-primary">
+                    <span class="glyphicon glyphicon-plus"></span>
+                    {{ _('Add', '添加') }}
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            <table class="table table-striped" id="proxies">
+                <thead>
+                <tr>
+                    <th>{{ _('proxy', '代理') }}</th>
+                    <th class="rx-speed">{{ _('download', '下载') }}</th>
+                    <th>{{ _('download', '下载') }}</th>
+                    <th class="tx-speed">{{ _('upload', '上传') }}</th>
+                    <th>{{ _('upload', '上传') }}</th>
+                </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 </div>
 <!-- Modal -->

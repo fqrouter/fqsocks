@@ -15,25 +15,6 @@ DOWNSTREAM_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates'
 spi_wifi_repeater = None
 
 
-@httpd.http_handler('GET', 'downstream')
-def downstream_page(environ, start_response):
-    with open(DOWNSTREAM_HTML_FILE) as f:
-        template = jinja2.Template(unicode(f.read(), 'utf8'))
-    start_response(httplib.OK, [('Content-Type', 'text/html')])
-    return [template.render(
-        _=environ['select_text'],
-        is_root=is_root(),
-        default_interface_ip=fqlan.get_default_interface_ip(),
-        http_gateway=http_gateway,
-        httpd=httpd,
-        spi_wifi_repeater=spi_wifi_repeater,
-        config=config_file.read_config()).encode('utf8')]
-
-
-def is_root():
-    return 0 == os.getuid()
-
-
 @httpd.http_handler('POST', 'http-gateway/enable')
 def handle_enable_http_gateway(environ, start_response):
     if http_gateway.server_greenlet is None:
