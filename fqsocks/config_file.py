@@ -111,7 +111,7 @@ def _read_config():
 def update_config(apply=None, **kwargs):
     if not cli_args:
         return
-    config = read_config()
+    config = _read_config()
     config.update(kwargs)
     if apply:
         apply(config)

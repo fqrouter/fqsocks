@@ -1115,7 +1115,7 @@
                 $.post('/lan/scan');
                 refreshLanDevices();
                 if (!timerId) {
-                    timerId = Visibility.every(1000, refreshLanDevices);
+                    timerId = Visibility.every(3000, refreshLanDevices);
                 }
             });
         }
@@ -1179,7 +1179,15 @@
 
         showHideSpeed();
         refreshProxyList();
-        Visibility.every(1000, refreshProxyList);
+        var refreshProxyListTimerId = Visibility.every(5000, refreshProxyList);
+        window.onPause = function() {
+            Visibility.stop(refreshProxyListTimerId);
+            refreshProxyListTimerId = null;
+        };
+        window.onResume = function() {
+            window.onPause();
+            refreshProxyListTimerId = Visibility.every(5000, refreshProxyList);
+        };
     });
 </script>
 </body>

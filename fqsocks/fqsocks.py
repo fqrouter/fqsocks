@@ -22,6 +22,7 @@ from .gateways import proxy_client
 from .gateways import tcp_gateway
 from .gateways import http_gateway
 from .pages import lan_device
+from .pages import home
 from . import config_file
 
 
@@ -63,6 +64,7 @@ def handle_clear_states(environ, start_response):
     proxy_client.clear_proxy_states()
     http_gateway.dns_cache = {}
     lan_device.lan_devices = {}
+    home.default_interface_ip = None
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
