@@ -2,43 +2,45 @@ import os
 import json
 from uuid import uuid4
 
-DEFAULT_CONFIG = {
-    'china_shortcut_enabled': True,
-    'direct_access_enabled': True,
-    'youtube_scrambler_enabled': True,
-    'tcp_scrambler_enabled': True,
-    'access_check_enabled': True,
-    'http_manager': {
-        'enabled': True,
-        'ip': '',
-        'port': 2515
-    },
-    'http_gateway': {
-        'enabled': False,
-        'ip': '',
-        'port': 2516
-    },
-    'dns_server': {
-        'enabled': False,
-        'ip': '',
-        'port': 12345
-    },
-    'tcp_gateway': {
-        'enabled': False,
-        'ip': '',
-        'port': 12345
-    },
-    'wifi_repeater': {
-        'ssid': 'fqrouter',
-        'password': '12345678'
-    },
-    'public_servers': {
-        'source': 'proxies.fqrouter.com',
-        'goagent_enabled': True,
-        'ss_enabled': True
-    },
-    'private_servers': {}
-}
+def DEFAULT_CONFIG():
+    return {
+        'config_file': None,
+        'china_shortcut_enabled': True,
+        'direct_access_enabled': True,
+        'youtube_scrambler_enabled': True,
+        'tcp_scrambler_enabled': True,
+        'access_check_enabled': True,
+        'http_manager': {
+            'enabled': True,
+            'ip': '',
+            'port': 2515
+        },
+        'http_gateway': {
+            'enabled': False,
+            'ip': '',
+            'port': 2516
+        },
+        'dns_server': {
+            'enabled': False,
+            'ip': '',
+            'port': 12345
+        },
+        'tcp_gateway': {
+            'enabled': False,
+            'ip': '',
+            'port': 12345
+        },
+        'wifi_repeater': {
+            'ssid': 'fqrouter',
+            'password': '12345678'
+        },
+        'public_servers': {
+            'source': 'proxies.fqrouter.com',
+            'goagent_enabled': True,
+            'ss_enabled': True
+        },
+        'private_servers': {}
+    }
 
 cli_args = None
 
@@ -96,16 +98,17 @@ def add_proxy(config, proxy_type, n=0, **kwargs):
 
 def _read_config():
     if not cli_args:
-        return dict(DEFAULT_CONFIG)
+        return DEFAULT_CONFIG()
+    config = DEFAULT_CONFIG()
+    config['config_file'] = cli_args.config_file
     if os.path.exists(cli_args.config_file):
         with open(cli_args.config_file) as f:
-            config = dict(DEFAULT_CONFIG)
             content = f.read()
             if content:
                 config.update(json.loads(content))
             return config
     else:
-        return dict(DEFAULT_CONFIG)
+        return config
 
 
 def update_config(apply=None, **kwargs):

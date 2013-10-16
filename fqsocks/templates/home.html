@@ -300,16 +300,23 @@
             """
             把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
             """) }}
-            <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;">
+            <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;" id="http-gateway-info">
                 <li class="list-group-item">
                     <label class="label label-default">HTTP</label>
-                    <label class="label label-info" style="font-size: 16px;">{{ default_interface_ip }}:{{
-                        http_gateway.LISTEN_PORT }}</label>
+                    <label class="label label-info on hide" style="font-size: 16px;">
+                        {{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
+                    </label>
+                    <label class="label label-info off" style="font-size: 16px;">
+                        {{ _('Please turn on the switch', '请先打开开关') }}
+                    </label>
                 </li>
                 <li class="list-group-item">
                     <label class="label label-default">PAC</label>
-                    <label class="label label-info" style="font-size: 16px;">http://{{ default_interface_ip }}:{{
+                    <label class="label label-info on hide" style="font-size: 16px;">http://{{ default_interface_ip }}:{{
                         httpd.LISTEN_PORT }}/pac</label>
+                    <label class="label label-info off" style="font-size: 16px;">
+                        {{ _('Please turn on the switch', '请先打开开关') }}
+                    </label>
                 </li>
             </ul>
         </div>
@@ -1054,13 +1061,27 @@
             });
         });
 
+        function refreshHttpGatewayInfo() {
+            if ($('#http-gateway-switch').bootstrapSwitch('status')) {
+                $('#http-gateway-info').find('.off').addClass('hide');
+                $('#http-gateway-info').find('.on').removeClass('hide');
+            } else {
+                $('#http-gateway-info').find('.on').addClass('hide');
+                $('#http-gateway-info').find('.off').removeClass('hide');
+            }
+        }
+
         $('#http-gateway-switch').on('switch-change', function (e, data) {
             if (data.value) {
                 $.post('/http-gateway/enable');
+                refreshHttpGatewayInfo();
             } else {
                 $.post('/http-gateway/disable');
+                refreshHttpGatewayInfo();
             }
         });
+        refreshHttpGatewayInfo();
+
 
         $('#http-gateway-dialog-save').click(function () {
             $('#http-gateway-dialog form').submit();
@@ -1186,6 +1207,7 @@
         };
         window.onResume = function() {
             window.onPause();
+            refreshProxyList();
             refreshProxyListTimerId = Visibility.every(5000, refreshProxyList);
         };
     });

@@ -33,7 +33,7 @@ from .. import china_ip
 from ..proxies.direct import DIRECT_PROXY
 from ..proxies.direct import HTTPS_TRY_PROXY
 from ..proxies.direct import NONE_PROXY
-
+import os.path
 
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
@@ -583,6 +583,16 @@ def init_proxies(config):
             gevent.sleep(retry_interval)
         if success:
             LOGGER.critical('proxies init successfully')
+            us_ip_cache_file = None
+            if config['config_file']:
+                us_ip_cache_file = os.path.join(os.path.dirname(config['config_file']), 'us_ip')
+            us_ip.load_cache(us_ip_cache_file)
+            for proxy in proxies:
+                if isinstance(proxy, DynamicProxy):
+                    proxy = proxy.delegated_to
+                if hasattr(proxy, 'proxy_ip'):
+                    us_ip.is_us_ip(proxy.proxy_ip)
+            us_ip.save_cache(us_ip_cache_file)
             if config['access_check_enabled']:
                 LOGGER.info('check access in 10 seconds')
                 gevent.sleep(10)
