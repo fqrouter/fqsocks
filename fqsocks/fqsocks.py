@@ -31,7 +31,7 @@ LOGGER = logging.getLogger(__name__)
 
 dns_pollution_ignored = False
 DNS_HANDLER = fqdns.DnsHandler()
-
+reset_force_us_ip_greenlet = None
 
 @httpd.http_handler('GET', 'dns-polluted-at')
 def get_dns_polluted_at(environ, start_response):
@@ -46,25 +46,33 @@ def get_dns_polluted_at(environ, start_response):
 
 @httpd.http_handler('POST', 'force-us-ip')
 def handle_force_us_ip(environ, start_response):
+    global reset_force_us_ip_greenlet
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
-    gevent.spawn(reset_force_us_ip)
+    if reset_force_us_ip_greenlet is not None:
+        reset_force_us_ip_greenlet.kill()
+    reset_force_us_ip_greenlet = gevent.spawn(reset_force_us_ip)
     LOGGER.info('force_us_ip set to True')
     proxy_client.force_us_ip = True
     yield 'OK'
 
 
 def reset_force_us_ip():
+    global reset_force_us_ip_greenlet
     gevent.sleep(30)
+    reset_force_us_ip_greenlet = None
     LOGGER.info('force_us_ip reset to False')
     proxy_client.force_us_ip = False
+
 
 
 @httpd.http_handler('POST', 'clear-states')
 def handle_clear_states(environ, start_response):
     proxy_client.clear_proxy_states()
     http_gateway.dns_cache = {}
-    lan_device.lan_devices = {}
     home.default_interface_ip = None
+    lan_device.lan_devices = {}
+    if lan_device.forge_greenlet is not None:
+        lan_device.forge_greenlet.kill()
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
