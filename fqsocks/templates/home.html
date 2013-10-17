@@ -229,6 +229,9 @@
                 </li>
                 <li>
                     <a href="#proxy-list">{{ _('Proxies', '代理列表') }}</a>
+                    <ul class="nav">
+                        <li><a href="javascript:void(0);" id="nav-add-proxy">{{ _('Add Proxy', '添加个人代理') }}</a></li>
+                    </ul>
                 </li>
             </ul>
         </div>
@@ -477,7 +480,7 @@
                 <div class="alert alert-danger hide"></div>
                 <form role="form">
                     <div class="form-group">
-                        <label>{{ _('Proxy Type', '代理类型') }}</label>
+                        <label>{{ _('Please select proxy type first', '请先选择要添加的代理类型') }}</label>
                         <select name="proxy_type" class="form-control">
                             <option value="">{{ _('Please Select...','请选择...') }}</option>
                             <option value="GoAgent">GoAgent</option>
@@ -493,6 +496,14 @@
                                 <span class="input-group-addon">App Id</span>
                                 <input name="appid" type="text" class="form-control"
                                        placeholder="{{ _('xxx of xxx.appspot.com', 'xxx.appspot.com中的xxx') }}">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="GoAgent">
+                                {{ _(
+                                'appid is the xxx of xxx.appspot.com. Multiple appid can be separated by |',
+                                'appid 就是xxx.appspot.com中的xxx。多个appid可以用竖线（|）分隔')
+                                }}
                             </div>
                         </div>
                         <div class="form-group">
@@ -974,13 +985,22 @@
             }
         });
 
-        $('#show-add-proxy').click(function() {
+        function showAddProxy() {
             $('#proxy-dialog .alert').addClass('hide');
             $('#proxy-dialog form')[0].reset();
             selectedProxyType("{{ _('Please Select...', '请选择...') }}");
             $('#proxy-dialog').data('proxyId', '');
             $('#proxy-dialog').removeClass('update-mode').addClass('add-mode');
             $('#proxy-dialog').modal('show');
+        }
+
+        $('#nav-add-proxy').click(function() {
+            showAddProxy();
+            window.location.href = '#proxy-list';
+        });
+
+        $('#show-add-proxy').click(function() {
+            showAddProxy();
         });
 
         $('#proxy-dialog [name=host]').blur(function() {

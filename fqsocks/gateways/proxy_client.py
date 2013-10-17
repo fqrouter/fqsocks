@@ -526,11 +526,14 @@ def init_proxies(config):
     for proxy_id, private_server in config['private_servers'].items():
         proxy_type = private_server.pop('proxy_type')
         if 'GoAgent' == proxy_type:
-            proxy = GoAgentProxy(
-                private_server['appid'], private_server.get('path'),
-                private_server.get('goagent_password'))
-            proxy.proxy_id = proxy_id
-            proxies.append(proxy)
+            for appid in private_server['appid'].split('|'):
+                if not appid.strip():
+                    continue
+                proxy = GoAgentProxy(
+                    appid.strip(), private_server.get('path'),
+                    private_server.get('goagent_password'))
+                proxy.proxy_id = proxy_id
+                proxies.append(proxy)
         elif 'SSH' == proxy_type:
             for i in range(private_server.get('connections_count') or 4):
                 proxy = SshProxy(
