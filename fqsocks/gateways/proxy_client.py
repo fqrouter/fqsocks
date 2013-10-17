@@ -40,8 +40,6 @@ LOGGER = logging.getLogger(__name__)
 proxy_types = {
     'http-relay': HttpRelayProxy,
     'http-connect': HttpConnectProxy,
-    'spdy-relay': SpdyRelayProxy,
-    'spdy-connect': SpdyConnectProxy,
     'goagent': GoAgentProxy,
     'dynamic': DynamicProxy,
     'ss': ShadowSocksProxy,
@@ -563,6 +561,8 @@ def init_proxies(config):
                 proxy.proxy_id = proxy_id
                 proxies.append(proxy)
         elif 'SPDY' == proxy_type:
+            from ..proxies.spdy_relay import SpdyRelayProxy
+            from ..proxies.spdy_connect import SpdyConnectProxy
             for i in range(private_server.get('connections_count') or 4):
                 if 'HTTP' in private_server.get('traffic_type'):
                     proxy = SpdyRelayProxy(
