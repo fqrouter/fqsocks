@@ -21,8 +21,6 @@ from ..proxies.http_try import NotHttp
 from ..proxies.http_try import HTTP_TRY_PROXY
 from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
-from ..proxies.spdy_relay import SpdyRelayProxy
-from ..proxies.spdy_connect import SpdyConnectProxy
 from ..proxies.goagent import GoAgentProxy
 from ..proxies.dynamic import DynamicProxy
 from ..proxies.shadowsocks import ShadowSocksProxy
@@ -49,6 +47,16 @@ proxy_types = {
     'ss': ShadowSocksProxy,
     'ssh': SshProxy
 }
+try:
+    from ..proxies.spdy_relay import SpdyRelayProxy
+    proxy_types['spdy-relay'] = SpdyRelayProxy
+except:
+    pass
+try:
+    from ..proxies.spdy_connect import SpdyConnectProxy
+    proxy_types['spdy-connect'] = SpdyConnectProxy
+except:
+    pass
 NO_PUBLIC_PROXY_HOSTS = {
     'www.google.com',
     'google.com',
