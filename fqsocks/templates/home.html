@@ -209,7 +209,7 @@
         <div class="bs-sidebar hidden-print" role="complementary" data-spy="affix">
             <ul class="nav bs-sidenav">
                 <li>
-                    <a href="#share-uncensored-internet">{{ _('Share Uncensored Internet', '共享翻墙网络') }}</a>
+                    <a href="#share-uncensored-internet">{{ _('Share', '共享翻墙网络') }}</a>
                     <ul class="nav">
                         <li>
 
@@ -262,10 +262,14 @@
             """
             在同一个局域网内的其他机器上访问下面的网址。如果本页面在fqrouter软件内加载慢或者工作不正常，可以尝试
             """) }}
-            <a class="btn btn-info" target="_blank" href="http://127.0.0.1:{{ httpd.LISTEN_PORT }}">{{ _('open it in browser','在浏览器中打开') }}</a>
+            <a target="_blank" href="http://127.0.0.1:{{ httpd.LISTEN_PORT }}">{{ _('open it in browser','在浏览器中打开') }}</a>
             <div style="margin-top: 8px;">
                 <label class="label label-info" style="font-size: 16px; ">
+                    {% if default_interface_ip %}
                     http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
+                    {% else %}
+                    {{ _('Network Disconnected','无网络') }}
+                    {% endif %}
                 </label>
             </div>
         </div>
@@ -306,7 +310,11 @@
                 <li class="list-group-item">
                     <label class="label label-default">HTTP</label>
                     <label class="label label-info on hide" style="font-size: 16px;">
+                        {% if default_interface_ip %}
                         {{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
+                        {% else %}
+                        {{ _('Network Disconnected', '无网络') }}
+                        {% endif %}
                     </label>
                     <label class="label label-info off" style="font-size: 16px;">
                         {{ _('Please turn on the switch', '请先打开开关') }}
@@ -314,8 +322,13 @@
                 </li>
                 <li class="list-group-item">
                     <label class="label label-default">PAC</label>
-                    <label class="label label-info on hide" style="font-size: 16px;">http://{{ default_interface_ip }}:{{
-                        httpd.LISTEN_PORT }}/pac</label>
+                    <label class="label label-info on hide" style="font-size: 16px;">
+                        {% if default_interface_ip %}
+                        http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/pac
+                        {% else %}
+                        {{ _('Network Disconnected', '无网络') }}
+                        {% endif %}
+                    </label>
                     <label class="label label-info off" style="font-size: 16px;">
                         {{ _('Please turn on the switch', '请先打开开关') }}
                     </label>
@@ -419,7 +432,7 @@
         <div class="col-xs-7">
             <div class="pull-right section-action">
                 <a data-toggle="modal" href="#proxies-dialog" class="btn btn-default" id="config-proxies">
-                    {{ _('Configure', '配置') }}
+                    {{ _('Config', '配置') }}
                 </a>
                 <a id="show-add-proxy" class="btn btn-primary">
                     <span class="glyphicon glyphicon-plus"></span>

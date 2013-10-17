@@ -25,23 +25,21 @@ def home_page(environ, start_response):
     global default_interface_ip
     with open(HOME_HTML_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
-    last_refresh_started_at = datetime.fromtimestamp(proxy_client.last_refresh_started_at)
     start_response(httplib.OK, [('Content-Type', 'text/html')])
     is_root = 0 == os.getuid()
     if not default_interface_ip:
         default_interface_ip = fqlan.get_default_interface_ip()
-    return template.render(
-        _=environ['select_text'],
-        last_refresh_started_at=last_refresh_started_at,
-        proxies_enabled=len(proxy_client.proxies) > 0,
-        tcp_scrambler_enabled=HTTP_TRY_PROXY.tcp_scrambler_enabled,
-        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
-        china_shortcut_enabled=proxy_client.china_shortcut_enabled,
-        direct_access_enabled=proxy_client.direct_access_enabled,
-        config=config_file.read_config(),
-        is_root=is_root,
-        default_interface_ip=default_interface_ip,
-        http_gateway=http_gateway,
-        httpd=httpd,
-        spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None).encode('utf8')
+    args = dict(_=environ['select_text'],
+                tcp_scrambler_enabled=HTTP_TRY_PROXY.tcp_scrambler_enabled,
+                youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
+                china_shortcut_enabled=proxy_client.china_shortcut_enabled,
+                direct_access_enabled=proxy_client.direct_access_enabled,
+                config=config_file.read_config(),
+                is_root=is_root,
+                default_interface_ip=default_interface_ip,
+                http_gateway=http_gateway,
+                httpd=httpd,
+                spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None)
+    html = template.render(**args).encode('utf8')
+    return [html]
 
