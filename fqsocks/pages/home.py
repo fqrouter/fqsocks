@@ -20,6 +20,7 @@ LOGGER = logging.getLogger(__name__)
 default_interface_ip = None
 
 @httpd.http_handler('GET', '')
+@httpd.http_handler('GET', 'home')
 def home_page(environ, start_response):
     global default_interface_ip
     with open(HOME_HTML_FILE) as f:

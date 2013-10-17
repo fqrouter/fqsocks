@@ -257,10 +257,12 @@
             {{ _(
             """
             Open following URL from device within the same local area network (LAN).
+            If this page is slow to loading slow within fqrouter or not working properly, try
             """,
             """
-            在同一个局域网内的其他机器上访问下面的网址
+            在同一个局域网内的其他机器上访问下面的网址。如果本页面在fqrouter软件内加载慢或者工作不正常，可以尝试
             """) }}
+            <a class="btn btn-info" target="_blank" href="http://127.0.0.1:{{ httpd.LISTEN_PORT }}">{{ _('open it in browser','在浏览器中打开') }}</a>
             <div style="margin-top: 8px;">
                 <label class="label label-info" style="font-size: 16px; ">
                     http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}
