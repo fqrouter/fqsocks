@@ -502,7 +502,7 @@
                             <div class="input-group hide" data-for-type="GoAgent">
                                 {{ _(
                                 'appid is the xxx of xxx.appspot.com. Multiple appid can be separated by |',
-                                'appid 就是xxx.appspot.com中的xxx。多个appid可以用竖线（|）分隔')
+                                'appid 只需要填xxx.appspot.com中的xxx不要填appspot.com。多个appid可以用竖线（|）分隔')
                                 }}
                             </div>
                         </div>
@@ -901,6 +901,7 @@
         }
 
         function selectedProxyType(proxyType) {
+            $('#proxy-dialog [name=proxy_type]').val(proxyType);
             $('#proxy-dialog .alert').addClass('hide');
             $('#proxy-dialog .advanced-toggle').addClass('hide');
             $('#proxy-dialog [data-for-type]').each(function(i, $input) {

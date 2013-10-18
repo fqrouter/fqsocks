@@ -20,8 +20,6 @@ class SpdyRelayProxy(Proxy):
                  username=None, password=None, is_public=False, priority=0):
         super(SpdyRelayProxy, self).__init__()
         self.proxy_host = proxy_host
-        if not self.proxy_host:
-            self.died = True
         self.proxy_port = proxy_port
         self.username = username
         self.password = password
@@ -51,7 +49,12 @@ class SpdyRelayProxy(Proxy):
                 self.close()
                 if '0.0.0.0' == self.proxy_ip:
                     return
-                self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
+                try:
+                    self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
+                except:
+                    LOGGER.exception('failed to connect spdy relay: %s' % self)
+                    gevent.sleep(10)
+                    self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
                 self.died = False
                 try:
                     self.spdy_client.loop()
@@ -62,6 +65,7 @@ class SpdyRelayProxy(Proxy):
                 self.died = True
         except:
             LOGGER.exception('spdy relay loop failed')
+            self.died = True
 
     def close(self):
         if self.spdy_client:

@@ -47,7 +47,12 @@ class SpdyConnectProxy(Proxy):
                 self.close()
                 if '0.0.0.0' == self.proxy_ip:
                     return
-                self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
+                try:
+                    self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
+                except:
+                    LOGGER.exception('failed to connect spdy connect: %s' % self)
+                    gevent.sleep(10)
+                    self.spdy_client = SpdyClient(self.proxy_ip, self.proxy_port, self.requested_spdy_version)
                 self.died = False
                 try:
                     self.spdy_client.loop()
@@ -58,6 +63,7 @@ class SpdyConnectProxy(Proxy):
                 self.died = True
         except:
             LOGGER.exception('spdy connect loop failed')
+            self.died = True
 
     def close(self):
         if self.spdy_client:
