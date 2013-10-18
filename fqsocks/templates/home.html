@@ -665,6 +665,7 @@
                         <div style="clear: both"></div>
                     </div>
                     <div class="advanced hide">
+                        {% if is_root %}
                         <div class="form-group">
                             <label for="tcp-scrambler-switch">{{ _('TCP Scrambler', 'TCP 混淆器') }}</label>
 
@@ -673,6 +674,7 @@
                                 <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
                             </div>
                         </div>
+                        {% endif %}
                         <div class="form-group">
                             {{ _(
                             """
