@@ -86,6 +86,7 @@ class ProxyClient(object):
         self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
         self.peeked_data = ''
         self.host = ''
+        self.protocol = None
         self.tried_proxies = {}
         self.forwarding_by = None
         self.us_ip_only = force_us_ip
@@ -101,7 +102,7 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=7, bufsize=8192, encrypt=None, decrypt=None,
+    def forward(self, upstream_sock, timeout=7, after_started_timeout=360, bufsize=8192, encrypt=None, decrypt=None,
                 delayed_penalty=None, on_forward_started=None):
 
         self.buffer_multiplier = 1
@@ -109,7 +110,7 @@ class ProxyClient(object):
             if 5228 == self.dst_port: # Google Service
                 upstream_sock.settimeout(None)
             else: # More than 5 minutes
-                upstream_sock.settimeout(360)
+                upstream_sock.settimeout(after_started_timeout)
         else:
             upstream_sock.settimeout(timeout)
         self.downstream_sock.settimeout(None)
@@ -126,7 +127,7 @@ class ProxyClient(object):
                             if 5228 == self.dst_port: # Google Service
                                 upstream_sock.settimeout(None)
                             else: # More than 5 minutes
-                                upstream_sock.settimeout(360)
+                                upstream_sock.settimeout(after_started_timeout)
                             self.apply_delayed_penalties()
                             if on_forward_started:
                                 on_forward_started()
@@ -277,8 +278,15 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    if not client.us_ip_only and should_fix():
+    if should_fix():
         gevent.spawn(fix_by_refreshing_proxies)
+    peek_data(client)
+    if china_shortcut_enabled and client.host and fqdns.is_china_domain(client.host):
+        try:
+            DIRECT_PROXY.forward(client)
+        except ProxyFallBack:
+            pass
+        return
     for i in range(3):
         proxy = pick_proxy(client)
         while proxy:
@@ -310,6 +318,29 @@ def pick_proxy_and_forward(client):
     raise NoMoreProxy()
 
 
+def peek_data(client):
+    if not client.peeked_data:
+        ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
+        if errors:
+            LOGGER.error('[%s] peek data failed' % repr(client))
+            return DIRECT_PROXY
+        if not ins:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] peek data timed out' % repr(client))
+        else:
+            client.peeked_data = client.downstream_sock.recv(8192)
+    protocol, domain = analyze_protocol(client.peeked_data)
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        LOGGER.debug('[%s] analyzed traffic: %s %s' % (repr(client), protocol, domain))
+    client.host = domain
+    client.protocol = protocol
+    if not client.protocol:
+        if client.dst_port == 80:
+            client.protocol = 'HTTP'
+        elif client.dst_port == 443:
+            client.protocol = 'HTTPS'
+
+
 class NoMoreProxy(Exception):
     pass
 
@@ -336,24 +367,9 @@ def should_fix():
 
 
 def pick_proxy(client):
-    if not client.peeked_data:
-        ins, _, errors = select.select([client.downstream_sock], [], [client.downstream_sock], 0.1)
-        if errors:
-            LOGGER.error('[%s] peek data failed' % repr(client))
-            return DIRECT_PROXY
-        if not ins:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] peek data timed out' % repr(client))
-        else:
-            client.peeked_data = client.downstream_sock.recv(8192)
-    protocol, domain = analyze_protocol(client.peeked_data)
-    if domain:
-        client.host = domain
-    if LOGGER.isEnabledFor(logging.DEBUG):
-        LOGGER.debug('[%s] analyzed traffic: %s %s' % (repr(client), protocol, domain))
-    if protocol == 'HTTP' or client.dst_port == 80:
+    if client.protocol == 'HTTP':
         return pick_http_try_proxy(client) or pick_proxy_supports(client, 'HTTP')
-    elif protocol == 'HTTPS' or client.dst_port == 443:
+    elif client.protocol == 'HTTPS':
         return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
     else:
         if pick_proxy_supports(client, 'TCP'):

@@ -24,6 +24,7 @@ def load_china_ip_ranges():
             yield start_ip_as_int, end_ip_as_int
             line = f.readline()
     yield translate_ip_range('111.0.0.0', 10) # china mobile
+    yield translate_ip_range('202.55.0.0', 19) # china telecom
 
 
 def translate_ip_range(ip, netmask):

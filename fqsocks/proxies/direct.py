@@ -110,7 +110,7 @@ class DirectProxy(Proxy):
             LOGGER.debug('[%s] direct upstream connected' % repr(client))
         upstream_sock.counter.sending(len(client.peeked_data))
         upstream_sock.sendall(client.peeked_data)
-        client.forward(upstream_sock)
+        client.forward(upstream_sock, timeout=60, after_started_timeout=60 * 60)
 
     def is_protocol_supported(self, protocol):
         return True
