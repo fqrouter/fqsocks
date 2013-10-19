@@ -2,10 +2,10 @@
 import httplib
 import logging
 import os.path
-from datetime import datetime
+import fqlan
 
 import jinja2
-import fqlan
+import fqdns
 
 from .. import httpd
 from ..gateways import proxy_client
@@ -43,3 +43,13 @@ def home_page(environ, start_response):
     html = template.render(**args).encode('utf8')
     return [html]
 
+@httpd.http_handler('GET', 'notice')
+def get_notice_url(environ, start_response):
+    try:
+        domain = environ['select_text']('en.url.notice.fqrouter.com', 'cn.url.notice.fqrouter.com')
+        results = fqdns.resolve('TXT', [domain], 'udp', [('8.8.8.8', 53), ('208.67.222.222', 443)], 3)
+        start_response(httplib.TEMPORARY_REDIRECT, [('Location', results[domain][0])])
+        return []
+    except:
+        start_response(httplib.TEMPORARY_REDIRECT, [('Location', 'https://s3.amazonaws.com/fqrouter-notice/index.html')])
+        return []
