@@ -75,7 +75,7 @@ def handle_list_proxies(environ, start_response):
         if not proxy_public_name:
             continue
         if proxy_public_name in proxies_stats:
-            proxies_stats[proxy_public_name]['died'] = proxy.died
+            proxies_stats[proxy_public_name]['died'] = proxies_stats[proxy_public_name].get('died', False) or proxy.died
             proxies_stats[proxy_public_name]['proxy_id'] = proxy.proxy_id
         else:
             proxies_stats[proxy_public_name] = {

@@ -211,10 +211,6 @@
                 <li>
                     <a href="#share-uncensored-internet">{{ _('Share', '共享翻墙网络') }}</a>
                     <ul class="nav">
-                        <li>
-
-                            <a href="#http-proxy">{{ _('HTTP Proxy', 'HTTP代理') }}</a>
-                        </li>
                         {% if is_root %}
                         <li>
                             <a href="#pick-and-play">Pick &amp; Play</a>
@@ -225,6 +221,9 @@
                             <a href="#wifi-repeater">{{ _('Wifi Repeater', '无线中继') }}</a>
                         </li>
                         {% endif %}
+                        <li>
+                            <a href="#http-proxy">{{ _('HTTP Proxy', 'HTTP代理') }}</a>
+                        </li>
                     </ul>
                 </li>
                 <li>
@@ -259,11 +258,11 @@
         <div class="col-xs-12">
             {{ _(
             """
-            Open following URL from device within the same local area network (LAN).
+            It is hard to configure things on mobile, you can open following URL from device within the same local area network (LAN).
             If this page is slow to loading slow within fqrouter or not working properly, try
             """,
             """
-            在同一个局域网内的其他机器上访问下面的网址。如果本页面在fqrouter软件内加载慢或者工作不正常，可以尝试
+            手机上操作不方便，建议在同一局域网内的其他机器上访问下面的网址进行远程管理。如果本页面在fqrouter软件内加载慢或者工作不正常，可以尝试
             """) }}
             <a target="_blank" href="http://127.0.0.1:{{ httpd.LISTEN_PORT }}">{{ _('open it in browser','在浏览器中打开') }}</a>
             <div style="margin-top: 8px;">
@@ -278,67 +277,6 @@
         </div>
     </div>
     <a name="share-uncensored-internet"></a>
-    <a name="http-proxy"></a>
-    <hr/>
-    <div class="row">
-        <div class="col-xs-5">
-            <h3>
-                {{ _('HTTP Proxy', 'HTTP代理') }}
-            </h3>
-        </div>
-        <div class="col-xs-7">
-            <div class="pull-right section-action">
-                <a data-toggle="modal" href="#http-gateway-dialog" class="btn btn-default" id="config-http-gateway">
-                    {{ _('Config', '配置') }}
-                </a>
-
-                <div class="make-switch" data-on="success" data-off="default" id="http-gateway-switch">
-                    <input type="checkbox" {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-xs-12">
-            {{ _(
-            """
-            Share uncensored internet to friends nearby (within the same local area network). They just need to set http
-            proxy in their device
-            to the following values. If you do not know what is this about, just google for it :
-            """,
-            """
-            把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
-            """) }}
-            <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;" id="http-gateway-info">
-                <li class="list-group-item">
-                    <label class="label label-default">HTTP</label>
-                    <label class="label label-info on hide" style="font-size: 16px;">
-                        {% if default_interface_ip %}
-                        {{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
-                        {% else %}
-                        {{ _('Network Disconnected', '无网络') }}
-                        {% endif %}
-                    </label>
-                    <label class="label label-info off" style="font-size: 16px;">
-                        {{ _('Please turn on the switch', '请先打开开关') }}
-                    </label>
-                </li>
-                <li class="list-group-item">
-                    <label class="label label-default">PAC</label>
-                    <label class="label label-info on hide" style="font-size: 16px;">
-                        {% if default_interface_ip %}
-                        http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/pac
-                        {% else %}
-                        {{ _('Network Disconnected', '无网络') }}
-                        {% endif %}
-                    </label>
-                    <label class="label label-info off" style="font-size: 16px;">
-                        {{ _('Please turn on the switch', '请先打开开关') }}
-                    </label>
-                </li>
-            </ul>
-        </div>
-    </div>
     {% if is_root %}
     <a name="pick-and-play"></a>
     <hr/>
@@ -424,6 +362,68 @@
         </div>
     </div>
     {% endif %}
+
+    <a name="http-proxy"></a>
+    <hr/>
+    <div class="row">
+        <div class="col-xs-5">
+            <h3>
+                {{ _('HTTP Proxy', 'HTTP代理') }}
+            </h3>
+        </div>
+        <div class="col-xs-7">
+            <div class="pull-right section-action">
+                <a data-toggle="modal" href="#http-gateway-dialog" class="btn btn-default" id="config-http-gateway">
+                    {{ _('Config', '配置') }}
+                </a>
+
+                <div class="make-switch" data-on="success" data-off="default" id="http-gateway-switch">
+                    <input type="checkbox" {{ 'checked="checked"' if http_gateway.server_greenlet else '' }}>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-xs-12">
+            {{ _(
+            """
+            Share uncensored internet to friends nearby (within the same local area network). They just need to set http
+            proxy in their device
+            to the following values. If you do not know what is this about, just google for it :
+            """,
+            """
+            把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
+            """) }}
+            <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;" id="http-gateway-info">
+                <li class="list-group-item">
+                    <label class="label label-default">HTTP</label>
+                    <label class="label label-info on hide" style="font-size: 16px;">
+                        {% if default_interface_ip %}
+                        {{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
+                        {% else %}
+                        {{ _('Network Disconnected', '无网络') }}
+                        {% endif %}
+                    </label>
+                    <label class="label label-info off" style="font-size: 16px;">
+                        {{ _('Please turn on the switch', '请先打开开关') }}
+                    </label>
+                </li>
+                <li class="list-group-item">
+                    <label class="label label-default">PAC</label>
+                    <label class="label label-info on hide" style="font-size: 16px;">
+                        {% if default_interface_ip %}
+                        http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/pac
+                        {% else %}
+                        {{ _('Network Disconnected', '无网络') }}
+                        {% endif %}
+                    </label>
+                    <label class="label label-info off" style="font-size: 16px;">
+                        {{ _('Please turn on the switch', '请先打开开关') }}
+                    </label>
+                </li>
+            </ul>
+        </div>
+    </div>
     <a name="proxy-list"></a>
     <hr/>
     <div class="row">
@@ -439,13 +439,24 @@
                 </a>
                 <a id="show-add-proxy" class="btn btn-primary">
                     <span class="glyphicon glyphicon-plus"></span>
-                    {{ _('Add', '添加') }}
+                    {{ _('Add Proxy', '添加代理') }}
                 </a>
             </div>
         </div>
     </div>
     <div class="row">
         <div class="col-xs-12">
+            <div>
+                {{ _("""
+                The list are the proxies fqrouter is using. Built-in public proxies might not satisfy your needs.
+                You can add your private proxy by clicking Add Proxy button.
+                Notice that, fqrouter does not use GoAgent to proxy HTTPS website.
+                """, """
+                下面的列表中列出了fqrouter正在使用的代理。默认设置的公共代理可能不能满足你对速度和稳定性的要求。
+                如果你有个人代理（比如说自己注册的GoAgent帐号），可以点“添加代理”按钮。
+                特别提示，fqrouter只使用GoAgent代理HTTP，也就是说twitter这样的HTTPS网站是无法只使用GoAgent就能访问的。
+                """) }}
+            </div>
             <table class="table table-striped" id="proxies">
                 <thead>
                 <tr>
@@ -502,7 +513,7 @@
                             <div class="input-group hide" data-for-type="GoAgent">
                                 {{ _(
                                 'appid is the xxx of xxx.appspot.com. Multiple appid can be separated by |',
-                                'appid 只需要填xxx.appspot.com中的xxx不要填appspot.com。多个appid可以用竖线（|）分隔')
+                                'appid 只需要填xxx.appspot.com中的xxx不要填appspot.com。多个appid可以用竖线（|）分隔。GoAgent只被用来代理HTTP，需要配合其他代理才能完整翻墙。')
                                 }}
                             </div>
                         </div>
