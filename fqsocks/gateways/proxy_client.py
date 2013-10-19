@@ -540,63 +540,66 @@ def init_proxies(config):
     global last_refresh_started_at
     last_refresh_started_at = -1
     for proxy_id, private_server in config['private_servers'].items():
-        proxy_type = private_server.pop('proxy_type')
-        if 'GoAgent' == proxy_type:
-            for appid in private_server['appid'].split('|'):
-                if not appid.strip():
-                    continue
-                proxy = GoAgentProxy(
-                    appid.strip(), private_server.get('path'),
-                    private_server.get('goagent_password'))
-                proxy.proxy_id = proxy_id
-                proxies.append(proxy)
-        elif 'SSH' == proxy_type:
-            for i in range(private_server.get('connections_count') or 4):
-                proxy = SshProxy(
+        try:
+            proxy_type = private_server.pop('proxy_type')
+            if 'GoAgent' == proxy_type:
+                for appid in private_server['appid'].split('|'):
+                    if not appid.strip():
+                        continue
+                    proxy = GoAgentProxy(
+                        appid.strip(), private_server.get('path'),
+                        private_server.get('goagent_password'))
+                    proxy.proxy_id = proxy_id
+                    proxies.append(proxy)
+            elif 'SSH' == proxy_type:
+                for i in range(private_server.get('connections_count') or 4):
+                    proxy = SshProxy(
+                        private_server['host'], private_server['port'],
+                        private_server['username'], private_server.get('password'))
+                    proxy.proxy_id = proxy_id
+                    proxies.append(proxy)
+            elif 'Shadowsocks' == proxy_type:
+                proxy = ShadowSocksProxy(
                     private_server['host'], private_server['port'],
-                    private_server['username'], private_server.get('password'))
+                    private_server['password'], private_server['encrypt_method'])
                 proxy.proxy_id = proxy_id
                 proxies.append(proxy)
-        elif 'Shadowsocks' == proxy_type:
-            proxy = ShadowSocksProxy(
-                private_server['host'], private_server['port'],
-                private_server['password'], private_server['encrypt_method'])
-            proxy.proxy_id = proxy_id
-            proxies.append(proxy)
-        elif 'HTTP' == proxy_type:
-            is_secured = 'SSL' == private_server.get('transport_type')
-            if 'HTTP' in private_server.get('traffic_type'):
-                proxy = HttpRelayProxy(
-                    private_server['host'], private_server['port'],
-                    private_server['username'], private_server['password'],
-                    is_secured=is_secured)
-                proxy.proxy_id = proxy_id
-                proxies.append(proxy)
-            if 'HTTPS' in private_server.get('traffic_type'):
-                proxy = HttpConnectProxy(
-                    private_server['host'], private_server['port'],
-                    private_server['username'], private_server['password'],
-                    is_secured=is_secured)
-                proxy.proxy_id = proxy_id
-                proxies.append(proxy)
-        elif 'SPDY' == proxy_type:
-            from ..proxies.spdy_relay import SpdyRelayProxy
-            from ..proxies.spdy_connect import SpdyConnectProxy
-            for i in range(private_server.get('connections_count') or 4):
+            elif 'HTTP' == proxy_type:
+                is_secured = 'SSL' == private_server.get('transport_type')
                 if 'HTTP' in private_server.get('traffic_type'):
-                    proxy = SpdyRelayProxy(
-                        private_server['host'], private_server['port'], 'auto',
-                        private_server['username'], private_server['password'])
+                    proxy = HttpRelayProxy(
+                        private_server['host'], private_server['port'],
+                        private_server['username'], private_server['password'],
+                        is_secured=is_secured)
                     proxy.proxy_id = proxy_id
                     proxies.append(proxy)
                 if 'HTTPS' in private_server.get('traffic_type'):
-                    proxy = SpdyConnectProxy(
-                        private_server['host'], private_server['port'], 'auto',
-                        private_server['username'], private_server['password'])
+                    proxy = HttpConnectProxy(
+                        private_server['host'], private_server['port'],
+                        private_server['username'], private_server['password'],
+                        is_secured=is_secured)
                     proxy.proxy_id = proxy_id
                     proxies.append(proxy)
-        else:
-            raise NotImplementedError()
+            elif 'SPDY' == proxy_type:
+                from ..proxies.spdy_relay import SpdyRelayProxy
+                from ..proxies.spdy_connect import SpdyConnectProxy
+                for i in range(private_server.get('connections_count') or 4):
+                    if 'HTTP' in private_server.get('traffic_type'):
+                        proxy = SpdyRelayProxy(
+                            private_server['host'], private_server['port'], 'auto',
+                            private_server['username'], private_server['password'])
+                        proxy.proxy_id = proxy_id
+                        proxies.append(proxy)
+                    if 'HTTPS' in private_server.get('traffic_type'):
+                        proxy = SpdyConnectProxy(
+                            private_server['host'], private_server['port'], 'auto',
+                            private_server['username'], private_server['password'])
+                        proxy.proxy_id = proxy_id
+                        proxies.append(proxy)
+            else:
+                raise NotImplementedError('proxy type: %s' % proxy_type)
+        except:
+            LOGGER.exception('failed to init %s' % private_server)
     try:
         success = False
         for i in range(8):

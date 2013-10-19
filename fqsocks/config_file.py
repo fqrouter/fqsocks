@@ -1,6 +1,10 @@
 import os
 import json
 from uuid import uuid4
+import shutil
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 def DEFAULT_CONFIG():
     return {
@@ -47,6 +51,7 @@ cli_args = None
 
 def read_config():
     config = _read_config()
+    migrate_config(config)
     config['log_level'] = cli_args.log_level
     config['log_file'] = cli_args.log_file
     config['ip_command'] = cli_args.ip_command
@@ -109,6 +114,92 @@ def _read_config():
             return config
     else:
         return config
+
+
+def migrate_config(config):
+    if not config['config_file']:
+        return
+    config_dir = os.path.dirname(config['config_file'])
+    migrate_goagent_config(config, config_dir)
+    migrate_shadowsocks_config(config, config_dir)
+    migrate_http_proxy_config(config, config_dir)
+    migrate_ssh_config(config, config_dir)
+
+
+def migrate_goagent_config(config, config_dir):
+    goagent_json_file = os.path.join(config_dir, 'goagent.json')
+    if os.path.exists(goagent_json_file):
+        try:
+            with open(goagent_json_file) as f:
+                for server in json.loads(f.read()):
+                    add_proxy(config, 'GoAgent', path=server['path'],
+                              goagent_password=server['password'], appid=server['appid'])
+            with open(cli_args.config_file, 'w') as f:
+                f.write(json.dumps(config))
+        except:
+            LOGGER.exception('failed to migrate goagent config')
+        finally:
+            shutil.move(goagent_json_file, os.path.join(config_dir, 'goagent.json.bak'))
+
+
+def migrate_shadowsocks_config(config, config_dir):
+    shadowsocks_json_file = os.path.join(config_dir, 'shadowsocks.json')
+    if os.path.exists(shadowsocks_json_file):
+        try:
+            with open(shadowsocks_json_file) as f:
+                for server in json.loads(f.read()):
+                    add_proxy(config, 'Shadowsocks', host=server['host'],
+                              password=server['password'], port=server['port'],
+                              encrypt_method=server['encryption_method'])
+            with open(cli_args.config_file, 'w') as f:
+                f.write(json.dumps(config))
+        except:
+            LOGGER.exception('failed to migrate shadowsocks config')
+        finally:
+            shutil.move(shadowsocks_json_file, os.path.join(config_dir, 'shadowsocks.json.bak'))
+
+
+def migrate_http_proxy_config(config, config_dir):
+    http_proxy_json_file = os.path.join(config_dir, 'http-proxy.json')
+    if os.path.exists(http_proxy_json_file):
+        try:
+            with open(http_proxy_json_file) as f:
+                for server in json.loads(f.read()):
+                    if 'spdy (webvpn)' == server['transport_type']:
+                        add_proxy(config, 'SPDY', host=server['host'],
+                                  password=server['password'], port=server['port'],
+                                  username=server['username'],
+                                  traffic_type=server['traffic_type'].upper().replace(' ', ''),
+                                  connections_count=server['spdy_connections_count'])
+                    else:
+                        add_proxy(config, 'HTTP', host=server['host'],
+                                  password=server['password'], port=server['port'],
+                                  username=server['username'],
+                                  transport_type='SSL' if 'ssl' == server['transport_type'] else 'HTTP',
+                                  traffic_type=server['traffic_type'].upper().replace(' ', ''))
+            with open(cli_args.config_file, 'w') as f:
+                f.write(json.dumps(config))
+        except:
+            LOGGER.exception('failed to migrate http proxy config')
+        finally:
+            shutil.move(http_proxy_json_file, os.path.join(config_dir, 'http-proxy.json.bak'))
+
+
+def migrate_ssh_config(config, config_dir):
+    ssh_json_file = os.path.join(config_dir, 'ssh.json')
+    if os.path.exists(ssh_json_file):
+        try:
+            with open(ssh_json_file) as f:
+                for server in json.loads(f.read()):
+                    add_proxy(config, 'SSH', host=server['host'],
+                              password=server['password'], port=server['port'],
+                              username=server['username'], connections_count=server['connections_count'])
+            with open(cli_args.config_file, 'w') as f:
+                f.write(json.dumps(config))
+        except:
+            LOGGER.exception('failed to migrate ssh config')
+        finally:
+            shutil.move(ssh_json_file, os.path.join(config_dir, 'ssh.json.bak'))
 
 
 def update_config(apply=None, **kwargs):
