@@ -3153,7 +3153,6 @@ apnic|CN|ipv4|203.207.64.0|16384|19970617|allocated
 apnic|CN|ipv4|203.207.128.0|32768|19970617|allocated
 apnic|CN|ipv4|203.208.0.0|4096|19960110|allocated
 apnic|CN|ipv4|203.208.16.0|1024|19960110|assigned
-apnic|CN|ipv4|203.208.32.0|8192|20060113|allocated
 apnic|CN|ipv4|203.209.224.0|8192|20060120|allocated
 apnic|CN|ipv4|203.212.0.0|4096|20001010|allocated
 apnic|CN|ipv4|203.212.80.0|4096|20060601|allocated
