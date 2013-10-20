@@ -215,6 +215,9 @@
                         <li>
                             <a href="#pick-and-play">Pick &amp; Play</a>
                         </li>
+                        <li>
+                            <a href="#share-by-android">{{ _('Share by Android', '通过Android共享') }}</a>
+                        </li>
                         {% endif %}
                         {% if spi_wifi_repeater and spi_wifi_repeater['is_supported']() %}
                         <li>
@@ -320,6 +323,32 @@
         </div>
     </div>
     {% endif %}
+    {% if is_root %}
+    <a name="share-by-android"></a>
+    <hr/>
+    <div class="row">
+        <div class="col-xs-12">
+            <h3>
+                {{ _('Share by Android', '通过Android共享') }}
+            </h3>
+            {{ _("""
+            Android system comes with various ways to share internet to other devices.
+            For example 3G can be shared by Wifi Hotspot (so called Personal Portable Hotspot).
+            And there are USB sharing and Bluetooth sharing.
+            Normally you can find all those functionalities from system settings.
+            If you can not find them, just google for it. If fqrouter is started,
+            then you shared internet via System builtin ways,
+            then whoever connects in will get uncensored internet automatically.
+            There is no extra action need to be taken in fqrotuer.
+            """, """
+            Android系统自带多种共享网络给其他设备的方式。比如说3G可以用无线的方式共享出去（所谓便携式热点）。
+            还有用USB线共享网络，以及用蓝牙共享网络。一般这些系统提供的共享网络的功能入口都在设置里。
+            如果找不到，请自行Google。fqrouter启动之后，用Android系统自带的工具把网络共享出去，其他设备连进来就自动翻墙了。
+            不需要额外在fqrouter里再进行什么操作了。
+            """) }}
+        </div>
+    </div>
+    {% endif %}
     {% if spi_wifi_repeater and spi_wifi_repeater['is_supported']() %}
     <a name="wifi-repeater"></a>
     <hr/>
@@ -350,14 +379,18 @@
         <div class="col-xs-12">
             {{ _(
             """
-            Start a wifi hotspot to share free internet. Different from Android built-in 3G
-            hotspot, this wifi hotspot shares wifi instead of 3G.
-            I can assure you, it will not do any harm to hardware. However, it
-            might cause mobile restart on unsupported mobile.
+            Android built-in 3G hotspot can share 3G, but it can not share wifi.
+            If you are at home, obviously you do not want to surf internet via 3G,
+            but meantime you still want to share uncensored internet to other devices via Wifi.
+            Then you would need to use Wifi Repeater. However only a few mobile models support Wifi Repeater.
+            If you mobile is not one of those, starting wifi repeater might cause the system reboot.
+            But I can assure you, it will not do any harm to hardware.
             """,
             """
-            以无线的方式共享翻墙网络。与系统自带的便携式热点不同之处在于这个共享的是无线而不是3G。
-            无线中继肯定不会对硬件造成任何损坏。然而，在不支持的手机上可能会导致重启。
+            系统自带的便携式热点可以共享3G，但是无法共享家庭的无线网络。
+            如果我在家里，显然不希望还用3G上网，但是我又想用无线把翻墙网络共享给其他设备。
+            这个时候你就需要使用无线中继这个功能。但是只有少数手机支持无线中继，
+            如果你的手机不支持可能会导致系统重启，但是肯定不会对硬件造成任何损坏。
             """) }}
         </div>
     </div>
@@ -389,10 +422,14 @@
             """
             Share uncensored internet to friends nearby (within the same local area network). They just need to set http
             proxy in their device
-            to the following values. If you do not know what is this about, just google for it :
+            to the following values. If you do not know what is this about, just google for it.
+            If you can <a href='http://en.wikipedia.org/wiki/Android_rooting'>ROOT your mobile</a>, there will
+            be a lot more ways to share uncensored internet, and it also makes fqrouter more stable. You might want to give it a try someday.
             """,
             """
-            把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google：
+            把翻墙网络共享给周围的朋友（同一个局域网内）。TA们只需要把设备上的HTTP代理设置为下面的值就可以了。搞不明白的朋友请自行Google。
+            如果你可以把你的<a href='http://zh.wikipedia.org/wiki/Root_(Android%E7%B3%BB%E7%BB%9F)'>手机ROOT了</a>，
+            那么就可以有更多的方式来共享翻墙网络了，而且fqrouter也会工作得更稳定。哪天可以试试。
             """) }}
             <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;" id="http-gateway-info">
                 <li class="list-group-item">
