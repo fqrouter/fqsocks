@@ -308,6 +308,6 @@ def detect_if_ttl_being_ignored():
         finally:
             sock.close()
         LOGGER.info('ttl 3 should not connect baidu, disable fqting')
-        HTTP_TRY_PROXY.http_request_mark = None
+        HTTP_TRY_PROXY.tcp_scrambler_enabled = False
     except:
         LOGGER.exception('detected if ttl being ignored')
