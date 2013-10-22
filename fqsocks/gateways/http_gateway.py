@@ -37,8 +37,12 @@ def handle(downstream_sock, address):
         return
     method, path, headers = parse_request(request)
     if 'CONNECT' == method.upper():
-        dst_host, dst_port = path.split(':')
-        dst_port = int(dst_port)
+        if ':' in path:
+            dst_host, dst_port = path.split(':')
+            dst_port = int(dst_port)
+        else:
+            dst_host = path
+            dst_port = 443
         dst_ip = resolve_ip(dst_host)
         if not dst_ip:
             return
