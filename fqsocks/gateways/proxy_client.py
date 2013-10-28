@@ -139,7 +139,10 @@ class ProxyClient(object):
             except socket.error as e:
                 if e[0] not in (10053, 10054, 10057, errno.EPIPE):
                     return e
+            except gevent.GreenletExit:
+                return
             except:
+                LOGGER.exception('forward u2d failed')
                 return sys.exc_info()[1]
 
         def from_downstream_to_upstream():
@@ -157,7 +160,10 @@ class ProxyClient(object):
             except socket.error as e:
                 if e[0] not in (10053, 10054, 10057, errno.EPIPE):
                     return e
+            except gevent.GreenletExit:
+                return
             except:
+                LOGGER.exception('forward d2u failed')
                 return sys.exc_info()[1]
             finally:
                 upstream_sock.close()
@@ -267,7 +273,7 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    if client.dst_ip in fqdns.BUILTIN_WRONG_ANSWERS():
+    if client.dst_ip in fqdns.WRONG_ANSWERS:
         LOGGER.error('[%s] destination is GFW wrong answer' % repr(client))
         dns_polluted_at = time.time()
         NONE_PROXY.forward(client)
