@@ -340,7 +340,7 @@ def peek_data(client):
         LOGGER.debug('[%s] analyzed traffic: %s %s' % (repr(client), protocol, domain))
     client.host = domain
     client.protocol = protocol
-    if not client.protocol:
+    if 'UNKNOWN' == client.protocol:
         if client.dst_port == 80:
             client.protocol = 'HTTP'
         elif client.dst_port == 443:
