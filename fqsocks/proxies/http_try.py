@@ -36,7 +36,7 @@ def is_no_direct_host(client_host):
 def is_youtube_host(client_host):
     if not client_host:
         return False
-    return 'youtube.com' in client_host or 'ytimg.com' in client_host
+    return 'youtube.com' in client_host or 'ytimg.com' in client_host or 'googlevideo.com' in client_host
 
 
 class HttpTryProxy(Proxy):
