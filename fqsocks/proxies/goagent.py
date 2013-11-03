@@ -64,11 +64,7 @@ GAE_OBFUSCATE = 0
 GAE_PASSWORD = ''
 GAE_PATH = '/2'
 
-AUTORANGE_HOSTS = '*.c.youtube.com|*.atm.youku.com|*.googlevideo.com|*av.vimeo.com|smile-*.nicovideo.jp|' \
-                  'video.*.fbcdn.net|s*.last.fm|x*.last.fm|*.x.xvideos.com|*.edgecastcdn.net|*.d.rncdn3.com|' \
-                  'cdn*.public.tube8.com|videos.flv*.redtubefiles.com|cdn*.public.extremetube.phncdn.com|' \
-                  'cdn*.video.pornhub.phncdn.com|*.mms.vlog.xuite.net|vs*.thisav.com|archive.rthk.hk|' \
-                  'video*.modimovie.com'.split('|')
+AUTORANGE_HOSTS = '.c.youtube.com|.atm.youku.com|.googlevideo.com|av.vimeo.com|smile-*.nicovideo.jp|video.*.fbcdn.net|s*.last.fm|x*.last.fm|.x.xvideos.com|.edgecastcdn.net|.d.rncdn3.com|cdn*.public.tube8.com|videos.flv*.redtubefiles.com|cdn*.public.extremetube.phncdn.com|cdn*.video.pornhub.phncdn.com|.mms.vlog.xuite.net|vs*.thisav.com|archive.rthk.hk|video*.modimovie.com'.split('|')
 AUTORANGE_HOSTS = tuple(AUTORANGE_HOSTS)
 AUTORANGE_HOSTS_MATCH = [re.compile(fnmatch.translate(h)).match for h in AUTORANGE_HOSTS]
 AUTORANGE_ENDSWITH = '.f4v|.flv|.hlv|.m4v|.mp4|.mp3|.ogg|.avi|.exe|.zip|.iso|.rar|.bz2|.xz|.dmg'.split('|')
@@ -225,8 +221,9 @@ def forward(client, proxy, appids):
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back('can not connect to google ip')
         except ReadResponseFailed:
-            LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
-            GoAgentProxy.black_list.add(client.host)
+            if 'youtube.com' not in client.host:
+                LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
+                GoAgentProxy.black_list.add(client.host)
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back(reason='failed to read response from gae_urlfetch')
