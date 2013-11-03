@@ -190,8 +190,6 @@ class GoAgentProxy(Proxy):
 def forward(client, proxy):
     parsed_url = urllib.parse.urlparse(client.url)
     range_in_query = 'range=' in parsed_url.query or 'redirect_counter=' in parsed_url.query
-    if range_in_query:
-        LOGGER.error('!!! special: %s' % parsed_url.query)
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
         AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
     range_end = 0
@@ -216,6 +214,10 @@ def forward(client, proxy):
             kwargs['password'] = proxy.password
 
         try:
+            if 'youtube.com/watch' in client.url:
+                for proxy in GoAgentProxy.proxies:
+                    client.tried_proxies[proxy] = 'skip goagent'
+                client.fall_back(reason='goagent can not proxy youtube watch')
             response = gae_urlfetch(
                 client, proxy, client.method, client.url, client.headers, client.payload, **kwargs)
         except ConnectionFailed:

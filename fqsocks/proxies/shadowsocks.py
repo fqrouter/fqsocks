@@ -63,4 +63,6 @@ class ShadowSocksProxy(Proxy):
         return 'SS\t%s' % self.proxy_host
 
 def is_youtube(host):
+    if not '--' in host:
+        return False
     return 'youtube.com' in host or 'googlevideo.com' in host
