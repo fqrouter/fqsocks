@@ -212,12 +212,11 @@ def forward(client, proxy):
         kwargs = {}
         if proxy.password:
             kwargs['password'] = proxy.password
-
+        if 'youtube.com/watch' in client.url or '.c.android.clients.google.com' in client.url:
+            for proxy in GoAgentProxy.proxies:
+                client.tried_proxies[proxy] = 'skip goagent'
+            client.fall_back(reason='goagent can not proxy youtube watch')
         try:
-            if 'youtube.com/watch' in client.url:
-                for proxy in GoAgentProxy.proxies:
-                    client.tried_proxies[proxy] = 'skip goagent'
-                client.fall_back(reason='goagent can not proxy youtube watch')
             response = gae_urlfetch(
                 client, proxy, client.method, client.url, client.headers, client.payload, **kwargs)
         except ConnectionFailed:
