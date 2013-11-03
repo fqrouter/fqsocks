@@ -136,7 +136,6 @@ function FindProxyForURL(url, host)
             shExpMatch(host, "(*\.|)serving-sys.com")||
             shExpMatch(host, "(*\.|)legolas-media.com")||
             shExpMatch(host, "(*\.|)harrenmedianetwork.com")||
-            shExpMatch(host, "(*\.|)ytimg.com")||
             shExpMatch(host, "(*\.|)google-analytics.com")
         ) {
 
@@ -207,7 +206,6 @@ function FindProxyForURL(url, host)
             shExpMatch(host, "(*\.|)cnzz.com") ||
             shExpMatch(host, "(*\.|)douban.com") ||
             shExpMatch(host, "(*\.|)pengyou.com") ||
-            shExpMatch(host, "(*\.|)yahoo.com") ||
             shExpMatch(host, "(*\.|)58.com") ||
             shExpMatch(host, "(*\.|)alibaba.com") ||
             shExpMatch(host, "(*\.|)56.com") ||
@@ -287,7 +285,6 @@ function FindProxyForURL(url, host)
             shExpMatch(host, "(*\.|)tenpay.com") ||
             shExpMatch(host, "(*\.|)meituan.com") ||
             shExpMatch(host, "(*\.|)120ask.com") ||
-            shExpMatch(host, "(*\.|)yahoo.co.jp") ||
             shExpMatch(host, "(*\.|)ebay.com") ||
             shExpMatch(host, "(*\.|)51cto.com") ||
             shExpMatch(host, "(*\.|)sdo.com") ||

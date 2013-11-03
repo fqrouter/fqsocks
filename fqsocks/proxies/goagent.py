@@ -65,7 +65,7 @@ GAE_PASSWORD = ''
 GAE_PATH = '/2'
 
 AUTORANGE_HOSTS = '.c.youtube.com|.atm.youku.com|.googlevideo.com|av.vimeo.com|smile-*.nicovideo.jp|video.*.fbcdn.net|s*.last.fm|x*.last.fm|.x.xvideos.com|.edgecastcdn.net|.d.rncdn3.com|cdn*.public.tube8.com|videos.flv*.redtubefiles.com|cdn*.public.extremetube.phncdn.com|cdn*.video.pornhub.phncdn.com|.mms.vlog.xuite.net|vs*.thisav.com|archive.rthk.hk|video*.modimovie.com'.split('|')
-AUTORANGE_HOSTS = tuple(AUTORANGE_HOSTS)
+AUTORANGE_HOSTS = tuple('*%s' % h if h.startswith('.') else h for h in AUTORANGE_HOSTS)
 AUTORANGE_HOSTS_MATCH = [re.compile(fnmatch.translate(h)).match for h in AUTORANGE_HOSTS]
 AUTORANGE_ENDSWITH = '.f4v|.flv|.hlv|.m4v|.mp4|.mp3|.ogg|.avi|.exe|.zip|.iso|.rar|.bz2|.xz|.dmg'.split('|')
 AUTORANGE_ENDSWITH = tuple(AUTORANGE_ENDSWITH)
@@ -140,7 +140,7 @@ class GoAgentProxy(Proxy):
                 client.tried_proxies[proxy] = 'skip goagent'
             LOGGER.error('[%s] failed to recv and parse request: %s' % (repr(client), sys.exc_info()[1]))
             client.fall_back(reason='failed to recv and parse request, %s' % sys.exc_info()[1])
-        forward(client, self, [p.appid for p in self.proxies if not p.died])
+        forward(client, self)
 
     @classmethod
     def is_protocol_supported(cls, protocol):
@@ -187,9 +187,11 @@ class GoAgentProxy(Proxy):
         return 'GoAgent\t%s' % self.appid
 
 
-def forward(client, proxy, appids):
+def forward(client, proxy):
     parsed_url = urllib.parse.urlparse(client.url)
-    range_in_query = 'range=' in parsed_url.query
+    range_in_query = 'range=' in parsed_url.query or 'redirect_counter=' in parsed_url.query
+    if range_in_query:
+        LOGGER.error('!!! special: %s' % parsed_url.query)
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
         AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
     range_end = 0
@@ -221,7 +223,7 @@ def forward(client, proxy, appids):
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back('can not connect to google ip')
         except ReadResponseFailed:
-            if 'youtube.com' not in client.host:
+            if 'youtube.com' not in client.host and 'googlevideo.com' not in client.host:
                 LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
                 GoAgentProxy.black_list.add(client.host)
             for proxy in GoAgentProxy.proxies:

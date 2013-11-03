@@ -730,7 +730,6 @@
                                 <input type="checkbox" {{ 'checked="checked"' if tcp_scrambler_enabled else '' }}>
                             </div>
                         </div>
-                        {% endif %}
                         <div class="form-group">
                             {{ _(
                             """
@@ -741,6 +740,7 @@
                             混淆 TCP 层面混淆HTTP请求迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
                             """) }}
                         </div>
+                        {% endif %}
                         <div class="form-group">
                             <label for="youtube-scrambler-switch">{{ _('Youtube Scrambler', 'Youtube 混淆器') }}</label>
 
