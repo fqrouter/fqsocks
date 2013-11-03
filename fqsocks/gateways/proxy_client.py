@@ -257,10 +257,11 @@ def handle_client(client):
     except NoMoreProxy:
         return
     except:
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('[%s] done with error' % repr(client), exc_info=1)
+        err_msg = str(sys.exc_info()[1])
+        if 'ascii' in err_msg or LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.exception('[%s] done with error' % repr(client))
         else:
-            LOGGER.info('[%s] done with error: %s' % (repr(client), sys.exc_info()[1]))
+            LOGGER.info('[%s] done with error: %s' % (repr(client), err_msg))
     finally:
         client.close()
 
