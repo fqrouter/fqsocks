@@ -32,6 +32,7 @@ try:
     import urllib.parse
 except ImportError:
     import urllib
+
     urllib.request = __import__('urllib2')
     urllib.parse = __import__('urlparse')
 
@@ -49,7 +50,6 @@ except ImportError:
     http.client = __import__('httplib')
     http.client.parse_headers = http.client.HTTPMessage
 
-
 LOGGER = logging.getLogger(__name__)
 
 RE_VERSION = re.compile(r'\d+\.\d+\.\d+')
@@ -64,8 +64,24 @@ GAE_OBFUSCATE = 0
 GAE_PASSWORD = ''
 GAE_PATH = '/2'
 
-AUTORANGE_HOSTS = '.c.youtube.com|.atm.youku.com|.googlevideo.com|av.vimeo.com|smile-*.nicovideo.jp|video.*.fbcdn.net|s*.last.fm|x*.last.fm|.x.xvideos.com|.edgecastcdn.net|.d.rncdn3.com|cdn*.public.tube8.com|videos.flv*.redtubefiles.com|cdn*.public.extremetube.phncdn.com|cdn*.video.pornhub.phncdn.com|.mms.vlog.xuite.net|vs*.thisav.com|archive.rthk.hk|video*.modimovie.com'.split('|')
-AUTORANGE_HOSTS = tuple('*%s' % h if h.startswith('.') else h for h in AUTORANGE_HOSTS)
+AUTORANGE_HOSTS = (
+    '*.c.youtube.com',
+    '*.atm.youku.com',
+    '*.googlevideo.com',
+    'av.vimeo.com',
+    'smile-*.nicovideo.jp',
+    'video.*.fbcdn.net',
+    's*.last.fm',
+    'x*.last.fm',
+    '*.x.xvideos.com',
+    '*.edgecastcdn.net',
+    '*.d.rncdn3.com',
+    'cdn*.public.tube8.com',
+    'videos.flv*.redtubefiles.com',
+    '*.mms.vlog.xuite.net',
+    'vs*.thisav.com',
+    'archive.rthk.hk',
+    'video*.modimovie.com')
 AUTORANGE_HOSTS_MATCH = [re.compile(fnmatch.translate(h)).match for h in AUTORANGE_HOSTS]
 AUTORANGE_ENDSWITH = '.f4v|.flv|.hlv|.m4v|.mp4|.mp3|.ogg|.avi|.exe|.zip|.iso|.rar|.bz2|.xz|.dmg'.split('|')
 AUTORANGE_ENDSWITH = tuple(AUTORANGE_ENDSWITH)
@@ -80,9 +96,10 @@ SKIP_HEADERS = frozenset(['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization
 
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
-class GoAgentProxy(Proxy):
 
+class GoAgentProxy(Proxy):
     last_refresh_started_at = 0
+    gray_list = set()
     black_list = set()
     google_ip_failed_times = {}
     google_ip_latency_records = {}
@@ -191,7 +208,10 @@ def forward(client, proxy):
     parsed_url = urllib.parse.urlparse(client.url)
     range_in_query = 'range=' in parsed_url.query or 'redirect_counter=' in parsed_url.query
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
-        AUTORANGE_ENDSWITH)) and not client.url.endswith(AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
+        AUTORANGE_ENDSWITH)) and not client.url.endswith(
+        AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
+    if client.host in GoAgentProxy.gray_list:
+        special_range = True
     range_end = 0
     auto_ranged = False
     if 'Range' in client.headers:
@@ -226,7 +246,9 @@ def forward(client, proxy):
         except ReadResponseFailed:
             if 'youtube.com' not in client.host and 'googlevideo.com' not in client.host:
                 LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
-                GoAgentProxy.black_list.add(client.host)
+                GoAgentProxy.gray_list.add(client.host)
+                if auto_ranged:
+                    GoAgentProxy.black_list.add(client.host)
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back(reason='failed to read response from gae_urlfetch')
@@ -235,7 +257,7 @@ def forward(client, proxy):
         if response.app_status == 503:
             proxy.died = True
             if time.time() - GoAgentProxy.last_refresh_started_at > 60:
-                GoAgentProxy.last_refresh_started_at =  time.time()
+                GoAgentProxy.last_refresh_started_at = time.time()
                 LOGGER.error('refresh goagent proxies due to over quota')
                 gevent.spawn(GoAgentProxy.refresh, GoAgentProxy.proxies)
             client.fall_back('goagent server over quota')
@@ -271,7 +293,7 @@ def forward(client, proxy):
         if content_range:
             start, end, length = list(map(int, re.search(r'bytes (\d+)-(\d+)/(\d+)', content_range).group(1, 2, 3)))
         else:
-            start, end, length = 0, content_length-1, content_length
+            start, end, length = 0, content_length - 1, content_length
         while 1:
             try:
                 data = response.read(8192)
@@ -340,6 +362,7 @@ def get_google_ip_latency(google_ip):
     else:
         return 0
 
+
 def record_google_ip_latency(google_ip, elapsed_seconds):
     if google_ip in GoAgentProxy.google_ip_latency_records:
         total_elapsed_seconds, times = GoAgentProxy.google_ip_latency_records[google_ip]
@@ -356,8 +379,9 @@ def record_google_ip_latency(google_ip, elapsed_seconds):
 class ConnectionFailed(Exception):
     pass
 
+
 def http_call(ssl_sock, method, path, headers, payload):
-    ssl_sock.settimeout(30)
+    ssl_sock.settimeout(15)
     request_data = ''
     request_data += '%s %s HTTP/1.1\r\n' % (method, path)
     request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in headers.items() if k not in SKIP_HEADERS)
@@ -407,6 +431,7 @@ class CountedSock(CapturingSock):
 class ReadResponseFailed(Exception):
     pass
 
+
 def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     if payload:
         if len(payload) < 10 * 1024 * 1024 and 'Content-Encoding' not in headers:
@@ -418,7 +443,8 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
         # GAE donot allow set `Host` header
     if 'Host' in headers:
         del headers['Host']
-    metadata = 'G-Method:%s\nG-Url:%s\n%s' % (method, url, ''.join('G-%s:%s\n' % (k, v) for k, v in kwargs.items() if v))
+    metadata = 'G-Method:%s\nG-Url:%s\n%s' % (
+    method, url, ''.join('G-%s:%s\n' % (k, v) for k, v in kwargs.items() if v))
     metadata += ''.join('%s:%s\n' % (k.title(), v) for k, v in headers.items() if k not in SKIP_HEADERS)
     metadata = zlib.compress(metadata.encode())[2:-4]
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
@@ -451,7 +477,6 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
 
 
 class RangeFetch(object):
-
     def __init__(self, client, range_end, auto_ranged, response):
         self.client = client
         self.range_end = range_end
@@ -479,30 +504,31 @@ class RangeFetch(object):
         else:
             if self.range_end:
                 response_headers['Content-Range'] = 'bytes %s-%s/%s' % (start, self.range_end, length)
-                response_headers['Content-Length'] = str(self.range_end-start+1)
+                response_headers['Content-Length'] = str(self.range_end - start + 1)
             else:
-                response_headers['Content-Range'] = 'bytes %s-%s/%s' % (start, length-1, length)
+                response_headers['Content-Range'] = 'bytes %s-%s/%s' % (start, length - 1, length)
                 response_headers['Content-Length'] = str(length - start)
 
         if self.range_end:
             LOGGER.info('>>>>>>>>>>>>>>> RangeFetch started(%r) %d-%d', self.url, start, self.range_end)
         else:
             LOGGER.info('>>>>>>>>>>>>>>> RangeFetch started(%r) %d-end', self.url, start)
-        general_resposne = ('HTTP/1.1 %s\r\n%s\r\n' % (response_status, ''.join('%s: %s\r\n' % (k, v) for k, v in response_headers.items()))).encode()
+        general_resposne = ('HTTP/1.1 %s\r\n%s\r\n' % (
+        response_status, ''.join('%s: %s\r\n' % (k, v) for k, v in response_headers.items()))).encode()
         LOGGER.info(general_resposne)
         self.wfile.write(general_resposne)
 
         data_queue = gevent.queue.PriorityQueue()
         range_queue = gevent.queue.PriorityQueue()
         range_queue.put((start, end, self.response))
-        for begin in range(end+1, self.range_end + 1 if self.range_end else length, AUTORANGE_MAXSIZE):
-            range_queue.put((begin, min(begin+AUTORANGE_MAXSIZE-1, length-1), None))
+        for begin in range(end + 1, self.range_end + 1 if self.range_end else length, AUTORANGE_MAXSIZE):
+            range_queue.put((begin, min(begin + AUTORANGE_MAXSIZE - 1, length - 1), None))
         for i in range(AUTORANGE_THREADS):
             gevent.spawn(self.__fetchlet, range_queue, data_queue)
         has_peek = hasattr(data_queue, 'peek')
         peek_timeout = 90
         expect_begin = start
-        while expect_begin < (self.range_end or (length-1)):
+        while expect_begin < (self.range_end or (length - 1)):
             try:
                 if has_peek:
                     begin, data = data_queue.peek(timeout=peek_timeout)
@@ -543,7 +569,7 @@ class RangeFetch(object):
             try:
                 if self._stopped:
                     return
-                if data_queue.qsize() * AUTORANGE_BUFSIZE > 180*1024*1024:
+                if data_queue.qsize() * AUTORANGE_BUFSIZE > 180 * 1024 * 1024:
                     gevent.sleep(10)
                     continue
                 proxy = None
@@ -567,7 +593,8 @@ class RangeFetch(object):
                     range_queue.put((start, end, None))
                     continue
                 if response.app_status != 200:
-                    LOGGER.warning('Range Fetch "%s %s" %s return %s', self.command, self.url, headers['Range'], response.app_status)
+                    LOGGER.warning('Range Fetch "%s %s" %s return %s', self.command, self.url, headers['Range'],
+                                   response.app_status)
                     response.close()
                     range_queue.put((start, end, None))
                     if proxy:
@@ -582,12 +609,14 @@ class RangeFetch(object):
                 if 200 <= response.status < 300:
                     content_range = response.getheader('Content-Range')
                     if not content_range:
-                        LOGGER.warning('RangeFetch "%s %s" return Content-Range=%r: response headers=%r', self.command, self.url, content_range, response.getheaders())
+                        LOGGER.warning('RangeFetch "%s %s" return Content-Range=%r: response headers=%r', self.command,
+                                       self.url, content_range, response.getheaders())
                         response.close()
                         range_queue.put((start, end, None))
                         continue
                     content_length = int(response.getheader('Content-Length', 0))
-                    LOGGER.info('>>>>>>>>>>>>>>> [thread %s] %s %s', threading.currentThread().ident, content_length, content_range)
+                    LOGGER.info('>>>>>>>>>>>>>>> [thread %s] %s %s', threading.currentThread().ident, content_length,
+                                content_range)
                     while 1:
                         try:
                             data = response.read(AUTORANGE_BUFSIZE)
@@ -598,7 +627,8 @@ class RangeFetch(object):
                             data_queue.put((start, data))
                             start += len(data)
                         except (socket.error, ssl.SSLError, OSError) as e:
-                            LOGGER.warning('RangeFetch "%s %s" %s failed: %s', self.command, self.url, headers['Range'], e)
+                            LOGGER.warning('RangeFetch "%s %s" %s failed: %s', self.command, self.url, headers['Range'],
+                                           e)
                             break
                     if start < end:
                         LOGGER.warning('RangeFetch "%s %s" retry %s-%s', self.command, self.url, start, end)

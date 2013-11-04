@@ -680,6 +680,7 @@ def clear_proxy_states():
         proxy.clear_latency_records()
         proxy.clear_failed_times()
     GoAgentProxy.last_refresh_started_at = 0
+    GoAgentProxy.gray_list = set()
     GoAgentProxy.black_list = set()
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
