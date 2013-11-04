@@ -74,6 +74,7 @@ AUTORANGE_HOSTS = (
     's*.last.fm',
     'x*.last.fm',
     '*.x.xvideos.com',
+    'cdn*.pornhub.com',
     '*.edgecastcdn.net',
     '*.d.rncdn3.com',
     'cdn*.public.tube8.com',
@@ -245,9 +246,9 @@ def forward(client, proxy):
             client.fall_back('can not connect to google ip')
         except ReadResponseFailed:
             if 'youtube.com' not in client.host and 'googlevideo.com' not in client.host:
-                LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
                 GoAgentProxy.gray_list.add(client.host)
                 if auto_ranged:
+                    LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
                     GoAgentProxy.black_list.add(client.host)
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
