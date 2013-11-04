@@ -22,8 +22,6 @@ class ShadowSocksProxy(Proxy):
         self.encrypt_method = encrypt_method
 
     def do_forward(self, client):
-        if 'HTTP' == client.protocol and client.host and is_youtube(client.host) and getattr(self, 'resolved_by_dynamic_proxy', None):
-            raise Exception('save bandwidth')
         encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
         addr_to_send = '\x01'
         addr_to_send += socket.inet_aton(client.dst_ip)
@@ -51,7 +49,7 @@ class ShadowSocksProxy(Proxy):
 
     def is_protocol_supported(self, protocol):
         if hasattr(self, 'resolved_by_dynamic_proxy'):
-            return protocol in ('HTTP', 'HTTPS')
+            return 'HTTPS' == protocol
         else:
             return True
 
@@ -61,8 +59,3 @@ class ShadowSocksProxy(Proxy):
     @property
     def public_name(self):
         return 'SS\t%s' % self.proxy_host
-
-def is_youtube(host):
-    if not '--' in host:
-        return False
-    return 'youtube.com' in host or 'googlevideo.com' in host
