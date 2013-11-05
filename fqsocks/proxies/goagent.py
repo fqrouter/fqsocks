@@ -234,6 +234,7 @@ def forward(client, proxy):
         if proxy.password:
             kwargs['password'] = proxy.password
         if 'youtube.com/watch' in client.url or '.c.android.clients.google.com' in client.url:
+            client.goagent_screwed = True
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back(reason='goagent can not proxy youtube watch')

@@ -22,6 +22,9 @@ class ShadowSocksProxy(Proxy):
         self.encrypt_method = encrypt_method
 
     def do_forward(self, client):
+        if hasattr(self, 'resolved_by_dynamic_proxy') and 'HTTP' == client.protocol and not client.goagent_screwed:
+            LOGGER.critical('!!! save bandwidth: %s' % getattr(client, 'url', None))
+            return
         encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
         addr_to_send = '\x01'
         addr_to_send += socket.inet_aton(client.dst_ip)
@@ -49,7 +52,7 @@ class ShadowSocksProxy(Proxy):
 
     def is_protocol_supported(self, protocol):
         if hasattr(self, 'resolved_by_dynamic_proxy'):
-            return 'HTTPS' == protocol
+            return protocol in ('HTTP', 'HTTPS')
         else:
             return True
 
