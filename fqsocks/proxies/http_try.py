@@ -73,6 +73,9 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
             return
         is_payload_complete = recv_and_parse_request(client)
+        if 'youtube.com/' in client.url:
+            client.goagent_screwed = True
+            client.fall_back(reason='!!! http try can not proxy %s' % client.url)
         failed_count = self.host_black_list.get(client.host, 0)
         if failed_count > 3 and (failed_count % 10) != 0:
             client.fall_back(reason='%s tried before' % client.host, silently=True)
@@ -121,6 +124,8 @@ class HttpTryProxy(Proxy):
                     if scrambles_youtube and len(response) < 10:
                         client.fall_back('response is too small: %s' % response)
                     if http_response:
+                        if scrambles_youtube and httplib.NO_CONTENT == http_response.status:
+                            client.fall_back(reason='204 no content')
                         if scrambles_youtube and httplib.FORBIDDEN == http_response.status:
                             client.fall_back(reason='403 forbidden')
                         if scrambles_youtube and httplib.NOT_FOUND == http_response.status:
@@ -148,7 +153,7 @@ class HttpTryProxy(Proxy):
             upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
         client.forward(upstream_sock)
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return 'HTTP' == protocol
 
     def __repr__(self):

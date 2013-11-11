@@ -75,7 +75,7 @@ class Proxy(object):
             proxy.died = False
         return True
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return False
 
     def __eq__(self, other):
@@ -112,7 +112,7 @@ class DirectProxy(Proxy):
         upstream_sock.sendall(client.peeked_data)
         client.forward(upstream_sock, timeout=60, after_started_timeout=60 * 60)
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return True
 
     def __repr__(self):
@@ -148,7 +148,7 @@ class NoneProxy(Proxy):
     def do_forward(self, client):
         return
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return True
 
     def __repr__(self):

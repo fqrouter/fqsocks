@@ -103,7 +103,7 @@ class SshProxy(Proxy):
             gevent.spawn(proxy.guard)
         return True
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return True
 
     def __repr__(self):

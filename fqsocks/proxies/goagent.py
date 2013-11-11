@@ -161,7 +161,7 @@ class GoAgentProxy(Proxy):
         forward(client, self)
 
     @classmethod
-    def is_protocol_supported(cls, protocol):
+    def is_protocol_supported(cls, protocol, client=None):
         return 'HTTP' == protocol
 
     @classmethod
@@ -233,11 +233,11 @@ def forward(client, proxy):
         kwargs = {}
         if proxy.password:
             kwargs['password'] = proxy.password
-        if 'youtube.com/watch' in client.url or '.c.android.clients.google.com' in client.url:
+        if 'youtube.com/' in client.url or '.c.android.clients.google.com' in client.url:
             client.goagent_screwed = True
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
-            client.fall_back(reason='goagent can not proxy youtube watch')
+            client.fall_back(reason='!!! goagent can not proxy %s' % client.url)
         try:
             response = gae_urlfetch(
                 client, proxy, client.method, client.url, client.headers, client.payload, **kwargs)

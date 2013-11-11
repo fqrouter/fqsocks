@@ -78,7 +78,7 @@ class HttpRelayProxy(Proxy):
         client.forward(upstream_sock)
         self.failed_times = 0
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return protocol == 'HTTP'
 
     def __repr__(self):

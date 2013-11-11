@@ -376,12 +376,12 @@ def should_fix():
 
 def pick_proxy(client):
     if client.protocol == 'HTTP':
-        return pick_http_try_proxy(client) or pick_proxy_supports(client, 'HTTP')
+        return pick_http_try_proxy(client) or pick_proxy_supports(client)
     elif client.protocol == 'HTTPS':
-        return pick_https_try_proxy(client) or pick_proxy_supports(client, 'HTTPS')
+        return pick_https_try_proxy(client) or pick_proxy_supports(client)
     else:
-        if pick_proxy_supports(client, 'TCP'):
-            return pick_https_try_proxy(client) or pick_proxy_supports(client, 'TCP')
+        if pick_proxy_supports(client):
+            return pick_https_try_proxy(client) or pick_proxy_supports(client)
         else:
             return DIRECT_PROXY
 
@@ -437,9 +437,9 @@ def pick_https_try_proxy(client):
     return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
 
-def pick_proxy_supports(client, protocol):
+def pick_proxy_supports(client):
     supported_proxies = [proxy for proxy in proxies if
-                         proxy.is_protocol_supported(protocol)
+                         proxy.is_protocol_supported(client.protocol, client)
                          and not proxy.died and not client.has_tried(proxy)]
     if not supported_proxies:
         return None

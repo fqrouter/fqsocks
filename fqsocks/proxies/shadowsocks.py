@@ -50,9 +50,12 @@ class ShadowSocksProxy(Proxy):
     def on_forward_started(self, begin_at):
         self.record_latency(time.time() - begin_at)
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         if hasattr(self, 'resolved_by_dynamic_proxy'):
-            return protocol in ('HTTP', 'HTTPS')
+            if client and client.goagent_screwed:
+                return protocol in ('HTTP', 'HTTPS')
+            else:
+                return 'HTTPS' == protocol
         else:
             return True
 

@@ -111,9 +111,9 @@ class DynamicProxy(Proxy):
                 success = False
         return success
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         if self.delegated_to:
-            return self.delegated_to.is_protocol_supported(protocol)
+            return self.delegated_to.is_protocol_supported(protocol, client)
         else:
             return False
 

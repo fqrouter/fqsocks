@@ -140,7 +140,7 @@ class SpdyRelayProxy(Proxy):
             proxy.connect()
         return True
 
-    def is_protocol_supported(self, protocol):
+    def is_protocol_supported(self, protocol, client=None):
         return protocol == 'HTTP'
 
     def __repr__(self):
