@@ -87,7 +87,10 @@ class HttpTryProxy(Proxy):
             request_data = 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n' + request_data
             upstream_sock.sendall(request_data)
             request_data = ''
+        if scrambles_youtube or HTTP_TRY_PROXY.tcp_scrambler_enabled:
             client.headers['Connection'] = 'close'
+            if 'Referer' in client.headers:
+                del client.headers['Referer']
         client.headers['Host'] = client.host
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
         request_data += '\r\n'
