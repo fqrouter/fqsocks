@@ -117,9 +117,9 @@ def init_config(argv):
     argument_parser.add_argument('--tcp-scrambler', dest='tcp_scrambler_enabled', action='store_true')
     argument_parser.add_argument('--no-tcp-scrambler', dest='tcp_scrambler_enabled', action='store_false')
     argument_parser.set_defaults(tcp_scrambler_enabled=None)
-    argument_parser.add_argument('--youtube-scrambler', dest='youtube_scrambler_enabled', action='store_true')
-    argument_parser.add_argument('--no-youtube-scrambler', dest='youtube_scrambler_enabled', action='store_false')
-    argument_parser.set_defaults(youtube_scrambler_enabled=None)
+    argument_parser.add_argument('--google-scrambler', dest='google_scrambler_enabled', action='store_true')
+    argument_parser.add_argument('--no-google-scrambler', dest='google_scrambler_enabled', action='store_false')
+    argument_parser.set_defaults(google_scrambler_enabled=None)
     args = argument_parser.parse_args(argv)
     config_file.cli_args = args
     config = config_file.read_config()
@@ -136,8 +136,8 @@ def init_config(argv):
         GoAgentProxy.GOOGLE_HOSTS = config['google_host']
     proxy_client.china_shortcut_enabled = config['china_shortcut_enabled']
     proxy_client.direct_access_enabled = config['direct_access_enabled']
-    HTTP_TRY_PROXY.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
-    HTTP_TRY_PROXY.youtube_scrambler_enabled = config['youtube_scrambler_enabled']
+    proxy_client.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
+    proxy_client.google_scrambler_enabled = config['google_scrambler_enabled']
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
     httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
@@ -166,8 +166,9 @@ def main(argv=None):
         httpd.server_greenlet = gevent.spawn(httpd.serve_forever)
         greenlets.append(httpd.server_greenlet)
     greenlets.append(gevent.spawn(proxy_client.init_proxies, config))
-    if HTTP_TRY_PROXY.tcp_scrambler_enabled:
-        greenlets.append(gevent.spawn(detect_if_ttl_being_ignored))
+    if proxy_client.tcp_scrambler_enabled:
+        if detect_if_ttl_being_ignored():
+            proxy_client.tcp_scrambler_enabled = False
     for greenlet in greenlets:
         try:
             greenlet.join()

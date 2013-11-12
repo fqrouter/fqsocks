@@ -11,7 +11,7 @@ def DEFAULT_CONFIG():
         'config_file': None,
         'china_shortcut_enabled': True,
         'direct_access_enabled': True,
-        'youtube_scrambler_enabled': True,
+        'google_scrambler_enabled': True,
         'tcp_scrambler_enabled': True,
         'access_check_enabled': True,
         'http_manager': {
@@ -67,8 +67,8 @@ def read_config():
         config['china_shortcut_enabled'] = cli_args.china_shortcut_enabled
     if cli_args.direct_access_enabled is not None:
         config['direct_access_enabled'] = cli_args.direct_access_enabled
-    if cli_args.youtube_scrambler_enabled is not None:
-        config['youtube_scrambler_enabled'] = cli_args.youtube_scrambler_enabled
+    if cli_args.google_scrambler_enabled is not None:
+        config['google_scrambler_enabled'] = cli_args.google_scrambler_enabled
     if cli_args.tcp_scrambler_enabled is not None:
         config['tcp_scrambler_enabled'] = cli_args.tcp_scrambler_enabled
     if cli_args.access_check_enabled is not None:

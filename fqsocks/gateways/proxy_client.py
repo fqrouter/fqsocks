@@ -19,6 +19,9 @@ from .. import networking
 from .. import stat
 from ..proxies.http_try import NotHttp
 from ..proxies.http_try import HTTP_TRY_PROXY
+from ..proxies.http_try import GOOGLE_SCRAMBLER
+from ..proxies.http_try import TCP_SCRAMBLER
+from ..proxies.http_try import is_blocked_google_host
 from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
 from ..proxies.goagent import GoAgentProxy
@@ -67,6 +70,8 @@ dns_polluted_at = 0
 auto_fix_enabled = True
 china_shortcut_enabled = True
 direct_access_enabled = True
+tcp_scrambler_enabled = True
+google_scrambler_enabled = True
 last_refresh_started_at = -1
 force_us_ip = False
 
@@ -424,7 +429,18 @@ def pick_http_try_proxy(client):
     if not direct_access_enabled:
         client.tried_proxies[HTTP_TRY_PROXY] = 'direct access disabled'
         return None
-    return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
+    if tcp_scrambler_enabled and not TCP_SCRAMBLER.died:
+        if TCP_SCRAMBLER in client.tried_proxies:
+            if google_scrambler_enabled and is_blocked_google_host(client.host):
+                return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
+            else:
+                return None
+        else:
+            return TCP_SCRAMBLER
+    elif google_scrambler_enabled:
+        return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
+    else:
+        return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
 
 def pick_https_try_proxy(client):

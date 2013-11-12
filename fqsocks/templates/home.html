@@ -485,7 +485,7 @@
         <div class="col-xs-12">
             <div>
                 {{ _("""
-                The list are the proxies fqrouter is using. Built-in public proxies might not satisfy your needs.
+                The list are the proxies fqrouter using. Built-in public proxies might not satisfy your needs.
                 You can add your private proxy by clicking Add Proxy button.
                 Notice that, fqrouter does not use GoAgent to proxy HTTPS website.
                 """, """
@@ -742,21 +742,21 @@
                         </div>
                         {% endif %}
                         <div class="form-group">
-                            <label for="youtube-scrambler-switch">{{ _('Youtube Scrambler', 'Youtube 混淆器') }}</label>
+                            <label for="google-scrambler-switch">{{ _('Google Scrambler', 'Google 混淆器') }}</label>
 
                             <div class="make-switch pull-right" data-on="success" data-off="default"
-                                 id="youtube-scrambler-switch">
-                                <input type="checkbox" {{ 'checked="checked"' if youtube_scrambler_enabled else '' }}>
+                                 id="google-scrambler-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if google_scrambler_enabled else '' }}>
                             </div>
                         </div>
                         <div class="form-group">
                             {{ _(
                             """
-                            scramble youtube traffic, so that GFW can let us go, without using a proxy. disable this
+                            scramble google traffic, so that GFW can let us go, without using a proxy. disable this
                             scrambler will make internet speed much slower!
                             """,
                             """
-                            混淆 Youtube 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
+                            混淆 Google 流量迷惑 GFW，这样就不用走代理了。禁用此选项会使得网速慢很多！
                             """) }}
                         </div>
                         <div class="form-group">
@@ -898,7 +898,7 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-danger pull-left" id="wifi-repeater-dialog-reset">{{ _('My Wifi
+                <button type="button" class="btn btn-danger pull-left" id="wifi-repeater-dialog-reset">{{ _('My Wifi is
                     Broken', '我的无线挂了') }}
                 </button>
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
@@ -1033,11 +1033,11 @@
             }
         });
 
-        $('#youtube-scrambler-switch').on('switch-change', function (e, data) {
+        $('#google-scrambler-switch').on('switch-change', function (e, data) {
             if (data.value) {
-                $.post('/youtube-scrambler/enable');
+                $.post('/google-scrambler/enable');
             } else {
-                $.post('/youtube-scrambler/disable');
+                $.post('/google-scrambler/disable');
             }
         });
 

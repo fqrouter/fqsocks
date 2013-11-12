@@ -34,8 +34,8 @@ def home_page(environ, start_response):
     args = dict(
         _=environ['select_text'],
         domain_name=environ.get('HTTP_HOST') or '127.0.0.1:2515',
-        tcp_scrambler_enabled=HTTP_TRY_PROXY.tcp_scrambler_enabled,
-        youtube_scrambler_enabled=HTTP_TRY_PROXY.youtube_scrambler_enabled,
+        tcp_scrambler_enabled=proxy_client.tcp_scrambler_enabled,
+        google_scrambler_enabled=proxy_client.google_scrambler_enabled,
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
         direct_access_enabled=proxy_client.direct_access_enabled,
         config=config_file.read_config(),

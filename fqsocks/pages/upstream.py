@@ -107,7 +107,7 @@ def disable_proxies():
 
 @httpd.http_handler('POST', 'tcp-scrambler/enable')
 def handle_enable_tcp_scrambler(environ, start_response):
-    HTTP_TRY_PROXY.tcp_scrambler_enabled = True
+    proxy_client.tcp_scrambler_enabled = True
     config_file.update_config(tcp_scrambler_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
@@ -115,24 +115,24 @@ def handle_enable_tcp_scrambler(environ, start_response):
 
 @httpd.http_handler('POST', 'tcp-scrambler/disable')
 def handle_disable_tcp_scrambler(environ, start_response):
-    HTTP_TRY_PROXY.tcp_scrambler_enabled = False
+    proxy_client.tcp_scrambler_enabled = False
     config_file.update_config(tcp_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
 
-@httpd.http_handler('POST', 'youtube-scrambler/enable')
-def handle_enable_youtube_scrambler(environ, start_response):
-    HTTP_TRY_PROXY.youtube_scrambler_enabled = True
-    config_file.update_config(youtube_scrambler_enabled=True)
+@httpd.http_handler('POST', 'google-scrambler/enable')
+def handle_enable_googlescrambler(environ, start_response):
+    proxy_client.google_scrambler_enabled = True
+    config_file.update_config(google_scrambler_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
 
-@httpd.http_handler('POST', 'youtube-scrambler/disable')
-def handle_disable_youtube_scrambler(environ, start_response):
-    HTTP_TRY_PROXY.youtube_scrambler_enabled = False
-    config_file.update_config(youtube_scrambler_enabled=False)
+@httpd.http_handler('POST', 'google-scrambler/disable')
+def handle_disable_google_scrambler(environ, start_response):
+    proxy_client.google_scrambler_enabled = False
+    config_file.update_config(google_scrambler_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 
