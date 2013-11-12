@@ -96,7 +96,6 @@ class ProxyClient(object):
         self.forwarding_by = None
         self.us_ip_only = force_us_ip
         self.delayed_penalties = []
-        self.goagent_screwed = False
 
     def create_tcp_socket(self, server_ip, server_port, connect_timeout):
         upstream_sock = networking.create_tcp_socket(server_ip, server_port, connect_timeout)

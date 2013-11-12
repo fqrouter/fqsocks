@@ -233,11 +233,6 @@ def forward(client, proxy):
         kwargs = {}
         if proxy.password:
             kwargs['password'] = proxy.password
-        if '.c.android.clients.google.com' in client.url:
-            client.goagent_screwed = True
-            for proxy in GoAgentProxy.proxies:
-                client.tried_proxies[proxy] = 'skip goagent'
-            client.fall_back(reason='!!! goagent can not proxy %s' % client.url)
         try:
             response = gae_urlfetch(
                 client, proxy, client.method, client.url, client.headers, client.payload, **kwargs)
