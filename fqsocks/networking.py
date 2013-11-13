@@ -12,6 +12,7 @@ LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 OUTBOUND_IP = None
 SPI = {}
+RE_IP = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 
 
 def create_tcp_socket(server_ip, server_port, connect_timeout):
@@ -55,7 +56,7 @@ SPI['get_original_destination'] = _get_original_destination
 
 
 def resolve_ips(host):
-    if re.match(r'\d+\.\d+\.\d+\.\d+', host):
+    if RE_IP.match(host):
         return [host]
     for i in range(3):
         try:

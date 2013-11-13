@@ -108,6 +108,29 @@ class HttpTryProxy(Proxy):
 
 
 class GoogleScrambler(HttpTryProxy):
+    def __init__(self):
+        super(GoogleScrambler, self).__init__()
+        self.bad_requests = {} # host => count
+        self.dst_black_list = {}
+
+    def do_forward(self, client):
+        dst = (client.dst_ip, client.dst_port)
+        try:
+            failed_count = self.dst_black_list.get(dst, 0)
+            if failed_count and (failed_count % 10) != 0:
+                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
+            self.try_direct(client)
+            if dst in self.dst_black_list:
+                LOGGER.error('removed dst %s:%s from blacklist' % dst)
+                del self.dst_black_list[dst]
+        except NotHttp:
+            raise
+        except:
+            if dst not in self.dst_black_list:
+                LOGGER.error('blacklist dst %s:%s' % dst)
+            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+            raise
+
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         client.google_scrambler_hacked = is_payload_complete and is_blocked_google_host(client.host)
         if client.google_scrambler_hacked:
@@ -150,6 +173,25 @@ class TcpScrambler(HttpTryProxy):
     def __init__(self):
         super(TcpScrambler, self).__init__()
         self.bad_requests = {} # host => count
+        self.dst_black_list = {}
+
+    def do_forward(self, client):
+        dst = (client.dst_ip, client.dst_port)
+        try:
+            failed_count = self.dst_black_list.get(dst, 0)
+            if failed_count and (failed_count % 10) != 0:
+                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
+            self.try_direct(client)
+            if dst in self.dst_black_list:
+                LOGGER.error('removed dst %s:%s from blacklist' % dst)
+                del self.dst_black_list[dst]
+        except NotHttp:
+            raise
+        except:
+            if dst not in self.dst_black_list:
+                LOGGER.error('blacklist dst %s:%s' % dst)
+            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+            raise
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         client.headers['Connection'] = 'close'
@@ -169,6 +211,7 @@ class TcpScrambler(HttpTryProxy):
             if self.bad_requests[client.host] >= 3:
                 LOGGER.critical('!!! too many bad requests, disable tcp scrambler !!!')
                 self.died = True
+            client.fall_back('tcp scrambler bad request')
         else:
             if client.host in self.bad_requests:
                 LOGGER.info('[%s] reset bad request to %s' % (repr(client), client.host))

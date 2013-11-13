@@ -34,6 +34,7 @@ from .. import china_ip
 from ..proxies.direct import DIRECT_PROXY
 from ..proxies.direct import HTTPS_TRY_PROXY
 from ..proxies.direct import NONE_PROXY
+from .. import ip_substitution
 import os.path
 
 TLS1_1_VERSION = 0x0302
@@ -96,6 +97,7 @@ class ProxyClient(object):
         self.forwarding_by = None
         self.us_ip_only = force_us_ip
         self.delayed_penalties = []
+        self.ip_substituted = False
 
     def create_tcp_socket(self, server_ip, server_port, connect_timeout):
         upstream_sock = networking.create_tcp_socket(server_ip, server_port, connect_timeout)
@@ -431,13 +433,14 @@ def pick_http_try_proxy(client):
     if tcp_scrambler_enabled and not TCP_SCRAMBLER.died:
         if TCP_SCRAMBLER in client.tried_proxies:
             if google_scrambler_enabled and is_blocked_google_host(client.host):
+                ip_substitution.substitute_ip(client)
                 return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
             else:
-                return None
+                return ip_substitution.substitute_ip_if_failed(client, TCP_SCRAMBLER)
         else:
             return TCP_SCRAMBLER
     elif google_scrambler_enabled:
-        return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
+        return ip_substitution.substitute_ip_if_failed(client, GOOGLE_SCRAMBLER)
     else:
         return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
@@ -449,7 +452,7 @@ def pick_https_try_proxy(client):
     if not direct_access_enabled:
         client.tried_proxies[HTTPS_TRY_PROXY] = 'direct access disabled'
         return None
-    return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
+    return ip_substitution.substitute_ip_if_failed(client, HTTPS_TRY_PROXY)
 
 
 def pick_proxy_supports(client):
@@ -690,8 +693,11 @@ def clear_proxy_states():
     global last_refresh_started_at
     last_refresh_started_at = 0
     HTTP_TRY_PROXY.host_black_list.clear()
-    HTTP_TRY_PROXY.bad_requests.clear()
+    TCP_SCRAMBLER.bad_requests.clear()
+    TCP_SCRAMBLER.dst_black_list.clear()
+    GOOGLE_SCRAMBLER.dst_black_list.clear()
     HTTPS_TRY_PROXY.dst_black_list.clear()
+    ip_substitution.sub_map.clear()
     for proxy in proxies:
         proxy.clear_latency_records()
         proxy.clear_failed_times()
