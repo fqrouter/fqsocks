@@ -116,19 +116,18 @@ class GoogleScrambler(HttpTryProxy):
     def do_forward(self, client):
         dst = (client.dst_ip, client.dst_port)
         try:
-            failed_count = self.dst_black_list.get(dst, 0)
-            if failed_count and (failed_count % 10) != 0:
-                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
-            self.try_direct(client)
+            super(GoogleScrambler, self).do_forward(client)
             if dst in self.dst_black_list:
                 LOGGER.error('removed dst %s:%s from blacklist' % dst)
                 del self.dst_black_list[dst]
         except NotHttp:
             raise
         except:
-            if dst not in self.dst_black_list:
-                LOGGER.error('blacklist dst %s:%s' % dst)
-            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+            google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
+            if google_scrambler_hacked:
+                if dst not in self.dst_black_list:
+                    LOGGER.error('blacklist dst %s:%s' % dst)
+                self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
             raise
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):

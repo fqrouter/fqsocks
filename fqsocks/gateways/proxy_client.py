@@ -89,7 +89,6 @@ class ProxyClient(object):
         self.src_port = src_port
         self.dst_ip = dst_ip
         self.dst_port = dst_port
-        self.description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
         self.peeked_data = ''
         self.host = ''
         self.protocol = None
@@ -236,7 +235,7 @@ class ProxyClient(object):
         return proxy in self.tried_proxies
 
     def __repr__(self):
-        description = self.description
+        description = '%s:%s => %s:%s' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
         if self.host:
             description = '%s %s' % (description, self.host)
         if self.forwarding_by:
@@ -434,13 +433,25 @@ def pick_http_try_proxy(client):
         if TCP_SCRAMBLER in client.tried_proxies:
             if google_scrambler_enabled and is_blocked_google_host(client.host):
                 ip_substitution.substitute_ip(client)
+                # give google scrambler a try
                 return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
             else:
-                return ip_substitution.substitute_ip_if_failed(client, TCP_SCRAMBLER)
+                return ip_substitution.substitute_ip_if_failed(client, TCP_SCRAMBLER) # try again with different dst ip
         else:
-            return TCP_SCRAMBLER
+            return TCP_SCRAMBLER # first time try
     elif google_scrambler_enabled:
-        return ip_substitution.substitute_ip_if_failed(client, GOOGLE_SCRAMBLER)
+        if GOOGLE_SCRAMBLER in client.tried_proxies:
+            google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
+            if not google_scrambler_hacked:
+                if client.ip_substituted:
+                    return None # already tried again
+                else:
+                    ip_substitution.substitute_ip(client)
+                    return GOOGLE_SCRAMBLER # try again with different dst ip
+            else:
+                return None # google scrambler can not help
+        else:
+            return GOOGLE_SCRAMBLER # first time try
     else:
         return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
@@ -695,6 +706,7 @@ def clear_proxy_states():
     HTTP_TRY_PROXY.host_black_list.clear()
     TCP_SCRAMBLER.bad_requests.clear()
     TCP_SCRAMBLER.dst_black_list.clear()
+    GOOGLE_SCRAMBLER.host_black_list.clear()
     GOOGLE_SCRAMBLER.dst_black_list.clear()
     HTTPS_TRY_PROXY.dst_black_list.clear()
     ip_substitution.sub_map.clear()
