@@ -300,7 +300,7 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    for i in range(3):
+    for i in range(4):
         proxy = pick_proxy(client)
         while proxy:
             if not client.host:
@@ -328,6 +328,8 @@ def pick_proxy_and_forward(client):
                 return DIRECT_PROXY.forward(client)
             except client.ProxyFallBack:
                 return # give up
+    if client.host in HTTP_TRY_PROXY.host_slow_list:
+        HTTP_TRY_PROXY.host_slow_list.remove(client.host)
     raise NoMoreProxy()
 
 

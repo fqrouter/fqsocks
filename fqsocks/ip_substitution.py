@@ -9,6 +9,7 @@ import gevent
 LOGGER = logging.getLogger(__name__)
 
 sub_map = {}
+sub_lock = set()
 
 def substitute_ip_if_failed(client, proxy):
     if proxy in client.tried_proxies:
@@ -42,6 +43,9 @@ def substitute_ip(client):
 
 
 def fill_sub_map(host, dst_ip, dst_port):
+    if host in sub_lock:
+        return
+    sub_lock.add(host)
     try:
         sub_host = '%s.sub.fqrouter.com' % '.'.join(reversed(dst_ip.split('.')))
         substituted_ip = resolve_non_blacklisted_ip(sub_host, dst_ip, dst_port)
@@ -55,6 +59,8 @@ def fill_sub_map(host, dst_ip, dst_port):
             sub_map[dst_ip] = None
     except:
         LOGGER.error('failed to fill host map due to %s' % sys.exc_info()[1])
+    finally:
+        sub_lock.remove(host)
 
 
 def resolve_non_blacklisted_ip(host, dst_ip, dst_port):
