@@ -2,8 +2,7 @@ from . import networking
 import logging
 import random
 import sys
-from .proxies.http_try import GOOGLE_SCRAMBLER
-from .proxies.http_try import TCP_SCRAMBLER
+from .proxies.http_try import HTTP_TRY_PROXY
 from .proxies.direct import HTTPS_TRY_PROXY
 import gevent
 
@@ -45,33 +44,31 @@ def substitute_ip(client):
 def fill_sub_map(host, dst_ip, dst_port):
     try:
         sub_host = '%s.sub.fqrouter.com' % '.'.join(reversed(dst_ip.split('.')))
-        substituted_ip = resolve_non_blacklisted_ip(sub_host, dst_port)
+        substituted_ip = resolve_non_blacklisted_ip(sub_host, dst_ip, dst_port)
         if substituted_ip:
             LOGGER.info('resolved hosted sub: %s => %s' % (dst_ip, substituted_ip))
             sub_map[dst_ip] = substituted_ip
             return
         if host:
-            sub_map[dst_ip] = resolve_non_blacklisted_ip(host, dst_port)
+            sub_map[dst_ip] = resolve_non_blacklisted_ip(host, dst_ip, dst_port)
         else:
             sub_map[dst_ip] = None
     except:
         LOGGER.error('failed to fill host map due to %s' % sys.exc_info()[1])
 
 
-def resolve_non_blacklisted_ip(host, dst_port):
+def resolve_non_blacklisted_ip(host, dst_ip, dst_port):
     ips = networking.resolve_ips(host)
     if not ips:
         return None
-    ips = [ip for ip in ips if not is_blacklisted((ip, dst_port))]
+    ips = [ip for ip in ips if dst_ip != ip and not is_blacklisted((ip, dst_port))]
     if not ips:
         return None
     return random.choice(ips)
 
 
 def is_blacklisted(dst):
-    if dst in GOOGLE_SCRAMBLER.dst_black_list:
-        return True
-    if dst in TCP_SCRAMBLER.dst_black_list:
+    if dst in HTTP_TRY_PROXY.dst_black_list:
         return True
     if dst in HTTPS_TRY_PROXY.dst_black_list:
         return True

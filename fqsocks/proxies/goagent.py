@@ -25,6 +25,7 @@ from .. import stat
 from .direct import Proxy
 from .http_try import recv_and_parse_request, NotHttp
 from .http_try import CapturingSock
+from .http_try import HttpTryProxy
 
 
 try:
@@ -78,7 +79,7 @@ AUTORANGE_HOSTS = (
     '*.edgecastcdn.net',
     '*.d.rncdn3.com',
     'cdn*.public.tube8.com',
-    'videos.flv*.redtubefiles.com',
+    '*.redtubefiles.com',
     '*.mms.vlog.xuite.net',
     'vs*.thisav.com',
     'archive.rthk.hk',
@@ -246,6 +247,8 @@ def forward(client, proxy):
                 if auto_ranged:
                     LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
                     GoAgentProxy.black_list.add(client.host)
+                    if client.host in HttpTryProxy.host_slow_list:
+                        HttpTryProxy.host_slow_list.remove(client.host)
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
             client.fall_back(reason='failed to read response from gae_urlfetch')

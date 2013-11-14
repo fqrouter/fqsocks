@@ -704,10 +704,8 @@ def clear_proxy_states():
     global last_refresh_started_at
     last_refresh_started_at = 0
     HTTP_TRY_PROXY.host_black_list.clear()
-    TCP_SCRAMBLER.bad_requests.clear()
-    TCP_SCRAMBLER.dst_black_list.clear()
-    GOOGLE_SCRAMBLER.host_black_list.clear()
-    GOOGLE_SCRAMBLER.dst_black_list.clear()
+    HTTP_TRY_PROXY.host_slow_list.clear()
+    HTTP_TRY_PROXY.dst_black_list.clear()
     HTTPS_TRY_PROXY.dst_black_list.clear()
     ip_substitution.sub_map.clear()
     for proxy in proxies:

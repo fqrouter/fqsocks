@@ -5,6 +5,8 @@ import sys
 import StringIO
 import gzip
 import fnmatch
+import time
+import gevent
 
 from .direct import Proxy
 from .. import networking
@@ -34,10 +36,14 @@ def is_no_direct_host(client_host):
 
 
 class HttpTryProxy(Proxy):
+
+    host_black_list = {} # host => count
+    host_slow_list = set()
+    dst_black_list = {} # (ip, port) => count
+
     def __init__(self):
         super(HttpTryProxy, self).__init__()
         self.flags.add('DIRECT')
-        self.host_black_list = {} # host => count
 
     def do_forward(self, client):
         try:
@@ -63,6 +69,8 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='http try connect failed')
             return
         is_payload_complete = recv_and_parse_request(client)
+        if client.host in self.host_slow_list:
+            client.fall_back(reason='%s was too slow to direct connect' % client.host, silently=True)
         failed_count = self.host_black_list.get(client.host, 0)
         if failed_count > 3 and (failed_count % 10) != 0:
             client.fall_back(reason='%s tried before' % client.host, silently=True)
@@ -77,10 +85,19 @@ class HttpTryProxy(Proxy):
             upstream_sock.sendall(request_data + client.payload)
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
+        time_after_send_request = time.time()
         self.after_send_request(client, upstream_sock)
         if is_payload_complete:
-            response, http_response = try_receive_response(
-                client, upstream_sock, rejects_error=('GET' == client.method))
+            greenlet = gevent.spawn(
+                try_receive_response, client, upstream_sock, rejects_error=('GET' == client.method))
+            try:
+                response, http_response = greenlet.get(timeout=5)
+            except gevent.Timeout:
+                self.host_slow_list.add(client.host)
+                LOGGER.error('host %s is too slow to direct access' % client.host)
+                client.fall_back('too slow')
+            finally:
+                greenlet.kill()
             try:
                 response = self.process_response(client, upstream_sock, response, http_response)
             except client.ProxyFallBack:
@@ -89,7 +106,10 @@ class HttpTryProxy(Proxy):
                 LOGGER.exception('process response failed')
             client.forward_started = True
             client.downstream_sock.sendall(response)
-        client.forward(upstream_sock)
+        if not is_payload_complete and client.method and 'GET' != client.method.upper():
+            client.forward(upstream_sock, timeout=360)
+        else:
+            client.forward(upstream_sock)
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         return ''
@@ -111,7 +131,6 @@ class GoogleScrambler(HttpTryProxy):
     def __init__(self):
         super(GoogleScrambler, self).__init__()
         self.bad_requests = {} # host => count
-        self.dst_black_list = {}
 
     def do_forward(self, client):
         dst = (client.dst_ip, client.dst_port)
@@ -157,10 +176,9 @@ class GoogleScrambler(HttpTryProxy):
                 client.fall_back(reason='403 forbidden')
             if httplib.NOT_FOUND == http_response.status:
                 client.fall_back(reason='404 not found')
-            content_length = http_response.msg.dict.get('content-length')
-            if content_length \
+            if http_response.content_length \
                 and httplib.PARTIAL_CONTENT != http_response.status \
-                and 0 < int(content_length) < 10:
+                and 0 < http_response.content_length < 10:
                 client.fall_back('content length is too small: %s' % http_response.msg.dict)
             fallback_if_youtube_unplayable(client, http_response)
         return response
@@ -180,7 +198,7 @@ class TcpScrambler(HttpTryProxy):
             failed_count = self.dst_black_list.get(dst, 0)
             if failed_count and (failed_count % 10) != 0:
                 client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
-            self.try_direct(client)
+            super(TcpScrambler, self).do_forward(client)
             if dst in self.dst_black_list:
                 LOGGER.error('removed dst %s:%s from blacklist' % dst)
                 del self.dst_black_list[dst]
@@ -257,28 +275,31 @@ def try_receive_response(client, upstream_sock, rejects_error=False, reads_all=F
         http_response = httplib.HTTPResponse(capturing_sock)
         http_response.body = None
         http_response.begin()
-        if 'text/html' in capturing_sock.rfile.captured:
+        content_length = http_response.msg.dict.get('content-length')
+        content_type = http_response.msg.dict.get('content-type')
+        if content_length:
+            http_response.content_length = int(content_length)
+        else:
+            http_response.content_length = 0
+        if content_type and 'text/html' in content_type:
             reads_all = True
-        if not reads_all:
+        if reads_all:
+            http_response.body = http_response.read()
+        else:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try read response header: %s %s' %
-                             (repr(client), http_response.status, http_response.length))
+                             (repr(client), http_response.status, http_response.content_length))
             if http_response.chunked:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] skip try reading response due to chunked' % repr(client))
                 return capturing_sock.rfile.captured, http_response
-            if not http_response.length:
+            if not http_response.content_length:
                 if LOGGER.isEnabledFor(logging.DEBUG):
                     LOGGER.debug('[%s] skip try reading response due to no content length' % repr(client))
                 return capturing_sock.rfile.captured, http_response
-            if http_response.length > 1024 * 1024:
-                if LOGGER.isEnabledFor(logging.DEBUG):
-                    LOGGER.debug('[%s] skip try reading response due to too large: %s' %
-                                 (repr(client), http_response.length))
-                return capturing_sock.rfile.captured, http_response
             if rejects_error and not (200 <= http_response.status < 400):
                 raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
-        http_response.body = http_response.read()
+            http_response.body = http_response.read(min(http_response.content_length, 128 * 1024))
         return capturing_sock.rfile.captured, http_response
     except NotHttp:
         raise
