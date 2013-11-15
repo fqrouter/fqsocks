@@ -31,6 +31,13 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.myfreecams.com'
 }
 
+WHITE_LIST = {
+    'www.google.com',
+    'google.com',
+    'www.google.com.hk',
+    'google.com.hk',
+}
+
 
 def is_no_direct_host(client_host):
     return any(fnmatch.fnmatch(client_host, host) for host in NO_DIRECT_PROXY_HOSTS)
@@ -56,7 +63,7 @@ class HttpTryProxy(Proxy):
         except NotHttp:
             raise
         except:
-            if client.host:
+            if client.host and client.host not in WHITE_LIST:
                 self.host_black_list[client.host] = self.host_black_list.get(client.host, 0) + 1
                 if self.host_black_list[client.host] == 4:
                     LOGGER.error('blacklist host %s' % client.host)
