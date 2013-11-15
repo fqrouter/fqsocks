@@ -10,6 +10,7 @@ import gevent
 
 from .direct import Proxy
 from .. import networking
+from .. import ip_substitution
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,14 +63,8 @@ class HttpTryProxy(Proxy):
             raise
 
     def try_direct(self, client):
-        try:
-            upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
-        except:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
-            client.fall_back(reason='http try connect failed')
-            return
         is_payload_complete = recv_and_parse_request(client)
+        # check host
         if client.host in self.host_slow_list:
             client.fall_back(reason='%s was too slow to direct connect' % client.host, silently=True)
         failed_count = self.host_black_list.get(client.host, 0)
@@ -77,6 +72,19 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='%s tried before' % client.host, silently=True)
         if is_no_direct_host(client.host):
             client.fall_back(reason='%s blacklisted for direct access' % client.host, silently=True)
+        # check ip
+        ip_substitution.substitute_ip(client, self.dst_black_list)
+        failed_count = self.dst_black_list.get((client.dst_ip, client.dst_port), 0)
+        if failed_count and (failed_count % 10) != 0:
+            client.fall_back(reason='%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
+        # start trying
+        try:
+            upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
+        except:
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
+            client.fall_back(reason='http try connect failed')
+            return
         client.headers['Host'] = client.host
         request_data = self.before_send_request(client, upstream_sock, is_payload_complete)
         request_data += '%s %s HTTP/1.1\r\n' % (client.method, client.path)
@@ -133,10 +141,6 @@ class HttpTryProxy(Proxy):
 
 
 class GoogleScrambler(HttpTryProxy):
-    def __init__(self):
-        super(GoogleScrambler, self).__init__()
-        self.bad_requests = {} # host => count
-
     def do_forward(self, client):
         dst = (client.dst_ip, client.dst_port)
         try:
@@ -200,9 +204,6 @@ class TcpScrambler(HttpTryProxy):
     def do_forward(self, client):
         dst = (client.dst_ip, client.dst_port)
         try:
-            failed_count = self.dst_black_list.get(dst, 0)
-            if failed_count and (failed_count % 10) != 0:
-                client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
             super(TcpScrambler, self).do_forward(client)
             if dst in self.dst_black_list:
                 LOGGER.error('removed dst %s:%s from blacklist' % dst)

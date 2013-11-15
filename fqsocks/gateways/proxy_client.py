@@ -5,7 +5,6 @@ import errno
 import select
 import random
 import re
-import fnmatch
 import math
 import traceback
 import time
@@ -59,12 +58,6 @@ try:
     proxy_types['spdy-connect'] = SpdyConnectProxy
 except:
     pass
-NO_PUBLIC_PROXY_HOSTS = {
-    'www.google.com',
-    'google.com',
-    'www.google.com.hk',
-    'google.com.hk'
-}
 
 proxies = []
 dns_polluted_at = 0
@@ -306,16 +299,8 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    for i in range(4):
+    for i in range(3):
         proxy = pick_proxy(client)
-        while proxy:
-            if not client.host:
-                break
-            elif 'PUBLIC' in proxy.flags and any(fnmatch.fnmatch(client.host, host) for host in NO_PUBLIC_PROXY_HOSTS):
-                client.tried_proxies[proxy] = 'skip PUBLIC'
-            else:
-                break
-            proxy = pick_proxy(client)
         if not proxy:
             raise NoMoreProxy()
         if 'DIRECT' in proxy.flags:
@@ -436,26 +421,14 @@ def pick_http_try_proxy(client):
     if tcp_scrambler_enabled and not TCP_SCRAMBLER.died:
         if TCP_SCRAMBLER in client.tried_proxies:
             if google_scrambler_enabled and is_blocked_google_host(client.host):
-                ip_substitution.substitute_ip(client)
                 # give google scrambler a try
                 return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
             else:
-                return ip_substitution.substitute_ip_if_failed(client, TCP_SCRAMBLER) # try again with different dst ip
+                return None
         else:
             return TCP_SCRAMBLER # first time try
     elif google_scrambler_enabled:
-        if GOOGLE_SCRAMBLER in client.tried_proxies:
-            google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
-            if not google_scrambler_hacked:
-                if client.ip_substituted:
-                    return None # already tried again
-                else:
-                    ip_substitution.substitute_ip(client)
-                    return GOOGLE_SCRAMBLER # try again with different dst ip
-            else:
-                return None # google scrambler can not help
-        else:
-            return GOOGLE_SCRAMBLER # first time try
+        return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
     else:
         return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 
@@ -467,7 +440,7 @@ def pick_https_try_proxy(client):
     if not direct_access_enabled:
         client.tried_proxies[HTTPS_TRY_PROXY] = 'direct access disabled'
         return None
-    return ip_substitution.substitute_ip_if_failed(client, HTTPS_TRY_PROXY)
+    return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
 
 def pick_proxy_supports(client):
@@ -711,6 +684,7 @@ def clear_proxy_states():
     HTTP_TRY_PROXY.host_slow_list.clear()
     HTTP_TRY_PROXY.host_slow_detection_enabled = True
     HTTP_TRY_PROXY.dst_black_list.clear()
+    TCP_SCRAMBLER.bad_requests.clear()
     HTTPS_TRY_PROXY.dst_black_list.clear()
     ip_substitution.sub_map.clear()
     for proxy in proxies:

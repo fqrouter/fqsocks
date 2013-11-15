@@ -1,5 +1,6 @@
 import logging
 from .. import networking
+from .. import ip_substitution
 
 LOGGER = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ class GenericTryProxy(DirectProxy):
         self.dst_black_list = {}
 
     def do_forward(self, client):
+        ip_substitution.substitute_ip(client, self.dst_black_list)
         dst = (client.dst_ip, client.dst_port)
         try:
             failed_count = self.dst_black_list.get(dst, 0)
