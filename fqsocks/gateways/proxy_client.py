@@ -73,6 +73,8 @@ china_shortcut_enabled = True
 direct_access_enabled = True
 tcp_scrambler_enabled = True
 google_scrambler_enabled = True
+goagent_public_servers_enabled = True
+ss_public_servers_enabled = True
 last_refresh_started_at = -1
 force_us_ip = False
 
@@ -261,6 +263,10 @@ def handle_client(client):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] done' % repr(client))
     except NoMoreProxy:
+        if HTTP_TRY_PROXY.host_slow_detection_enabled and client.host in HTTP_TRY_PROXY.host_slow_list:
+            LOGGER.critical('!!! disable host slow detection !!!')
+            HTTP_TRY_PROXY.host_slow_list.clear()
+            HTTP_TRY_PROXY.host_slow_detection_enabled = False
         return
     except:
         err_msg = str(sys.exc_info()[1])
@@ -328,8 +334,6 @@ def pick_proxy_and_forward(client):
                 return DIRECT_PROXY.forward(client)
             except client.ProxyFallBack:
                 return # give up
-    if client.host in HTTP_TRY_PROXY.host_slow_list:
-        HTTP_TRY_PROXY.host_slow_list.remove(client.host)
     raise NoMoreProxy()
 
 
@@ -361,24 +365,22 @@ class NoMoreProxy(Exception):
 
 
 def should_fix():
-    http_proxies_died = all(proxy.died for proxy in proxies if
-                            proxy.is_protocol_supported('HTTP'))
-    https_proxies_died = all(proxy.died for proxy in proxies if
-                             proxy.is_protocol_supported('HTTPS'))
-    dynamic_goagent_proxies = [proxy for proxy in proxies if
-                               isinstance(proxy, DynamicProxy)
-                               and isinstance(proxy.delegated_to, GoAgentProxy)]
-    dynamic_goagent_proxies_died = dynamic_goagent_proxies and all(p.died for p in dynamic_goagent_proxies)
-    if auto_fix_enabled and (http_proxies_died or https_proxies_died or dynamic_goagent_proxies_died):
-        LOGGER.info('http %s https %s goagent %s, refresh proxies: %s' %
-                    (http_proxies_died, https_proxies_died, dynamic_goagent_proxies_died, proxies))
+    if not goagent_public_servers_enabled:
+        http_proxies_died = False
+    else:
+        http_proxies_died = all(proxy.died for proxy in proxies if
+                                proxy.is_protocol_supported('HTTP'))
+    if not ss_public_servers_enabled:
+        https_proxies_died = False
+    else:
+        https_proxies_died = all(proxy.died for proxy in proxies if
+                                 proxy.is_protocol_supported('HTTPS'))
+    if auto_fix_enabled and (http_proxies_died or https_proxies_died):
+        LOGGER.info('http %s https %s, refresh proxies: %s' %
+                    (http_proxies_died, https_proxies_died, proxies))
         return True
     else:
-        if dynamic_goagent_proxies_died:
-            LOGGER.info('dynamic goagent proxies all died, fix now')
-            return True
-        else:
-            return False
+        return False
 
 
 def pick_proxy(client):
@@ -707,6 +709,7 @@ def clear_proxy_states():
     last_refresh_started_at = 0
     HTTP_TRY_PROXY.host_black_list.clear()
     HTTP_TRY_PROXY.host_slow_list.clear()
+    HTTP_TRY_PROXY.host_slow_detection_enabled = True
     HTTP_TRY_PROXY.dst_black_list.clear()
     HTTPS_TRY_PROXY.dst_black_list.clear()
     ip_substitution.sub_map.clear()

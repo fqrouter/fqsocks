@@ -8,12 +8,10 @@ import argparse
 import httplib
 import fqlan
 import fqdns
-import functools
 
 import gevent.server
 import gevent.monkey
 
-from .proxies.http_try import HTTP_TRY_PROXY
 from .proxies.http_try import detect_if_ttl_being_ignored
 from .proxies.goagent import GoAgentProxy
 import httpd
@@ -138,6 +136,8 @@ def init_config(argv):
     proxy_client.direct_access_enabled = config['direct_access_enabled']
     proxy_client.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
     proxy_client.google_scrambler_enabled = config['google_scrambler_enabled']
+    proxy_client.goagent_public_servers_enabled = config['public_servers']['goagent_enabled']
+    proxy_client.ss_public_servers_enabled = config['public_servers']['ss_enabled']
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
     httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']

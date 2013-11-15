@@ -174,6 +174,7 @@ def handle_enable_goagent_public_servers(environ, start_response):
     def apply(config):
         config['public_servers']['goagent_enabled'] = True
 
+    proxy_client.goagent_public_servers_enabled = True
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()
@@ -186,6 +187,7 @@ def handle_disable_goagent_public_servers(environ, start_response):
     def apply(config):
         config['public_servers']['goagent_enabled'] = False
 
+    proxy_client.goagent_public_servers_enabled = False
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()
@@ -198,6 +200,7 @@ def handle_enable_ss_public_servers(environ, start_response):
     def apply(config):
         config['public_servers']['ss_enabled'] = True
 
+    proxy_client.ss_public_servers_enabled = True
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()
@@ -210,6 +213,7 @@ def handle_disable_ss_public_servers(environ, start_response):
     def apply(config):
         config['public_servers']['ss_enabled'] = False
 
+    proxy_client.ss_public_servers_enabled = False
     config_file.update_config(apply)
     disable_proxies()
     enable_proxies()

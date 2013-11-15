@@ -39,6 +39,7 @@ class HttpTryProxy(Proxy):
 
     host_black_list = {} # host => count
     host_slow_list = set()
+    host_slow_detection_enabled = True
     dst_black_list = {} # (ip, port) => count
 
     def __init__(self):
@@ -88,16 +89,20 @@ class HttpTryProxy(Proxy):
         time_after_send_request = time.time()
         self.after_send_request(client, upstream_sock)
         if is_payload_complete:
-            greenlet = gevent.spawn(
-                try_receive_response, client, upstream_sock, rejects_error=('GET' == client.method))
-            try:
-                response, http_response = greenlet.get(timeout=5)
-            except gevent.Timeout:
-                self.host_slow_list.add(client.host)
-                LOGGER.error('host %s is too slow to direct access' % client.host)
-                client.fall_back('too slow')
-            finally:
-                greenlet.kill()
+            if self.host_slow_detection_enabled:
+                greenlet = gevent.spawn(
+                    try_receive_response, client, upstream_sock, rejects_error=('GET' == client.method))
+                try:
+                    response, http_response = greenlet.get(timeout=10)
+                except gevent.Timeout:
+                    self.host_slow_list.add(client.host)
+                    LOGGER.error('host %s is too slow to direct access' % client.host)
+                    client.fall_back('too slow')
+                finally:
+                    greenlet.kill()
+            else:
+                response, http_response = try_receive_response(
+                    client, upstream_sock, rejects_error=('GET' == client.method))
             try:
                 response = self.process_response(client, upstream_sock, response, http_response)
             except client.ProxyFallBack:
