@@ -1,5 +1,4 @@
 import logging
-import socket
 import base64
 import sys
 import time
@@ -7,10 +6,9 @@ import time
 import ssl
 
 from .direct import Proxy
-from .http_try import try_receive_response
+from .http_try import try_receive_response_header
+from .http_try import try_receive_response_body
 from .http_try import recv_and_parse_request
-from .http_try import HTTP_TRY_PROXY
-from .http_try import SO_MARK
 
 
 LOGGER = logging.getLogger(__name__)
@@ -66,7 +64,7 @@ class HttpRelayProxy(Proxy):
                 reason='send to upstream failed: %s' % sys.exc_info()[1],
                 delayed_penalty=self.increase_failed_time)
         if is_payload_complete:
-            response, _ = try_receive_response(client, upstream_sock)
+            response = try_receive_response_body(try_receive_response_header(client, upstream_sock))
             upstream_sock.counter.received(len(response))
             client.forward_started = True
             client.downstream_sock.sendall(response)

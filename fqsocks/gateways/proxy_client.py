@@ -637,13 +637,13 @@ def init_proxies(config):
                 if hasattr(proxy, 'proxy_ip'):
                     us_ip.is_us_ip(proxy.proxy_ip)
             us_ip.save_cache(us_ip_cache_file)
-            if config['access_check_enabled']:
-                LOGGER.info('check access in 10 seconds')
-                gevent.sleep(10)
-                check_access_many_times('https://twitter.com', 5)
-                check_access_many_times('https://plus.google.com', 3)
-                check_access_many_times('http://www.youtube.com', 3)
-                check_access_many_times('http://www.facebook.com', 3)
+            # if config['access_check_enabled']:
+            #     LOGGER.info('check access in 10 seconds')
+            #     gevent.sleep(10)
+            #     check_access_many_times('https://twitter.com', 5)
+            #     check_access_many_times('https://plus.google.com', 3)
+            #     check_access_many_times('http://www.youtube.com', 3)
+            #     check_access_many_times('http://www.facebook.com', 3)
         else:
             LOGGER.critical('proxies init failed')
     except:
