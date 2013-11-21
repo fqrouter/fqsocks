@@ -255,6 +255,7 @@ def forward(client, proxy):
         if response is None:
             client.fall_back('urlfetch empty response')
         if response.app_status == 503:
+            LOGGER.error('%s died due to 503' % proxy)
             proxy.died = True
             if time.time() - GoAgentProxy.last_refresh_started_at > 60:
                 GoAgentProxy.last_refresh_started_at = time.time()
@@ -262,15 +263,19 @@ def forward(client, proxy):
                 gevent.spawn(GoAgentProxy.refresh, GoAgentProxy.proxies)
             client.fall_back('goagent server over quota')
         if response.app_status == 500:
+            LOGGER.error('%s died due to 500' % proxy)
             proxy.died = True
             client.fall_back('goagent server busy')
         if response.app_status == 404:
+            LOGGER.error('%s died due to 404' % proxy)
             proxy.died = True
             client.fall_back('goagent server not found')
         if response.app_status == 302:
+            LOGGER.error('%s died due to 302' % proxy)
             proxy.died = True
             client.fall_back('goagent server 302 moved')
-        if response.app_status == 403 and 'youtube.com' in client.url:
+        if response.app_status == 403:
+            LOGGER.error('%s died due to 403' % proxy)
             proxy.died = True
             client.fall_back('goagent server %s banned youtube' % proxy)
         if response.app_status != 200:
@@ -598,6 +603,7 @@ class RangeFetch(object):
                     response.close()
                     range_queue.put((start, end, None))
                     if proxy:
+                        LOGGER.error('%s died due to app status not 200' % proxy)
                         proxy.died = True
                     continue
                 if response.getheader('Location'):
