@@ -148,7 +148,7 @@ class GoAgentProxy(Proxy):
         try:
             if not recv_and_parse_request(client):
                 raise Exception('payload is too large')
-            if client.method.upper() not in ('GET', 'POST'):
+            if client.method.upper() not in ('GET', 'POST', 'HEAD'):
                 raise Exception('unsupported method: %s' % client.method)
             if client.host in GoAgentProxy.black_list:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
