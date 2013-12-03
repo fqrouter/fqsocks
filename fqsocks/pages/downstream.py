@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 import httplib
 import os
-import fqlan
+import json
+import subprocess
+import logging
+import re
 
-import jinja2
 import gevent
 
 from .. import httpd
+
 from ..gateways import http_gateway
 from .. import config_file
+from .. import networking
 
 
+LOGGER = logging.getLogger(__name__)
 DOWNSTREAM_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'downstream.html')
+RE_EXTERNAL_IP_ADDRESS = re.compile(r'ExternalIPAddress = (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
 spi_wifi_repeater = None
 
 
@@ -146,3 +152,68 @@ def handle_update_wifi_repeater_config(environ, start_response):
         if error:
             return [error]
     return []
+
+
+@httpd.http_handler('GET', 'upnp/status')
+def handle_get_upnp_status(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/json')])
+    try:
+        upnp_status = get_upnp_status()
+    except:
+        LOGGER.exception('failed to get upnp status')
+        upnp_status = {
+            'external_ip_address': None,
+            'port': None,
+            'is_enabled': False
+        }
+    return [json.dumps(upnp_status)]
+
+
+@httpd.http_handler('POST', 'upnp/enable')
+def handle_enable_upnp(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    try:
+        default_interface_ip = networking.get_default_interface_ip()
+        if not default_interface_ip:
+            return ['failed to get default interface ip']
+        execute_upnpc('-a %s %s %s tcp' % (default_interface_ip, http_gateway.LISTEN_PORT, http_gateway.LISTEN_PORT))
+    except:
+        LOGGER.exception('failed to enable upnp')
+        return ['failed to enable upnp']
+    return []
+
+
+@httpd.http_handler('POST', 'upnp/disable')
+def handle_disable_upnp(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    try:
+        execute_upnpc('-d %s tcp' % http_gateway.LISTEN_PORT)
+    except:
+        LOGGER.exception('failed to disable upnp')
+        return ['failed to disable upnp']
+    return []
+
+
+def get_upnp_status():
+    output = execute_upnpc('-l')
+    match = RE_EXTERNAL_IP_ADDRESS.search(output)
+    if match:
+        external_ip_address = match.group(1)
+        http_gateway.external_ip_address = external_ip_address
+    else:
+        external_ip_address = None
+    return {
+        'external_ip_address': external_ip_address,
+        'port': http_gateway.LISTEN_PORT,
+        'is_enabled': (':%s' % http_gateway.LISTEN_PORT) in output
+    }
+
+
+def execute_upnpc(args):
+    try:
+        output = subprocess.check_output('upnpc %s' % args, shell=True)
+        LOGGER.info('succeed, output: %s' % output)
+    except subprocess.CalledProcessError, e:
+        LOGGER.error('failed, output: %s' % e.output)
+        raise
+    return output

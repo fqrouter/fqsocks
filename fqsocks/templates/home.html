@@ -458,6 +458,15 @@
                         {{ _('Please turn on the switch', '请先打开开关') }}
                     </label>
                 </li>
+                <li class="list-group-item">
+                    <label class="label label-default">{{ _('UPNP', '外网') }}</label>
+                    <label class="on hide" style="font-size: 16px;">
+                        <button class="btn btn-default" id="config-upnp">{{ _('Config', '配置') }}</button>
+                    </label>
+                    <label class="label label-info off" style="font-size: 16px;">
+                        {{ _('Please turn on the switch', '请先打开开关') }}
+                    </label>
+                </li>
             </ul>
         </div>
     </div>
@@ -847,7 +856,7 @@
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                 <h4 class="modal-title" id="http-gateway-dialog-title">
-                    {{ _('Configure Remote Access', '配置HTTP代理') }}
+                    {{ _('Configure HTTP Proxy', '配置HTTP代理') }}
                 </h4>
             </div>
             <div class="modal-body">
@@ -879,7 +888,7 @@
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                 <h4 class="modal-title" id="wifi-repeater-dialog-title">
-                    {{ _('Configure Remote Access', '配置无线中继') }}
+                    {{ _('Configure Wifi Repeater', '配置无线中继') }}
                 </h4>
             </div>
             <div class="modal-body">
@@ -903,6 +912,57 @@
                 </button>
                 <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
                 <button type="button" class="btn btn-primary" id="wifi-repeater-dialog-save">{{ _('Save', '保存') }}</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+<!-- /.modal -->
+
+<!-- Modal -->
+<div class="modal fade" id="upnp-dialog" tabindex="-1" role="dialog"
+     aria-labelledby="upnp-dialog-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="upnp-dialog-title">
+                    {{ _('Configure UPNP', '配置外网访问') }}
+                </h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger hide"></div>
+                <form role="form">
+                    <div class="form-group">
+                        <label for="upnp-ssid">{{ _('Username', '用户名') }}</label>
+                        <input type="text" class="form-control" id="upnp-ssid" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="upnp-password">{{ _('Password', '密码') }}</label>
+                        <input type="text" class="form-control" id="upnp-password"
+                               value="">
+                    </div>
+                    <div class="form-group">
+                        <label >{{ _('Access Via', '访问方式') }}</label>
+                        <li class="list-group-item">
+                            <label class="label label-default">HTTP</label>
+                            <label class="label label-info" style="font-size: 16px;" id="external-http">
+                            </label>
+                        </li>
+                        <li class="list-group-item">
+                            <label class="label label-default">PAC</label>
+                            <label class="label label-info" style="font-size: 16px;" id="external-pac">
+                            </label>
+                        </li>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="make-switch" data-on="success" data-off="default" id="upnp-switch">
+                    <input type="checkbox">
+                </div>
+                <button type="button" class="btn btn-default" data-dismiss="modal">{{ _('Close', '关闭') }}</button>
             </div>
         </div>
         <!-- /.modal-content -->
@@ -1310,6 +1370,29 @@
                     window.location.reload();
                 }
             });
+        });
+
+        $('#config-upnp').click(function() {
+            $.get('/upnp/status', function(status) {
+                if (status.external_ip_address) {
+                    $('#external-http').html(status.external_ip_address + ':' + status.port);
+                    $('#external-pac').html('http://' + status.external_ip_address + ':' + status.port);
+                    $('#upnp-switch').bootstrapSwitch('setState', status.is_enabled);
+                    $('#upnp-dialog').modal('show');
+                } else {
+                    bootbox.alert('{{ _("Network env does not support UPNP", "网络环境不支持外网访问") }}');
+                }
+            });
+        });
+
+        $('#upnp-switch').on('switch-change', function (e, data) {
+            if (data.value) {
+                _gaq.push(['_trackEvent', 'UPNP', 'Enable', '']);
+                $.post('/upnp/enable');
+            } else {
+                _gaq.push(['_trackEvent', 'UPNP', 'Disable', '']);
+                $.post('/upnp/disable');
+            }
         });
 
 

@@ -19,6 +19,7 @@ dns_cache = {}
 LISTEN_IP = None
 LISTEN_PORT = None
 server_greenlet = None
+external_ip_address = None
 
 @httpd.http_handler('GET', 'pac')
 def pac_page(environ, start_response):
@@ -79,6 +80,8 @@ def is_http_gateway_host(host):
     if '127.0.0.1:%s' % LISTEN_PORT == host:
         return True
     if '%s:%s' % (networking.get_default_interface_ip(), LISTEN_PORT) == host:
+        return True
+    if external_ip_address and '%s:%s' % (external_ip_address, LISTEN_PORT) == host:
         return True
     return False
 
