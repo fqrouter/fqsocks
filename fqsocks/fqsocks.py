@@ -67,7 +67,7 @@ def reset_force_us_ip():
 def handle_clear_states(environ, start_response):
     proxy_client.clear_proxy_states()
     http_gateway.dns_cache = {}
-    home.default_interface_ip = None
+    networking.default_interface_ip_cache = None
     lan_device.lan_devices = {}
     if lan_device.forge_greenlet is not None:
         lan_device.forge_greenlet.kill()

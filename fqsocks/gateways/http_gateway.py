@@ -9,7 +9,6 @@ from .proxy_client import handle_client
 from ..proxies.http_try import recv_till_double_newline
 from ..proxies.http_try import parse_request
 from .. import httpd
-import fqlan
 import httplib
 import jinja2
 import os
@@ -25,9 +24,9 @@ server_greenlet = None
 def pac_page(environ, start_response):
     with open(WHITELIST_PAC_FILE) as f:
         template = jinja2.Template(unicode(f.read(), 'utf8'))
-    ip = fqlan.get_default_interface_ip()
+    ip = networking.get_default_interface_ip()
     start_response(httplib.OK, [('Content-Type', 'application/x-ns-proxy-autoconfig')])
-    return [template.render(http_gateway='%s:2516' % ip).encode('utf8')]
+    return [template.render(http_gateway='%s:%s' % (ip, LISTEN_PORT)).encode('utf8')]
 
 
 def handle(downstream_sock, address):
@@ -36,6 +35,11 @@ def handle(downstream_sock, address):
     if not request:
         return
     method, path, headers = parse_request(request)
+    if 'GET' == method.upper() and '/' == path and is_http_gateway_host(headers.get('Host')):
+        with open(WHITELIST_PAC_FILE) as f:
+            template = jinja2.Template(unicode(f.read(), 'utf8'))
+        downstream_sock.sendall('HTTP/1.1 200 OK\r\n\r\n%s' % template.render(http_gateway=headers.get('Host')).encode('utf8'))
+        return
     if 'CONNECT' == method.upper():
         if ':' in path:
             dst_host, dst_port = path.split(':')
@@ -69,6 +73,14 @@ def handle(downstream_sock, address):
         request = ''.join(request_lines)
         client.peeked_data = request + '\r\n' + payload
         handle_client(client)
+
+
+def is_http_gateway_host(host):
+    if '127.0.0.1:%s' % LISTEN_PORT == host:
+        return True
+    if '%s:%s' % (networking.get_default_interface_ip(), LISTEN_PORT) == host:
+        return True
+    return False
 
 
 def resolve_ip(host):

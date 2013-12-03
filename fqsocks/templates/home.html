@@ -449,7 +449,7 @@
                     <label class="label label-default">PAC</label>
                     <label class="label label-info on hide" style="font-size: 16px;">
                         {% if default_interface_ip %}
-                        http://{{ default_interface_ip }}:{{ httpd.LISTEN_PORT }}/pac
+                        http://{{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
                         {% else %}
                         {{ _('Network Disconnected', '无网络') }}
                         {% endif %}

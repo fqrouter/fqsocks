@@ -7,12 +7,21 @@ import contextlib
 import gevent
 import sys
 import re
+import fqlan
 
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
 OUTBOUND_IP = None
 SPI = {}
 RE_IP = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
+
+default_interface_ip_cache = None
+
+def get_default_interface_ip():
+    global default_interface_ip_cache
+    if not default_interface_ip_cache:
+        default_interface_ip_cache = fqlan.get_default_interface_ip()
+    return default_interface_ip_cache
 
 
 def create_tcp_socket(server_ip, server_port, connect_timeout):
