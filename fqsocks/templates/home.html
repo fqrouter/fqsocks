@@ -200,6 +200,12 @@
             display: inline-block;
         }
 
+        .list-group-item-caption {
+            width: 60px;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
     </style>
 </head>
 <body>
@@ -433,7 +439,7 @@
             """) }}
             <ul class="list-group" style="margin-top: 8px; margin-bottom: 0;" id="http-gateway-info">
                 <li class="list-group-item">
-                    <label class="label label-default">HTTP</label>
+                    <label class="label label-default list-group-item-caption">HTTP</label>
                     <label class="label label-info on hide" style="font-size: 16px;">
                         {% if default_interface_ip %}
                         {{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
@@ -446,7 +452,7 @@
                     </label>
                 </li>
                 <li class="list-group-item">
-                    <label class="label label-default">PAC</label>
+                    <label class="label label-default list-group-item-caption">PAC</label>
                     <label class="label label-info on hide" style="font-size: 16px;">
                         {% if default_interface_ip %}
                         http://{{ default_interface_ip }}:{{ http_gateway.LISTEN_PORT }}
@@ -459,9 +465,9 @@
                     </label>
                 </li>
                 <li class="list-group-item">
-                    <label class="label label-default">{{ _('UPNP', '外网') }}</label>
+                    <label class="label label-default list-group-item-caption">{{ _('UPNP', '外网') }}</label>
                     <label class="on hide" style="font-size: 16px;">
-                        <button class="btn btn-default" id="config-upnp">{{ _('Config', '配置') }}</button>
+                        <button class="btn btn-default" id="config-upnp">{{ _('Want to use fqrouter anytime anywhere?', '想要随时随地使用fqrouter？') }}</button>
                     </label>
                     <label class="label label-info off" style="font-size: 16px;">
                         {{ _('Please turn on the switch', '请先打开开关') }}
@@ -946,12 +952,12 @@
                     <div class="form-group">
                         <label >{{ _('Access Via', '访问方式') }}</label>
                         <li class="list-group-item">
-                            <label class="label label-default">HTTP</label>
+                            <label class="label label-default list-group-item-caption">HTTP</label>
                             <label class="label label-info" style="font-size: 16px;" id="external-http">
                             </label>
                         </li>
                         <li class="list-group-item">
-                            <label class="label label-default">PAC</label>
+                            <label class="label label-default list-group-item-caption">PAC</label>
                             <label class="label label-info" style="font-size: 16px;" id="external-pac">
                             </label>
                         </li>
@@ -1373,14 +1379,18 @@
         });
 
         $('#config-upnp').click(function() {
+            $('#config-upnp').attr('disabled', 'disabled');
+            $('#config-upnp').html('{{ _("Please wait...", "请稍侯……") }}');
             $.get('/upnp/status', function(status) {
+                $('#config-upnp').removeAttr('disabled');
+                $('#config-upnp').html("{{ _('Want to use fqrouter anytime anywhere?', '想要随时随地使用fqrouter？') }}");
                 if (status.external_ip_address) {
                     $('#external-http').html(status.external_ip_address + ':' + status.port);
                     $('#external-pac').html('http://' + status.external_ip_address + ':' + status.port);
                     $('#upnp-switch').bootstrapSwitch('setState', status.is_enabled);
                     $('#upnp-dialog').modal('show');
                 } else {
-                    bootbox.alert('{{ _("Network env does not support UPNP", "网络环境不支持外网访问") }}');
+                    bootbox.alert('{{ _("Sorry, network environment does not support UPNP", "很抱歉，你的网络环境不支持外网访问") }}');
                 }
             });
         });

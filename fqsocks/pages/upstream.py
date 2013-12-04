@@ -324,11 +324,7 @@ def to_private_server(environ):
         except:
             return _('Port must be number', '端口必须是数字')
         username = args['username']
-        if not username:
-            return _('User name must not be empty', '用户名必填')
         password = args.get('password')
-        if not password:
-            return _('Password must not be empty', '密码必填')
         return {
             'host': host,
             'port': port,
