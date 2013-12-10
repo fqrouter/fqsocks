@@ -38,6 +38,12 @@ def DEFAULT_CONFIG():
             'ssid': 'fqrouter',
             'password': '12345678'
         },
+        'upnp': {
+            'port': 25,
+            'is_password_protected': False,
+            'username': '',
+            'password': ''
+        },
         'public_servers': {
             'source': 'proxies.fqrouter.com',
             'goagent_enabled': True,

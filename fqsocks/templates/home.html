@@ -464,6 +464,7 @@
                         {{ _('Please turn on the switch', '请先打开开关') }}
                     </label>
                 </li>
+                {% if is_root %}
                 <li class="list-group-item">
                     <label class="label label-default list-group-item-caption">{{ _('UPNP', '外网') }}</label>
                     <label class="on hide" style="font-size: 16px;">
@@ -473,6 +474,7 @@
                         {{ _('Please turn on the switch', '请先打开开关') }}
                     </label>
                 </li>
+                {% endif %}
             </ul>
         </div>
     </div>
@@ -941,13 +943,24 @@
                 <div class="alert alert-danger hide"></div>
                 <form role="form">
                     <div class="form-group">
-                        <label for="upnp-ssid">{{ _('Username', '用户名') }}</label>
-                        <input type="text" class="form-control" id="upnp-ssid" value="">
+                        <label for="upnp-port">{{ _('External Port', '外网端口') }}</label>
+                        <input type="text" class="form-control" id="upnp-port" value="{{ config['upnp']['port'] }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="upnp-port">{{ _('Password Protected', '密码认证') }}</label>
+                        {% if config['upnp']['is_password_protected'] %}
+                        <input type="checkbox" id="upnp-password-protected" checked="checked"/>
+                        {% else %}
+                        <input type="checkbox" id="upnp-password-protected"/>
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label for="upnp-username">{{ _('Username', '用户名') }}</label>
+                        <input type="text" class="form-control" id="upnp-username" value="{{ config['upnp']['username'] }}">
                     </div>
                     <div class="form-group">
                         <label for="upnp-password">{{ _('Password', '密码') }}</label>
-                        <input type="text" class="form-control" id="upnp-password"
-                               value="">
+                        <input type="text" class="form-control" id="upnp-password" value="{{ config['upnp']['password'] }}">
                     </div>
                     <div class="form-group">
                         <label >{{ _('Access Via', '访问方式') }}</label>
@@ -1385,9 +1398,15 @@
                 $('#config-upnp').removeAttr('disabled');
                 $('#config-upnp').html("{{ _('Want to use fqrouter anytime anywhere?', '想要随时随地使用fqrouter？') }}");
                 if (status.external_ip_address) {
-                    $('#external-http').html(status.external_ip_address + ':' + status.port);
-                    $('#external-pac').html('http://' + status.external_ip_address + ':' + status.port);
+                    if (status.is_enabled) {
+                        $('#external-http').html(status.external_ip_address + ':' + status.port);
+                        $('#external-pac').html('http://' + status.external_ip_address + ':' + status.port);
+                    } else {
+                        $('#external-http').html("{{ _('Please turn on the switch', '请先打开开关') }}");
+                        $('#external-pac').html("{{ _('Please turn on the switch', '请先打开开关') }}");
+                    }
                     $('#upnp-switch').bootstrapSwitch('setState', status.is_enabled);
+                    onUpdateUpnpPasswordProtectedChanged();
                     $('#upnp-dialog').modal('show');
                 } else {
                     bootbox.alert('{{ _("Sorry, network environment does not support UPNP", "很抱歉，你的网络环境不支持外网访问") }}');
@@ -1396,14 +1415,45 @@
         });
 
         $('#upnp-switch').on('switch-change', function (e, data) {
+            if (!$('#upnp-dialog').data('bs.modal')) {
+                return;
+            }
+            if (!$('#upnp-dialog').data('bs.modal').isShown) {
+                return;
+            }
             if (data.value) {
                 _gaq.push(['_trackEvent', 'UPNP', 'Enable', '']);
-                $.post('/upnp/enable');
+                $.post('/upnp/enable', {
+                    'upnp_port': $('#upnp-port').val(),
+                    'upnp_is_password_protected': $('#upnp-password-protected').is(':checked'),
+                    'upnp_username': $('#upnp-username').val(),
+                    'upnp_password': $('#upnp-password').val()
+                }, function(status) {
+                    $('#external-http').html(status.external_ip_address + ':' + status.port);
+                    $('#external-pac').html('http://' + status.external_ip_address + ':' + status.port);
+                });
             } else {
                 _gaq.push(['_trackEvent', 'UPNP', 'Disable', '']);
-                $.post('/upnp/disable');
+                $.post('/upnp/disable', function() {
+                    $('#external-http').html("{{ _('Please turn on the switch', '请先打开开关') }}");
+                    $('#external-pac').html("{{ _('Please turn on the switch', '请先打开开关') }}");
+                });
             }
         });
+
+        $('#upnp-password-protected').change(function() {
+            onUpdateUpnpPasswordProtectedChanged();
+        });
+
+        function onUpdateUpnpPasswordProtectedChanged() {
+            if ($('#upnp-password-protected').is(':checked')) {
+                $('#upnp-username').removeAttr('disabled');
+                $('#upnp-password').removeAttr('disabled');
+            } else {
+                $('#upnp-username').attr('disabled', 'disabled');
+                $('#upnp-password').attr('disabled', 'disabled');
+            }
+        }
 
 
         showHideSpeed();

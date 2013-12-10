@@ -19,6 +19,7 @@ LOGGER = logging.getLogger(__name__)
 DOWNSTREAM_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'downstream.html')
 RE_EXTERNAL_IP_ADDRESS = re.compile(r'ExternalIPAddress = (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
 spi_wifi_repeater = None
+spi_upnp = None
 
 
 @httpd.http_handler('POST', 'http-gateway/enable')
@@ -171,23 +172,39 @@ def handle_get_upnp_status(environ, start_response):
 
 @httpd.http_handler('POST', 'upnp/enable')
 def handle_enable_upnp(environ, start_response):
-    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    start_response(httplib.OK, [('Content-Type', 'text/json')])
+    upnp_port = int(environ['REQUEST_ARGUMENTS']['upnp_port'].value)
+    upnp_username = environ['REQUEST_ARGUMENTS']['upnp_username'].value
+    upnp_password = environ['REQUEST_ARGUMENTS']['upnp_password'].value
+    upnp_is_password_protected = 'true' == environ['REQUEST_ARGUMENTS']['upnp_is_password_protected'].value
+    def apply(config):
+        config['upnp']['port'] = upnp_port
+        config['upnp']['username'] = upnp_username
+        config['upnp']['password'] = upnp_password
+        config['upnp']['is_password_protected'] = upnp_is_password_protected
+
+    config_file.update_config(apply)
     try:
         default_interface_ip = networking.get_default_interface_ip()
         if not default_interface_ip:
             return ['failed to get default interface ip']
-        execute_upnpc('-a %s %s %s tcp' % (default_interface_ip, http_gateway.LISTEN_PORT, http_gateway.LISTEN_PORT))
+        execute_upnpc('-a %s %s %s tcp' % (default_interface_ip, http_gateway.LISTEN_PORT, upnp_port))
     except:
         LOGGER.exception('failed to enable upnp')
         return ['failed to enable upnp']
-    return []
+    status = get_upnp_status()
+    assert status['is_enabled']
+    http_gateway.UPNP_PORT = upnp_port
+    http_gateway.UPNP_AUTH = None
+    return [json.dumps(status)]
 
 
 @httpd.http_handler('POST', 'upnp/disable')
 def handle_disable_upnp(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    upnp_port = http_gateway.get_upnp_port()
     try:
-        execute_upnpc('-d %s tcp' % http_gateway.LISTEN_PORT)
+        execute_upnpc('-d %s tcp' % upnp_port)
     except:
         LOGGER.exception('failed to disable upnp')
         return ['failed to disable upnp']
@@ -202,14 +219,18 @@ def get_upnp_status():
         http_gateway.external_ip_address = external_ip_address
     else:
         external_ip_address = None
+    upnp_port = http_gateway.get_upnp_port()
     return {
         'external_ip_address': external_ip_address,
-        'port': http_gateway.LISTEN_PORT,
+        'port': upnp_port,
         'is_enabled': (':%s' % http_gateway.LISTEN_PORT) in output
     }
 
 
 def execute_upnpc(args):
+    if spi_upnp:
+        return spi_upnp['execute_upnpc'](args)
+    LOGGER.info('upnpc %s' % args)
     try:
         output = subprocess.check_output('upnpc %s' % args, shell=True)
         LOGGER.info('succeed, output: %s' % output)
