@@ -2,14 +2,13 @@
 import httplib
 import logging
 import os.path
-import fqlan
 import fqdns
+import time
 
 import jinja2
 
 from .. import httpd
 from ..gateways import proxy_client
-from ..proxies.http_try import HTTP_TRY_PROXY
 from .. import config_file
 from ..gateways import http_gateway
 from . import downstream
@@ -48,9 +47,13 @@ def get_notice_url(environ, start_response):
     try:
         domain = environ['select_text']('en.url.notice.fqrouter.com', 'cn.url.notice.fqrouter.com')
         results = fqdns.resolve('TXT', [domain], 'udp', [('8.8.8.8', 53), ('208.67.222.222', 443)], 3)
-        start_response(httplib.TEMPORARY_REDIRECT, [('Location', results[domain][0])])
+        url = results[domain][0]
+        if '?' in url:
+            url = '%s&_ct=%s' % time.time()
+        else:
+            url = '%s?_ct=%s' % time.time()
+        start_response(httplib.TEMPORARY_REDIRECT, [('Location', url)])
         return []
     except:
-        start_response(httplib.TEMPORARY_REDIRECT,
-                       [('Location', 'https://s3.amazonaws.com/fqrouter-notice/index.html')])
+        start_response(httplib.TEMPORARY_REDIRECT, [('Location', 'https://s3.amazonaws.com/fqrouter-notice/index.html')])
         return []
