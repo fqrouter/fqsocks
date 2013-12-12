@@ -2,7 +2,7 @@
 import httplib
 import os
 import json
-import subprocess
+from gevent import subprocess
 import logging
 import re
 
@@ -192,8 +192,24 @@ def handle_enable_upnp(environ, start_response):
     except:
         LOGGER.exception('failed to enable upnp')
         return ['failed to enable upnp']
+
+    def apply(config):
+        config['upnp']['port'] = upnp_port
+
+    config_file.update_config(apply)
     status = get_upnp_status()
-    assert status['is_enabled']
+    if not status['is_enabled']:
+        if upnp_port < 1024:
+            upnp_port += 1100
+            execute_upnpc('-a %s %s %s tcp' % (default_interface_ip, http_gateway.LISTEN_PORT, upnp_port))
+
+            def apply(config):
+                config['upnp']['port'] = upnp_port
+
+            config_file.update_config(apply)
+            status = get_upnp_status()
+        else:
+            return ['failed to enable upnp']
     http_gateway.UPNP_PORT = upnp_port
     http_gateway.UPNP_AUTH = None
     return [json.dumps(status)]

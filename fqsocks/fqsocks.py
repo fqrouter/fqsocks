@@ -146,7 +146,7 @@ def main(argv=None):
     if argv:
         init_config(argv)
     config = config_file.read_config()
-    gevent.monkey.patch_all(ssl=False)
+    gevent.monkey.patch_all(ssl=False, thread=False)
     try:
         gevent.monkey.patch_ssl()
     except:

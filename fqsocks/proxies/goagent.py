@@ -451,7 +451,7 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     metadata = 'G-Method:%s\nG-Url:%s\n%s' % (
     method, url, ''.join('G-%s:%s\n' % (k, v) for k, v in kwargs.items() if v))
     metadata += ''.join('%s:%s\n' % (k.title(), v) for k, v in headers.items() if k not in SKIP_HEADERS)
-    metadata = zlib.compress(metadata.encode())[2:-4]
+    metadata = zlib.compress(metadata.encode('utf8'))[2:-4]
     payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
     ssl_sock = create_ssl_connection()
     ssl_sock.counter = stat.opened(ssl_sock, proxy, host=client.host, ip=client.dst_ip)
