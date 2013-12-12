@@ -464,6 +464,7 @@
                         {{ _('Please turn on the switch', '请先打开开关') }}
                     </label>
                 </li>
+                {% if is_root %}
                 <li class="list-group-item">
                     <label class="label label-default list-group-item-caption">{{ _('UPNP', '外网') }}</label>
                     <label class="on hide" style="font-size: 16px;">
@@ -473,6 +474,7 @@
                         {{ _('Please turn on the switch', '请先打开开关') }}
                     </label>
                 </li>
+                {% endif %}
             </ul>
         </div>
     </div>
