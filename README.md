@@ -43,3 +43,7 @@ Proxy Selection Logic
 * dport is 443 or protocol is https: direct => https proxy
 * direct connection failed will blacklist that ip:port for 1 minute
 * blacklisted ip:port will use proxy
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/fqrouter/fqsocks/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
