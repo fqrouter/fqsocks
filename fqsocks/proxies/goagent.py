@@ -16,6 +16,7 @@ import struct
 import io
 import copy
 import threading
+import base64
 
 import ssl
 import gevent.queue
@@ -26,6 +27,7 @@ from .direct import Proxy
 from .http_try import recv_and_parse_request, NotHttp
 from .http_try import CapturingSock
 from .http_try import HttpTryProxy
+from Crypto.Cipher.ARC4 import new as _Crypto_Cipher_ARC4_new
 
 
 try:
@@ -92,7 +94,7 @@ AUTORANGE_NOENDSWITH = tuple(AUTORANGE_NOENDSWITH)
 AUTORANGE_MAXSIZE = 1048576
 AUTORANGE_WAITSIZE = 524288
 AUTORANGE_BUFSIZE = 8192
-AUTORANGE_THREADS = 4
+AUTORANGE_THREADS = 3
 SKIP_HEADERS = frozenset(['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization', 'Proxy-Connection',
                           'Upgrade', 'X-Chrome-Variations', 'Connection', 'Cache-Control'])
 
@@ -110,12 +112,14 @@ class GoAgentProxy(Proxy):
     GOOGLE_IPS = []
     proxies = []
 
-    def __init__(self, appid, path='/2', password=''):
+    def __init__(self, appid, path='/2', password='', is_rc4_enabled=False, is_obfuscate_enabled=False):
         super(GoAgentProxy, self).__init__()
         assert appid
         self.appid = appid
         self.path = path or '/2'
         self.password = password
+        self.is_rc4_enabled = is_rc4_enabled
+        self.is_obfuscate_enabled = is_obfuscate_enabled
         self.version = 'UNKNOWN'
         self.flags.add('PUBLIC')
 
@@ -231,12 +235,12 @@ def forward(client, proxy):
         LOGGER.info('[%s] auto range: %s' % (repr(client), client.headers['Range']))
     response = None
     try:
-        kwargs = {}
-        if proxy.password:
-            kwargs['password'] = proxy.password
         try:
             response = gae_urlfetch(
-                client, proxy, client.method, client.url, client.headers, client.payload, **kwargs)
+                client, proxy, client.method, client.url, client.headers, client.payload,
+                password=proxy.password,
+                is_obfuscate_enabled=proxy.is_obfuscate_enabled,
+                is_rc4_enabled=proxy.is_rc4_enabled)
         except ConnectionFailed:
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
@@ -263,8 +267,8 @@ def forward(client, proxy):
                 gevent.spawn(GoAgentProxy.refresh, GoAgentProxy.proxies)
             client.fall_back('goagent server over quota')
         if response.app_status == 500:
-            LOGGER.error('%s died due to 500' % proxy)
-            proxy.died = True
+            # LOGGER.error('%s died due to 500' % proxy)
+            # proxy.died = True
             client.fall_back('goagent server busy')
         if response.app_status == 404:
             LOGGER.error('%s died due to 404' % proxy)
@@ -275,9 +279,9 @@ def forward(client, proxy):
             proxy.died = True
             client.fall_back('goagent server 302 moved')
         if response.app_status == 403:
-            LOGGER.error('%s died due to 403' % proxy)
-            proxy.died = True
-            client.fall_back('goagent server %s banned youtube' % proxy)
+            # LOGGER.error('%s died due to 403' % proxy)
+            # proxy.died = True
+            client.fall_back('goagent server %s banned this host' % proxy)
         if response.app_status != 200:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('HTTP/1.1 %s\r\n%s\r\n' % (response.status, ''.join(
@@ -437,7 +441,8 @@ class ReadResponseFailed(Exception):
     pass
 
 
-def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
+def gae_urlfetch(client, proxy, method, url, headers, payload,
+                 password=None, is_obfuscate_enabled=False, is_rc4_enabled=False):
     if payload:
         if len(payload) < 10 * 1024 * 1024 and 'Content-Encoding' not in headers:
             zpayload = zlib.compress(payload)[2:-4]
@@ -448,11 +453,32 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
         # GAE donot allow set `Host` header
     if 'Host' in headers:
         del headers['Host']
-    metadata = 'G-Method:%s\nG-Url:%s\n%s' % (
-    method, url, ''.join('G-%s:%s\n' % (k, v) for k, v in kwargs.items() if v))
+    metadata = 'G-Method:%s\nG-Url:%s\n' % (method, url)
+    if password:
+        metadata += 'G-password:%s\n' % password
     metadata += ''.join('%s:%s\n' % (k.title(), v) for k, v in headers.items() if k not in SKIP_HEADERS)
-    metadata = zlib.compress(metadata.encode('utf8'))[2:-4]
-    payload = b''.join((struct.pack('!h', len(metadata)), metadata, payload))
+    metadata = metadata.encode('utf8')
+    request_method = 'POST'
+    request_headers = {}
+    if is_obfuscate_enabled:
+        if is_rc4_enabled:
+            request_headers['X-GOA-Options'] = 'rc4'
+            cookie = base64.b64encode(rc4crypt(zlib.compress(metadata)[2:-4], password)).strip()
+            payload = rc4crypt(payload, password)
+        else:
+            cookie = base64.b64encode(zlib.compress(metadata)[2:-4]).strip()
+        request_headers['Cookie'] = cookie
+        if payload:
+            request_headers['Content-Length'] = str(len(payload))
+        else:
+            request_method = 'GET'
+    else:
+        metadata = zlib.compress(metadata)[2:-4]
+        payload = '%s%s%s' % (struct.pack('!h', len(metadata)), metadata, payload)
+        if is_rc4_enabled:
+            request_headers['X-GOA-Options'] = 'rc4'
+            payload = rc4crypt(payload, password)
+        request_headers['Content-Length'] = str(len(payload))
     ssl_sock = create_ssl_connection()
     ssl_sock.counter = stat.opened(ssl_sock, proxy, host=client.host, ip=client.dst_ip)
     LOGGER.info('[%s] urlfetch %s %s via %s %0.2f'
@@ -460,24 +486,32 @@ def gae_urlfetch(client, proxy, method, url, headers, payload, **kwargs):
     client.add_resource(ssl_sock)
     client.add_resource(ssl_sock.counter)
     client.add_resource(ssl_sock.sock)
-    response = http_call(ssl_sock, 'POST', proxy.fetch_server, {'Content-Length': str(len(payload))}, payload)
+    response = http_call(ssl_sock, request_method, proxy.fetch_server, request_headers, payload)
     client.add_resource(response.rfile)
     client.add_resource(response.counted_sock)
     response.app_status = response.status
+    response.app_options = response.getheader('X-GOA-Options', '')
     if response.status != 200:
         return response
     data = response.read(4)
     if len(data) < 4:
         response.status = 502
         response.fp = io.BytesIO(b'connection aborted. too short leadtype data=' + data)
+        response.read = response.fp.read
         return response
     response.status, headers_length = struct.unpack('!hh', data)
     data = response.read(headers_length)
     if len(data) < headers_length:
         response.status = 502
         response.fp = io.BytesIO(b'connection aborted. too short headers data=' + data)
+        response.read = response.fp.read
         return response
-    response.headers = response.msg = http.client.parse_headers(io.BytesIO(zlib.decompress(data, -zlib.MAX_WBITS)))
+    if 'rc4' not in response.app_options:
+        response.msg = httplib.HTTPMessage(io.BytesIO(zlib.decompress(data, -zlib.MAX_WBITS)))
+    else:
+        response.msg = httplib.HTTPMessage(io.BytesIO(zlib.decompress(rc4crypt(data, password), -zlib.MAX_WBITS)))
+        if password and response.fp:
+            response.fp = RC4FileObject(response.fp, password)
     return response
 
 
@@ -602,7 +636,7 @@ class RangeFetch(object):
                                    response.app_status)
                     response.close()
                     range_queue.put((start, end, None))
-                    if proxy:
+                    if proxy and response.app_status not in (500, 403): # server busy or appid banned the host
                         LOGGER.error('%s died due to app status not 200' % proxy)
                         proxy.died = True
                     continue
@@ -649,3 +683,20 @@ class RangeFetch(object):
             except Exception as e:
                 LOGGER.exception('RangeFetch._fetchlet error:%s', e)
                 raise
+
+
+
+def rc4crypt(data, key):
+    return _Crypto_Cipher_ARC4_new(key).encrypt(data) if key else data
+
+
+class RC4FileObject(object):
+    """fileobj for rc4"""
+    def __init__(self, stream, key):
+        self.__stream = stream
+        self.__cipher = _Crypto_Cipher_ARC4_new(key) if key else lambda x:x
+    def __getattr__(self, attr):
+        if attr not in ('__stream', '__cipher'):
+            return getattr(self.__stream, attr)
+    def read(self, size=-1):
+        return self.__cipher.encrypt(self.__stream.read(size))

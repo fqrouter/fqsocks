@@ -673,6 +673,17 @@
                                 <input name="connections_count" type="text" class="form-control" value="4">
                             </div>
                         </div>
+                        <div class="form-group">
+                            <div class="input-group hide" data-for-type="GoAgent">
+                                <span class="input-group-addon">{{ _('Options', '附加选项') }}</span>
+                                <select name="goagent_options"  class="form-control">
+                                    <option value="">{{ _('Not Encrypted', '不加密') }}</option>
+                                    <option value="rc4">rc4</option>
+                                    <option value="obfuscate">obfuscate</option>
+                                    <option value="rc4_obfuscate">rc4 & obfuscate</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>

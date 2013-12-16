@@ -560,9 +560,22 @@ def init_proxies(config):
                 for appid in private_server['appid'].split('|'):
                     if not appid.strip():
                         continue
+                    is_rc4_enabled = False
+                    is_obfuscate_enabled = False
+                    if 'rc4_obfuscate' == private_server.get('goagent_options'):
+                        is_rc4_enabled = True
+                        is_obfuscate_enabled = True
+                    elif 'rc4' == private_server.get('goagent_options'):
+                        is_rc4_enabled = True
+                        is_obfuscate_enabled = False
+                    elif 'obfuscate' == private_server.get('goagent_options'):
+                        is_rc4_enabled = False
+                        is_obfuscate_enabled = True
                     proxy = GoAgentProxy(
                         appid.strip(), private_server.get('path'),
-                        private_server.get('goagent_password'))
+                        private_server.get('goagent_password'),
+                        is_rc4_enabled=is_rc4_enabled,
+                        is_obfuscate_enabled=is_obfuscate_enabled)
                     proxy.proxy_id = proxy_id
                     proxies.append(proxy)
             elif 'SSH' == proxy_type:

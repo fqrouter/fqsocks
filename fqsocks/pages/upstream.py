@@ -268,6 +268,7 @@ def to_private_server(environ):
         return {
             'appid': appid,
             'path': args.get('path') or '/2',
+            'goagent_options': args.get('goagent_options'),
             'goagent_password': args.get('goagent_password')
         }
     elif 'SSH' == proxy_type:
