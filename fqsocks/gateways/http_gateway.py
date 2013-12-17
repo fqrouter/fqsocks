@@ -12,6 +12,7 @@ from .proxy_client import ProxyClient
 from .proxy_client import handle_client
 from ..proxies.http_try import recv_till_double_newline
 from ..proxies.http_try import parse_request
+from ..proxies.http_try import is_no_direct_host
 from .. import config_file
 from .. import httpd
 from .. import lan_ip
@@ -80,6 +81,7 @@ Proxy-Authenticate: Basic realm="fqrouter"
             return
         downstream_sock.sendall('HTTP/1.1 200 OK\r\n\r\n')
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
+        client.us_ip_only = is_no_direct_host(dst_host)
         handle_client(client)
     else:
         dst_host = urlparse.urlparse(path)[1]
@@ -94,6 +96,7 @@ Proxy-Authenticate: Basic realm="fqrouter"
         if lan_ip.is_lan_ip(dst_ip):
             return
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
+        client.us_ip_only = is_no_direct_host(dst_host)
         request_lines = ['%s %s HTTP/1.1\r\n' % (method, path[path.find(dst_host) + len(dst_host):])]
         headers.pop('Proxy-Connection', None)
         headers['Host'] = dst_host

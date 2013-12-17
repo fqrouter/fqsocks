@@ -29,6 +29,8 @@ NO_DIRECT_PROXY_HOSTS = {
     '*.radiotime.com'
     'myfreecams.com',
     '*.myfreecams.com'
+    'pandora.com',
+    '*.pandora.com'
 }
 
 WHITE_LIST = {

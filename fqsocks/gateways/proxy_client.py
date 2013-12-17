@@ -444,9 +444,7 @@ def pick_https_try_proxy(client):
 
 
 def pick_proxy_supports(client):
-    supported_proxies = [proxy for proxy in proxies if
-                         proxy.is_protocol_supported(client.protocol, client)
-                         and not proxy.died and not client.has_tried(proxy)]
+    supported_proxies = [proxy for proxy in proxies if should_pick(proxy, client)]
     if not supported_proxies:
         return None
     prioritized_proxies = {}
@@ -457,6 +455,18 @@ def pick_proxy_supports(client):
     if picked_proxy.latency == 0:
         return random.choice(prioritized_proxies[highest_priority])
     return picked_proxy
+
+
+def should_pick(proxy, client):
+    if proxy.died:
+        return False
+    if client.has_tried(proxy):
+        return False
+    if not proxy.is_protocol_supported(client.protocol, client):
+        return False
+    if not china_shortcut_enabled and isinstance(proxy, DynamicProxy):
+        return False
+    return True
 
 
 def fix_by_refreshing_proxies():
@@ -496,58 +506,6 @@ def refresh_proxies():
             pass
     LOGGER.info('%s, refreshed proxies: %s' % (success, proxies))
     return success
-
-
-def check_access_many_times(url, times):
-    success = 0
-    for i in range(times):
-        greenlet = gevent.spawn(check_access, url)
-        try:
-            if greenlet.get(timeout=10):
-                success += 1
-                LOGGER.info('checking access %s: passed' % url)
-        except:
-            LOGGER.error('checking access %s: failed' % url)
-        finally:
-            greenlet.kill(block=False)
-    LOGGER.fatal('checked access %s: %s/%s' % (url, success, times))
-    return success
-
-
-def check_access(url):
-    try:
-        scheme, netloc, path, _, _, _ = urlparse.urlparse(url)
-        ips = networking.resolve_ips(netloc)
-        LOGGER.info('resolved %s => %s' % (netloc, ips))
-        if not ips:
-            return False
-        sock = socket.socket()
-        sock.settimeout(5)
-        try:
-            if 'https' == scheme:
-                sock = ssl.wrap_socket(sock)
-                sock.connect((ips[0], 443))
-            else:
-                sock.connect((ips[0], 80))
-            LOGGER.info('connected to %s via %s' % (netloc, ips[0]))
-            request = 'GET %s HTTP/1.1\r\n' \
-                      'Host: %s\r\n' \
-                      'User-Agent: Mozilla/4.0 (compatible; MSIE 6.0;\r\n\r\n' % (path or '/', netloc)
-            LOGGER.info('sent request')
-            sock.sendall(request)
-            response = sock.recv(8192)
-            if 'HTTP' not in response:
-                raise Exception('invalid response')
-            LOGGER.info('received response')
-        finally:
-            sock.close()
-        return True
-    except:
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('check access %s failed' % url, exc_info=1)
-        else:
-            LOGGER.info('check access %s failed: %s' % (url, sys.exc_info()[1]))
-        return False
 
 
 def init_proxies(config):
@@ -650,13 +608,6 @@ def init_proxies(config):
                 if hasattr(proxy, 'proxy_ip'):
                     us_ip.is_us_ip(proxy.proxy_ip)
             us_ip.save_cache(us_ip_cache_file)
-            # if config['access_check_enabled']:
-            #     LOGGER.info('check access in 10 seconds')
-            #     gevent.sleep(10)
-            #     check_access_many_times('https://twitter.com', 5)
-            #     check_access_many_times('https://plus.google.com', 3)
-            #     check_access_many_times('http://www.youtube.com', 3)
-            #     check_access_many_times('http://www.facebook.com', 3)
         else:
             LOGGER.critical('proxies init failed')
     except:
