@@ -37,7 +37,8 @@ def home_page(environ, start_response):
         default_interface_ip=networking.get_default_interface_ip(),
         http_gateway=http_gateway,
         httpd=httpd,
-        spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None)
+        spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None,
+        now=time.time())
     html = template.render(**args).encode('utf8')
     return [html]
 
