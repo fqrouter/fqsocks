@@ -6,6 +6,7 @@ import time
 import ssl
 
 from .direct import Proxy
+from .direct import to_bool
 from .http_try import try_receive_response_header
 from .http_try import try_receive_response_body
 from .http_try import recv_and_parse_request
@@ -15,20 +16,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class HttpRelayProxy(Proxy):
-    def __init__(self, proxy_host, proxy_port, username=None, password=None,
-                 is_public=False, is_secured=False, priority=0):
+    def __init__(self, proxy_host, proxy_port, username=None, password=None, is_secured=False, priority=0, **ignore):
         super(HttpRelayProxy, self).__init__()
         self.proxy_host = proxy_host
         if not self.proxy_host:
             self.died = True
-        self.proxy_port = proxy_port
+        self.proxy_port = int(proxy_port)
         self.username = username
         self.password = password
         self.failed_times = 0
-        self.is_secured = is_secured
-        self.priority = priority
-        if is_public:
-            self.flags.add('PUBLIC')
+        self.is_secured = to_bool(is_secured)
+        self.priority = int(priority)
 
     def do_forward(self, client):
         LOGGER.info('[%s] http relay %s:%s' % (repr(client), self.proxy_ip, self.proxy_port))

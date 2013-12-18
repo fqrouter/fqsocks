@@ -5,6 +5,7 @@ import shutil
 import logging
 
 LOGGER = logging.getLogger(__name__)
+DEFAULT_PUBLIC_SERVERS_SOURCE = 'proxies.dyn.fqrouter.com'
 
 def DEFAULT_CONFIG():
     return {
@@ -45,7 +46,7 @@ def DEFAULT_CONFIG():
             'password': ''
         },
         'public_servers': {
-            'source': 'proxies.fqrouter.com',
+            'source': DEFAULT_PUBLIC_SERVERS_SOURCE,
             'goagent_enabled': True,
             'ss_enabled': True
         },
@@ -123,6 +124,8 @@ def _read_config():
 
 
 def migrate_config(config):
+    if 'proxies.fqrouter.com' == config['public_servers']['source']:
+        config['public_servers']['source'] = DEFAULT_PUBLIC_SERVERS_SOURCE
     if not config['config_file']:
         return
     config_dir = os.path.dirname(config['config_file'])

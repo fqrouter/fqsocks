@@ -23,6 +23,7 @@ import gevent.queue
 
 from .. import networking
 from .. import stat
+from .direct import to_bool
 from .direct import Proxy
 from .http_try import recv_and_parse_request, NotHttp
 from .http_try import CapturingSock
@@ -112,16 +113,15 @@ class GoAgentProxy(Proxy):
     GOOGLE_IPS = []
     proxies = []
 
-    def __init__(self, appid, path='/2', password='', is_rc4_enabled=False, is_obfuscate_enabled=False):
+    def __init__(self, appid, path='/2', password='', is_rc4_enabled=False, is_obfuscate_enabled=False, **ignore):
         super(GoAgentProxy, self).__init__()
         assert appid
         self.appid = appid
         self.path = path or '/2'
         self.password = password
-        self.is_rc4_enabled = is_rc4_enabled
-        self.is_obfuscate_enabled = is_obfuscate_enabled
+        self.is_rc4_enabled = to_bool(is_rc4_enabled)
+        self.is_obfuscate_enabled = to_bool(is_obfuscate_enabled)
         self.version = 'UNKNOWN'
-        self.flags.add('PUBLIC')
 
     @property
     def fetch_server(self):

@@ -25,6 +25,7 @@ from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
 from ..proxies.goagent import GoAgentProxy
 from ..proxies.dynamic import DynamicProxy
+from ..proxies.dynamic import proxy_types
 from ..proxies.shadowsocks import ShadowSocksProxy
 from ..proxies.ssh import SshProxy
 from .. import us_ip
@@ -39,25 +40,6 @@ import os.path
 TLS1_1_VERSION = 0x0302
 RE_HTTP_HOST = re.compile('Host: (.+)')
 LOGGER = logging.getLogger(__name__)
-
-proxy_types = {
-    'http-relay': HttpRelayProxy,
-    'http-connect': HttpConnectProxy,
-    'goagent': GoAgentProxy,
-    'dynamic': DynamicProxy,
-    'ss': ShadowSocksProxy,
-    'ssh': SshProxy
-}
-try:
-    from ..proxies.spdy_relay import SpdyRelayProxy
-    proxy_types['spdy-relay'] = SpdyRelayProxy
-except:
-    pass
-try:
-    from ..proxies.spdy_connect import SpdyConnectProxy
-    proxy_types['spdy-connect'] = SpdyConnectProxy
-except:
-    pass
 
 proxies = []
 dns_polluted_at = 0
@@ -629,7 +611,7 @@ def load_public_proxies(public_servers):
                 priority, proxy_type, count, partial_dns_record = an.text[0].split(':')[:4]
                 count = int(count)
                 priority = int(priority)
-                if public_servers.get('%s_enabled' % proxy_type) and proxy_type in proxy_types:
+                if public_servers.get('%s_enabled' % proxy_type, True) and proxy_type in proxy_types:
                     for i in range(count):
                         dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i + 1))
                         more_proxies.append(DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority))

@@ -4,6 +4,10 @@ from .. import ip_substitution
 
 LOGGER = logging.getLogger(__name__)
 
+def to_bool(s):
+    if isinstance(s, bool):
+        return s
+    return 'True' == s
 
 class Proxy(object):
     def __init__(self):

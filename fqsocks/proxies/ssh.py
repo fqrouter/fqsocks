@@ -18,7 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class SshProxy(Proxy):
-    def __init__(self, proxy_host, proxy_port=22, username=None, password=None, key_filename=None, priority=0):
+    def __init__(self, proxy_host, proxy_port=22, username=None, password=None, key_filename=None, priority=0, **ignore):
         super(SshProxy, self).__init__()
         self.proxy_host = proxy_host
         if not self.proxy_host:

@@ -1420,7 +1420,8 @@
                     onUpdateUpnpPasswordProtectedChanged();
                     $('#upnp-dialog').modal('show');
                 } else {
-                    bootbox.alert('{{ _("Sorry, network environment does not support UPNP", "很抱歉，你的网络环境不支持外网访问") }}');
+                    bootbox.alert('{{ _("Sorry, network environment does not support UPNP", ' +
+                            '"很抱歉，你的网络环境不支持外网访问，需要在无线路由器上打开UPNP才可以，如果不知道什么是UPNP就别折腾了。") }}');
                 }
             });
         });

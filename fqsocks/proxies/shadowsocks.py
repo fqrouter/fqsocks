@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ShadowSocksProxy(Proxy):
-    def __init__(self, proxy_host, proxy_port, password, encrypt_method):
+    def __init__(self, proxy_host, proxy_port, password, encrypt_method, supported_protocol=None, **ignore):
         super(ShadowSocksProxy, self).__init__()
         self.proxy_host = proxy_host
         if not self.proxy_host:
@@ -20,6 +20,7 @@ class ShadowSocksProxy(Proxy):
         self.proxy_port = int(proxy_port)
         self.password = password
         self.encrypt_method = encrypt_method
+        self.supported_protocol = supported_protocol
 
     def do_forward(self, client):
         encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
@@ -48,10 +49,9 @@ class ShadowSocksProxy(Proxy):
         self.record_latency(time.time() - begin_at)
 
     def is_protocol_supported(self, protocol, client=None):
-        if hasattr(self, 'resolved_by_dynamic_proxy'):
-            return 'HTTPS' == protocol
-        else:
+        if not self.supported_protocol:
             return True
+        return self.supported_protocol == protocol
 
     def __repr__(self):
         return 'ShadowSocksProxy[%s:%s %0.2f]' % (self.proxy_host, self.proxy_port, self.latency)

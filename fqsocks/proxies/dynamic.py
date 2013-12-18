@@ -11,6 +11,8 @@ from .direct import Proxy
 from .http_connect import HttpConnectProxy
 from .goagent import GoAgentProxy
 from .shadowsocks import ShadowSocksProxy
+from .http_relay import HttpRelayProxy
+from .ssh import SshProxy
 from .. import networking
 
 
@@ -140,6 +142,24 @@ class DynamicProxy(Proxy):
         else:
             return None # ignore
 
+proxy_types = {
+    'http-relay': HttpRelayProxy,
+    'http-connect': HttpConnectProxy,
+    'goagent': GoAgentProxy,
+    'dynamic': DynamicProxy,
+    'ss': ShadowSocksProxy,
+    'ssh': SshProxy
+}
+try:
+    from .spdy_relay import SpdyRelayProxy
+    proxy_types['spdy-relay'] = SpdyRelayProxy
+except:
+    pass
+try:
+    from .spdy_connect import SpdyConnectProxy
+    proxy_types['spdy-connect'] = SpdyConnectProxy
+except:
+    pass
 
 def resolve_proxy(proxy):
     for i in range(3):
@@ -151,22 +171,22 @@ def resolve_proxy(proxy):
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
                 sock.sendto(str(request), ('8.8.8.8', 53))
                 gevent.sleep(0.1)
-                connection_info = dpkt.dns.DNS(sock.recv(1024)).an[0].text[0]
-                if not connection_info:
+                dyn_props = dpkt.dns.DNS(sock.recv(1024)).an
+                if not dyn_props:
                     LOGGER.info('resolved empty proxy: %s' % repr(proxy))
                     return False
-                if 'goagent' == proxy.type:
-                    proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
-                    proxy.delegated_to.resolved_by_dynamic_proxy = proxy
-                elif 'ss' == proxy.type:
-                    ip, port, password, encrypt_method = connection_info.split(':')
-                    proxy.delegated_to = ShadowSocksProxy(ip, port, password, encrypt_method)
-                    proxy.delegated_to.resolved_by_dynamic_proxy = proxy
+                if len(dyn_props) == 1:
+                    connection_info = dyn_props[0].text[0]
+                    if connection_info:
+                        if '=' in connection_info:
+                            update_new_style_proxy(proxy, [connection_info])
+                        else:
+                            update_old_style_proxy(proxy, connection_info)
+                    else:
+                        LOGGER.info('resolved empty proxy: %s' % repr(proxy))
+                        return False
                 else:
-                    proxy_type, ip, port, username, password = connection_info.split(':')
-                    assert 'http-connect' == proxy_type # only support one type currently
-                    proxy.delegated_to = HttpConnectProxy(ip, port, username, password, **proxy.kwargs)
-                    proxy.delegated_to.resolved_by_dynamic_proxy = proxy
+                    update_new_style_proxy(proxy, [dyn_prop.text[0] for dyn_prop in dyn_props])
                 LOGGER.info('resolved proxy: %s' % repr(proxy))
                 return True
         except:
@@ -177,4 +197,33 @@ def resolve_proxy(proxy):
         gevent.sleep(1)
     LOGGER.error('give up resolving proxy: %s' % repr(proxy))
     return False
+
+def update_new_style_proxy(proxy, dyn_props):
+    dyn_prop_dict = {}
+    for dyn_prop in dyn_props:
+        key, _, value = dyn_prop.partition('=')
+        if not key:
+            continue
+        dyn_prop_dict[key] = value
+    proxy_cls = proxy_types.get(proxy.type)
+    if proxy_cls:
+        proxy.delegated_to = proxy_cls(**dyn_prop_dict)
+        proxy.delegated_to.resolved_by_dynamic_proxy = proxy
+    else:
+        pass # ignore
+
+
+def update_old_style_proxy(proxy, connection_info):
+    if 'goagent' == proxy.type:
+        proxy.delegated_to = GoAgentProxy(connection_info, **proxy.kwargs)
+        proxy.delegated_to.resolved_by_dynamic_proxy = proxy
+    elif 'ss' == proxy.type:
+        ip, port, password, encrypt_method = connection_info.split(':')
+        proxy.delegated_to = ShadowSocksProxy(ip, port, password, encrypt_method, supported_protocol='HTTPS')
+        proxy.delegated_to.resolved_by_dynamic_proxy = proxy
+    else:
+        proxy_type, ip, port, username, password = connection_info.split(':')
+        assert 'http-connect' == proxy_type # only support one type currently
+        proxy.delegated_to = HttpConnectProxy(ip, port, username, password, **proxy.kwargs)
+        proxy.delegated_to.resolved_by_dynamic_proxy = proxy
 
