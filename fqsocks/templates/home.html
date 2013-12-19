@@ -823,6 +823,23 @@
                             每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
                             """) }}
                         </div>
+                        <div class="form-group">
+                            <label for="hosted-domain-switch">{{ _('Hosted Domain', '域名托管') }}</label>
+
+                            <div class="make-switch pull-right" data-on="success" data-off="default"
+                                 id="hosted-domain-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if hosted_domain_enabled else '' }}>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            {{ _(
+                            """
+                            try to resolve not blocked ip for twitter/facebook/google domain if possible.
+                            """,
+                            """
+                            如果可能尽量把twitter/facebook/google的域名解析到没有被墙的IP。
+                            """) }}
+                        </div>
                     </div>
                 </form>
             </div>
@@ -1144,6 +1161,14 @@
                 $.post('/direct-access/enable');
             } else {
                 $.post('/direct-access/disable');
+            }
+        });
+
+        $('#hosted-domain-switch').on('switch-change', function (e, data) {
+            if (data.value) {
+                $.post('/hosted-domain/enable');
+            } else {
+                $.post('/hosted-domain/disable');
             }
         });
 

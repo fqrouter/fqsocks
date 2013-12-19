@@ -13,8 +13,7 @@ from .. import config_file
 from ..gateways import http_gateway
 from . import downstream
 from .. import networking
-
-
+from . import upstream
 HOME_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'home.html')
 LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +37,8 @@ def home_page(environ, start_response):
         http_gateway=http_gateway,
         httpd=httpd,
         spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None,
-        now=time.time())
+        now=time.time(),
+        hosted_domain_enabled=upstream.DNS_HANDLER.enable_hosted_domain)
     html = template.render(**args).encode('utf8')
     return [html]
 

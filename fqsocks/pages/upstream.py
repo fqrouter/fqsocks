@@ -20,7 +20,7 @@ PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', '
 UPSTREAM_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'upstream.html')
 LOGGER = logging.getLogger(__name__)
 MAX_TIME_RANGE = 60 * 10
-
+DNS_HANDLER = None
 
 
 
@@ -165,6 +165,22 @@ def handle_enable_direct_access(environ, start_response):
 def handle_disable_direct_access(environ, start_response):
     proxy_client.direct_access_enabled = False
     config_file.update_config(direct_access_enabled=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'hosted-domain/enable')
+def handle_enable_hosted_domain(environ, start_response):
+    DNS_HANDLER.enable_hosted_domain = True
+    config_file.update_config(hosted_domain_enabled=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'hosted-domain/disable')
+def handle_disable_hosted_domain(environ, start_response):
+    DNS_HANDLER.enable_hosted_domain = False
+    config_file.update_config(hosted_domain_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
 

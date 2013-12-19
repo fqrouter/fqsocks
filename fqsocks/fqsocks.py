@@ -20,7 +20,7 @@ from .gateways import proxy_client
 from .gateways import tcp_gateway
 from .gateways import http_gateway
 from .pages import lan_device
-from .pages import home
+from .pages import upstream
 from . import config_file
 
 
@@ -29,6 +29,7 @@ LOGGER = logging.getLogger(__name__)
 
 dns_pollution_ignored = False
 DNS_HANDLER = fqdns.DnsHandler()
+upstream.DNS_HANDLER = DNS_HANDLER
 reset_force_us_ip_greenlet = None
 
 @httpd.http_handler('GET', 'dns-polluted-at')
@@ -138,6 +139,7 @@ def init_config(argv):
     proxy_client.google_scrambler_enabled = config['google_scrambler_enabled']
     proxy_client.goagent_public_servers_enabled = config['public_servers']['goagent_enabled']
     proxy_client.ss_public_servers_enabled = config['public_servers']['ss_enabled']
+    DNS_HANDLER.enable_hosted_domain = config['hosted_domain_enabled']
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
     httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
