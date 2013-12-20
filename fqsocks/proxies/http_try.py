@@ -127,7 +127,7 @@ class HttpTryProxy(Proxy):
             greenlet = gevent.spawn(
                 try_receive_response_body, http_response)
             try:
-                return greenlet.get(timeout=7)
+                return greenlet.get(timeout=5)
             except gevent.Timeout:
                 self.host_slow_list.add(client.host)
                 LOGGER.error('host %s is too slow to direct access' % client.host)
