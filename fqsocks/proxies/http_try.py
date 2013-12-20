@@ -7,6 +7,7 @@ import gzip
 import fnmatch
 import time
 import gevent
+import ssl
 
 from .direct import Proxy
 from .. import networking
@@ -88,7 +89,7 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
         # start trying
         try:
-            upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
+            upstream_sock = self.create_upstream_sock(client)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
@@ -126,7 +127,7 @@ class HttpTryProxy(Proxy):
             greenlet = gevent.spawn(
                 try_receive_response_body, http_response)
             try:
-                return greenlet.get(timeout=5)
+                return greenlet.get(timeout=7)
             except gevent.Timeout:
                 self.host_slow_list.add(client.host)
                 LOGGER.error('host %s is too slow to direct access' % client.host)
@@ -135,6 +136,9 @@ class HttpTryProxy(Proxy):
                 greenlet.kill()
         else:
             return try_receive_response_body(http_response)
+
+    def create_upstream_sock(self, client):
+        return client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         return ''
@@ -150,6 +154,19 @@ class HttpTryProxy(Proxy):
 
     def __repr__(self):
         return 'HttpTryProxy'
+
+
+class HttpsEnforcer(HttpTryProxy):
+    def create_upstream_sock(self, client):
+        if 80 == client.dst_port and is_blocked_google_host(client.host):
+            LOGGER.info('force https: %s' % client.url)
+            upstream_sock = client.create_tcp_socket(client.dst_ip, 443, 3)
+            old_counter = upstream_sock.counter
+            upstream_sock = ssl.wrap_socket(upstream_sock)
+            upstream_sock.counter = old_counter
+            return upstream_sock
+        else:
+            return super(HttpsEnforcer, self).create_upstream_sock(client)
 
 
 class GoogleScrambler(HttpTryProxy):
@@ -264,6 +281,7 @@ class TcpScrambler(HttpTryProxy):
 HTTP_TRY_PROXY = HttpTryProxy()
 GOOGLE_SCRAMBLER = GoogleScrambler()
 TCP_SCRAMBLER = TcpScrambler()
+HTTPS_ENFORCER = HttpsEnforcer()
 
 
 def fallback_if_youtube_unplayable(client, http_response):

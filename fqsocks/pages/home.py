@@ -29,6 +29,7 @@ def home_page(environ, start_response):
         domain_name=environ.get('HTTP_HOST') or '127.0.0.1:2515',
         tcp_scrambler_enabled=proxy_client.tcp_scrambler_enabled,
         google_scrambler_enabled=proxy_client.google_scrambler_enabled,
+        https_enforcer_enabled=proxy_client.https_enforcer_enabled,
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
         direct_access_enabled=proxy_client.direct_access_enabled,
         config=config_file.read_config(),

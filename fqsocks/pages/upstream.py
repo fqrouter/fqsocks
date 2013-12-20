@@ -137,6 +137,22 @@ def handle_disable_google_scrambler(environ, start_response):
     return []
 
 
+@httpd.http_handler('POST', 'https-enforcer/enable')
+def handle_enable_https_enforcer(environ, start_response):
+    proxy_client.https_enforcer_enabled = True
+    config_file.update_config(https_enforcer_enabled=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'https-enforcer/disable')
+def handle_disable_https_enforcer(environ, start_response):
+    proxy_client.https_enforcer_enabled = False
+    config_file.update_config(https_enforcer_enabled=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
 @httpd.http_handler('POST', 'china-shortcut/enable')
 def handle_enable_china_shortcut(environ, start_response):
     proxy_client.china_shortcut_enabled = True

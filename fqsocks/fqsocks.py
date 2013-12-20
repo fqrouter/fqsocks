@@ -137,6 +137,7 @@ def init_config(argv):
     proxy_client.direct_access_enabled = config['direct_access_enabled']
     proxy_client.tcp_scrambler_enabled = config['tcp_scrambler_enabled']
     proxy_client.google_scrambler_enabled = config['google_scrambler_enabled']
+    proxy_client.https_enforcer_enabled = config['https_enforcer_enabled']
     proxy_client.goagent_public_servers_enabled = config['public_servers']['goagent_enabled']
     proxy_client.ss_public_servers_enabled = config['public_servers']['ss_enabled']
     DNS_HANDLER.enable_hosted_domain = config['hosted_domain_enabled']

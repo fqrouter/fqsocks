@@ -14,6 +14,7 @@ def DEFAULT_CONFIG():
         'direct_access_enabled': True,
         'google_scrambler_enabled': True,
         'tcp_scrambler_enabled': True,
+        'https_enforcer_enabled': True,
         'access_check_enabled': True,
         'hosted_domain_enabled': True,
         'http_manager': {

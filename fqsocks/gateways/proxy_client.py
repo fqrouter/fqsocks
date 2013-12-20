@@ -20,6 +20,7 @@ from ..proxies.http_try import NotHttp
 from ..proxies.http_try import HTTP_TRY_PROXY
 from ..proxies.http_try import GOOGLE_SCRAMBLER
 from ..proxies.http_try import TCP_SCRAMBLER
+from ..proxies.http_try import HTTPS_ENFORCER
 from ..proxies.http_try import is_blocked_google_host
 from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
@@ -48,6 +49,7 @@ china_shortcut_enabled = True
 direct_access_enabled = True
 tcp_scrambler_enabled = True
 google_scrambler_enabled = True
+https_enforcer_enabled = True
 goagent_public_servers_enabled = True
 ss_public_servers_enabled = True
 last_refresh_started_at = -1
@@ -402,13 +404,27 @@ def pick_http_try_proxy(client):
         return None
     if tcp_scrambler_enabled and not TCP_SCRAMBLER.died:
         if TCP_SCRAMBLER in client.tried_proxies:
-            if google_scrambler_enabled and is_blocked_google_host(client.host):
-                # give google scrambler a try
-                return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
+            if is_blocked_google_host(client.host):
+                if https_enforcer_enabled:
+                    # give https scrambler a try
+                    return None if HTTPS_ENFORCER in client.tried_proxies else HTTPS_ENFORCER
+                elif google_scrambler_enabled:
+                    # give https scrambler a try
+                    return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
+                else:
+                    return None
             else:
                 return None
         else:
             return TCP_SCRAMBLER # first time try
+    elif https_enforcer_enabled:
+        if HTTPS_ENFORCER in client.tried_proxies:
+            if is_blocked_google_host(client.host) and google_scrambler_enabled:
+                return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
+            else:
+                return None
+        else:
+            return HTTPS_ENFORCER
     elif google_scrambler_enabled:
         return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
     else:

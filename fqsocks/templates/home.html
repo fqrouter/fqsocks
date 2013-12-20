@@ -788,6 +788,23 @@
                             """) }}
                         </div>
                         <div class="form-group">
+                            <label for="https-enforcer-switch">{{ _('Force HTTPS', '强制走HTTPS') }}</label>
+
+                            <div class="make-switch pull-right" data-on="success" data-off="default"
+                                 id="https-enforcer-switch">
+                                <input type="checkbox" {{ 'checked="checked"' if https_enforcer_enabled else '' }}>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            {{ _(
+                            """
+                            force google traffic via https, so that we can watch youtube without using a proxy.
+                            """,
+                            """
+                            强制google的流量走https，这样即便没有代理也可以看youtube。
+                            """) }}
+                        </div>
+                        <div class="form-group">
                             <label for="china-shortcut-switch">{{ _('China Shortcut', '直连中国的服务器') }}</label>
 
                             <div class="make-switch pull-right" data-on="success" data-off="default"
@@ -1145,6 +1162,14 @@
                 $.post('/google-scrambler/enable');
             } else {
                 $.post('/google-scrambler/disable');
+            }
+        });
+
+        $('#https-enforcer-switch').on('switch-change', function (e, data) {
+            if (data.value) {
+                $.post('/https-enforcer/enable');
+            } else {
+                $.post('/https-enforcer/disable');
             }
         });
 
