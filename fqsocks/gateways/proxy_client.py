@@ -353,13 +353,18 @@ def should_fix():
 
 
 def pick_proxy(client):
+    picks_public = None
+    if not direct_access_enabled:
+        picks_public = False
+    if not china_shortcut_enabled:
+        picks_public = False
     if client.protocol == 'HTTP':
-        return pick_http_try_proxy(client) or pick_proxy_supports(client)
+        return pick_http_try_proxy(client) or pick_proxy_supports(client, picks_public)
     elif client.protocol == 'HTTPS':
-        return pick_https_try_proxy(client) or pick_proxy_supports(client)
+        return pick_https_try_proxy(client) or pick_proxy_supports(client, picks_public)
     else:
-        if pick_proxy_supports(client):
-            return pick_https_try_proxy(client) or pick_proxy_supports(client)
+        if pick_proxy_supports(client, picks_public):
+            return pick_https_try_proxy(client) or pick_proxy_supports(client, picks_public)
         else:
             return DIRECT_PROXY
 
@@ -441,8 +446,8 @@ def pick_https_try_proxy(client):
     return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
 
 
-def pick_proxy_supports(client):
-    supported_proxies = [proxy for proxy in proxies if should_pick(proxy, client)]
+def pick_proxy_supports(client, picks_public=None):
+    supported_proxies = [proxy for proxy in proxies if should_pick(proxy, client, picks_public)]
     if not supported_proxies:
         return None
     prioritized_proxies = {}
@@ -455,7 +460,7 @@ def pick_proxy_supports(client):
     return picked_proxy
 
 
-def should_pick(proxy, client):
+def should_pick(proxy, client, picks_public):
     if proxy.died:
         return False
     if client.has_tried(proxy):
@@ -464,7 +469,12 @@ def should_pick(proxy, client):
         return False
     if not china_shortcut_enabled and isinstance(proxy, DynamicProxy):
         return False
-    return True
+    if picks_public is not None:
+        is_public = isinstance(proxy, DynamicProxy) or hasattr(proxy, 'resolved_by_dynamic_proxy')
+        LOGGER.info('%s %s' % (is_public, picks_public))
+        return is_public == picks_public
+    else:
+        return True
 
 
 def fix_by_refreshing_proxies():
