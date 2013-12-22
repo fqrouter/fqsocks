@@ -204,7 +204,13 @@ def update_new_style_proxy(proxy, dyn_props):
         key, _, value = dyn_prop.partition('=')
         if not key:
             continue
-        dyn_prop_dict[key] = value
+        if key in dyn_prop_dict:
+            if isinstance(dyn_prop_dict[key], list):
+                dyn_prop_dict[key].append(value)
+            else:
+                dyn_prop_dict[key] = [dyn_prop_dict[key], value]
+        else:
+            dyn_prop_dict[key] = value
     proxy_cls = proxy_types.get(proxy.type)
     if proxy_cls:
         proxy.delegated_to = proxy_cls(**dyn_prop_dict)

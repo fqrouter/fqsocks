@@ -101,11 +101,11 @@ SKIP_HEADERS = frozenset(['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization
 
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
+global_gray_list = set()
+global_black_list = set()
 
 class GoAgentProxy(Proxy):
     last_refresh_started_at = 0
-    gray_list = set()
-    black_list = set()
     google_ip_failed_times = {}
     google_ip_latency_records = {}
 
@@ -113,7 +113,8 @@ class GoAgentProxy(Proxy):
     GOOGLE_IPS = []
     proxies = []
 
-    def __init__(self, appid, path='/2', password='', is_rc4_enabled=False, is_obfuscate_enabled=False, **ignore):
+    def __init__(self, appid, path='/2', password='', is_rc4_enabled=False, is_obfuscate_enabled=False,
+                 whitelist_host=(), blacklist_host=(), group='default', **ignore):
         super(GoAgentProxy, self).__init__()
         assert appid
         self.appid = appid
@@ -122,6 +123,9 @@ class GoAgentProxy(Proxy):
         self.is_rc4_enabled = to_bool(is_rc4_enabled)
         self.is_obfuscate_enabled = to_bool(is_obfuscate_enabled)
         self.version = 'UNKNOWN'
+        self.whitelist_host = whitelist_host
+        self.blacklist_host = blacklist_host
+        self.group = group
 
     @property
     def fetch_server(self):
@@ -154,7 +158,7 @@ class GoAgentProxy(Proxy):
                 raise Exception('payload is too large')
             if client.method.upper() not in ('GET', 'POST', 'HEAD'):
                 raise Exception('unsupported method: %s' % client.method)
-            if client.host in GoAgentProxy.black_list or '.c.android.clients.google.com' in client.host:
+            if client.host in global_black_list or '.c.android.clients.google.com' in client.host:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:
             raise
@@ -165,9 +169,18 @@ class GoAgentProxy(Proxy):
             client.fall_back(reason='failed to recv and parse request, %s' % sys.exc_info()[1])
         forward(client, self)
 
-    @classmethod
-    def is_protocol_supported(cls, protocol, client=None):
-        return 'HTTP' == protocol
+    def is_protocol_supported(self, protocol, client=None):
+        if 'HTTP' != protocol:
+            return False
+        if self.whitelist_host:
+            for whitelist_host in self.whitelist_host:
+                if whitelist_host in client.host:
+                    return True
+        if self.blacklist_host:
+            for blacklist_host in self.blacklist_host:
+                if blacklist_host in client.host:
+                    return False
+        return True
 
     @classmethod
     def refresh(cls, proxies):
@@ -216,7 +229,7 @@ def forward(client, proxy):
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
         AUTORANGE_ENDSWITH)) and not client.url.endswith(
         AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
-    if client.host in GoAgentProxy.gray_list:
+    if client.host in global_gray_list:
         special_range = True
     range_end = 0
     auto_ranged = False
@@ -247,10 +260,10 @@ def forward(client, proxy):
             client.fall_back('can not connect to google ip')
         except ReadResponseFailed:
             if 'youtube.com' not in client.host and 'googlevideo.com' not in client.host:
-                GoAgentProxy.gray_list.add(client.host)
+                global_gray_list.add(client.host)
                 if auto_ranged:
                     LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
-                    GoAgentProxy.black_list.add(client.host)
+                    global_black_list.add(client.host)
                     if client.host in HttpTryProxy.host_slow_list:
                         HttpTryProxy.host_slow_list.remove(client.host)
             for proxy in GoAgentProxy.proxies:

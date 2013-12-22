@@ -46,7 +46,6 @@ LOGGER = logging.getLogger(__name__)
 
 proxies = []
 dns_polluted_at = 0
-auto_fix_enabled = True
 china_shortcut_enabled = True
 direct_access_enabled = True
 tcp_scrambler_enabled = True
@@ -56,6 +55,8 @@ https_enforcer_enabled = True
 goagent_public_servers_enabled = True
 ss_public_servers_enabled = True
 last_refresh_started_at = -1
+refresh_timestamps = []
+goagent_group_exhausted = False
 force_us_ip = False
 
 
@@ -236,6 +237,8 @@ ProxyClient.ProxyFallBack = ProxyFallBack
 
 
 def handle_client(client):
+    if goagent_group_exhausted:
+        gevent.spawn(load_more_goagent_proxies)
     try:
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('[%s] downstream connected' % repr(client))
@@ -336,57 +339,41 @@ class NoMoreProxy(Exception):
     pass
 
 
-def should_fix():
-    if not goagent_public_servers_enabled:
-        http_proxies_died = False
-    else:
-        http_proxies_died = all(proxy.died for proxy in proxies if
-                                proxy.is_protocol_supported('HTTP'))
-    if not ss_public_servers_enabled:
-        https_proxies_died = False
-    else:
-        https_proxies_died = all(proxy.died for proxy in proxies if
-                                 proxy.is_protocol_supported('HTTPS'))
-    if auto_fix_enabled and (http_proxies_died or https_proxies_died):
-        LOGGER.info('http %s https %s, refresh proxies: %s' %
-                    (http_proxies_died, https_proxies_died, proxies))
-        return True
-    else:
-        return False
-
-
 def on_proxy_died(proxy):
     if isinstance(proxy, DynamicProxy):
         proxy = proxy.delegated_to
     if isinstance(proxy, GoAgentProxy):
         gevent.spawn(load_more_goagent_proxies)
     else:
-        if should_fix():
-            gevent.spawn(fix_by_refreshing_proxies)
+        gevent.spawn(refresh_proxies)
 direct.on_proxy_died = on_proxy_died
 
 
 def load_more_goagent_proxies():
+    global goagent_group_exhausted
     global last_refresh_started_at
-    appids = set()
+    if time.time() - last_refresh_started_at < get_refresh_interval():
+        LOGGER.error('skip load more goagent proxies after last attempt %s seconds' % (time.time() - last_refresh_started_at))
+        return
+    last_refresh_started_at = time.time()
+    goagent_groups = {}
     for proxy in proxies:
         if isinstance(proxy, DynamicProxy) and isinstance(proxy.delegated_to, GoAgentProxy):
-            if proxy.died:
-                proxies.remove(proxy)
-            else:
-                appids.add(proxy.delegated_to.appid)
-    LOGGER.critical('current appids count: %s' % len(appids))
-    if len(appids) < 30:
-        if time.time() - last_refresh_started_at < 60:
-            LOGGER.error('skip load more goagent proxies after last attempt %s seconds' % (time.time() - last_refresh_started_at))
+            goagent_groups.setdefault(proxy.delegated_to.group, set()).add(proxy.delegated_to.appid)
+    if goagent_group_exhausted:
+        goagent_groups.setdefault(goagent_group_exhausted, set())
+    for group, appids in goagent_groups.items():
+        LOGGER.critical('current %s appids count: %s' % (group, len(appids)))
+        if len(appids) < 3:
+            goagent_group_exhausted = group
+            config = config_file.read_config()
+            load_public_proxies({
+                'source': config['public_servers']['source'],
+                'goagent_enabled': True
+            })
+            refresh_proxies(force=True)
             return
-        last_refresh_started_at = time.time()
-        config = config_file.read_config()
-        load_public_proxies({
-            'source': config['public_servers']['source'],
-            'goagent_enabled': True
-        })
-        refresh_proxies(force=True)
+    goagent_group_exhausted = False
 
 
 def pick_proxy(client):
@@ -490,6 +477,8 @@ def pick_https_try_proxy(client):
 def pick_proxy_supports(client, picks_public=None):
     supported_proxies = [proxy for proxy in proxies if should_pick(proxy, client, picks_public)]
     if not supported_proxies:
+        if False is not picks_public and (goagent_public_servers_enabled or ss_public_servers_enabled):
+            gevent.spawn(refresh_proxies)
         return None
     prioritized_proxies = {}
     for proxy in supported_proxies:
@@ -517,14 +506,6 @@ def should_pick(proxy, client, picks_public):
         return True
 
 
-def fix_by_refreshing_proxies():
-    global auto_fix_enabled
-    if refresh_proxies():
-        if should_fix():
-            LOGGER.critical('!!! auto fix does not work, disable it !!!')
-            auto_fix_enabled = False
-
-
 def refresh_proxies(force=False):
     global proxies
     global last_refresh_started_at
@@ -532,10 +513,11 @@ def refresh_proxies(force=False):
         if last_refresh_started_at == -1: # wait for proxy directories to load
             LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
             return False
-        if time.time() - last_refresh_started_at < 60:
+        if time.time() - last_refresh_started_at < get_refresh_interval():
             LOGGER.error('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
             return False
     last_refresh_started_at = time.time()
+    refresh_timestamps.append(time.time())
     LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
     type_to_proxies = {}
@@ -555,6 +537,17 @@ def refresh_proxies(force=False):
             pass
     LOGGER.info('%s, refreshed proxies: %s' % (success, proxies))
     return success
+
+
+def get_refresh_interval():
+    if not refresh_timestamps:
+        return 60
+    while refresh_timestamps:
+        if refresh_timestamps[0] < (time.time() - 10 * 60):
+            refresh_timestamps.remove(refresh_timestamps[0])
+        else:
+            break
+    return len(refresh_timestamps) * 30 + 60
 
 
 def init_proxies(config):
