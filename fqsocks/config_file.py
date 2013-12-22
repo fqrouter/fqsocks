@@ -17,6 +17,7 @@ def DEFAULT_CONFIG():
         'https_enforcer_enabled': True,
         'access_check_enabled': True,
         'hosted_domain_enabled': True,
+        'prefers_private_proxy': False,
         'http_manager': {
             'enabled': True,
             'ip': '',

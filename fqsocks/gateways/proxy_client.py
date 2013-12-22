@@ -49,6 +49,7 @@ china_shortcut_enabled = True
 direct_access_enabled = True
 tcp_scrambler_enabled = True
 google_scrambler_enabled = True
+prefers_private_proxy = False
 https_enforcer_enabled = True
 goagent_public_servers_enabled = True
 ss_public_servers_enabled = True
@@ -268,7 +269,7 @@ def pick_proxy_and_forward(client):
         dns_polluted_at = time.time()
         NONE_PROXY.forward(client)
         return
-    if china_shortcut_enabled and china_ip.is_china_ip(client.dst_ip):
+    if china_shortcut_enabled and is_china_dst(client):
         try:
             DIRECT_PROXY.forward(client)
         except ProxyFallBack:
@@ -277,12 +278,6 @@ def pick_proxy_and_forward(client):
     if should_fix():
         gevent.spawn(fix_by_refreshing_proxies)
     peek_data(client)
-    if china_shortcut_enabled and client.host and fqdns.is_china_domain(client.host):
-        try:
-            DIRECT_PROXY.forward(client)
-        except ProxyFallBack:
-            pass
-        return
     for i in range(3):
         proxy = pick_proxy(client)
         if not proxy:
@@ -304,6 +299,14 @@ def pick_proxy_and_forward(client):
             except client.ProxyFallBack:
                 return # give up
     raise NoMoreProxy()
+
+
+def is_china_dst(client):
+    if china_ip.is_china_ip(client.dst_ip):
+        return True
+    if client.host and fqdns.is_china_domain(client.host):
+        return True
+    return False
 
 
 def peek_data(client):
@@ -359,14 +362,18 @@ def pick_proxy(client):
     if not china_shortcut_enabled:
         picks_public = False
     if client.protocol == 'HTTP':
-        return pick_http_try_proxy(client) or pick_proxy_supports(client, picks_public)
+        return pick_preferred_private_proxy(client) or pick_http_try_proxy(client) or pick_proxy_supports(client, picks_public)
     elif client.protocol == 'HTTPS':
-        return pick_https_try_proxy(client) or pick_proxy_supports(client, picks_public)
+        return pick_preferred_private_proxy(client) or pick_https_try_proxy(client) or pick_proxy_supports(client, picks_public)
     else:
-        if pick_proxy_supports(client, picks_public):
-            return pick_https_try_proxy(client) or pick_proxy_supports(client, picks_public)
-        else:
-            return DIRECT_PROXY
+        return pick_preferred_private_proxy(client) or pick_https_try_proxy(client)
+
+
+def pick_preferred_private_proxy(client):
+    if prefers_private_proxy:
+        return pick_proxy_supports(client, picks_public=False)
+    else:
+        return None
 
 
 def analyze_protocol(peeked_data):
@@ -471,7 +478,6 @@ def should_pick(proxy, client, picks_public):
         return False
     if picks_public is not None:
         is_public = isinstance(proxy, DynamicProxy) or hasattr(proxy, 'resolved_by_dynamic_proxy')
-        LOGGER.info('%s %s' % (is_public, picks_public))
         return is_public == picks_public
     else:
         return True

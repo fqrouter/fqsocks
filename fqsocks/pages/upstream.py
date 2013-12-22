@@ -201,6 +201,22 @@ def handle_disable_hosted_domain(environ, start_response):
     return []
 
 
+@httpd.http_handler('POST', 'prefers-private-proxy/enable')
+def handle_enable_prefers_private_proxy(environ, start_response):
+    proxy_client.prefers_private_proxy = True
+    config_file.update_config(prefers_private_proxy=True)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
+@httpd.http_handler('POST', 'prefers-private-proxy/disable')
+def handle_disable_prefers_private_proxy(environ, start_response):
+    proxy_client.prefers_private_proxy = False
+    config_file.update_config(prefers_private_proxy=False)
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return []
+
+
 @httpd.http_handler('POST', 'goagent-public-servers/enable')
 def handle_enable_goagent_public_servers(environ, start_response):
     def apply(config):

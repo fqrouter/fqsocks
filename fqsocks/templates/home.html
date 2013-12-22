@@ -741,6 +741,18 @@
                     <div class="form-group">
                         {{ _('shadowsocks servers shared by others', '由网友共享的代理帐号') }}
                     </div>
+                    <div class="form-group">
+                        <label for="prefers-private-proxy-switch">{{ _('Prefers Private Proxy', '优先使用个人代理') }}</label>
+                        <div class="make-switch pull-right" data-on="success" data-off="default" id="prefers-private-proxy-switch">
+                            <input type="checkbox" {{ 'checked="checked"' if prefers_private_proxy else '' }}>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ _(
+                        'if enabled, private proxy will always be used for non-china websites.',
+                        '如果启用了，对于国外的网站总是会走个人代理。在个人代理线路质量好的情况下可以提高国外网站的访问速度。'
+                        ) }}
+                    </div>
                     <div class="form-group advanced-toggle">
                         <button type="button" class="btn btn-default pull-right">
                             {{ _('Advanced Settings', '高级设置') }}
@@ -819,7 +831,8 @@
                             slower!
                             """,
                             """
-                            如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！一旦禁用，公共代理也不再起作用，必须添加个人代理。
+                            如果服务器的IP是中国的，就不走代理。禁用此选项会使得网速慢很多！
+                            一旦禁用，公共代理也不再起作用，必须添加个人代理。
                             """) }}
                         </div>
                         <div class="form-group">
@@ -838,6 +851,7 @@
                             """,
                             """
                             每个连接先尝试直连，只在不得不走代理的时候才走代理。禁用此选项会使得网速慢很多！
+                            一旦禁用，公共代理也不再起作用，必须添加个人代理。
                             """) }}
                         </div>
                         <div class="form-group">
@@ -1146,6 +1160,14 @@
                 $.post('/ss-public-servers/enable');
             } else {
                 $.post('/ss-public-servers/disable');
+            }
+        });
+
+        $('#prefers-private-proxy-switch').on('switch-change', function (e, data) {
+            if (data.value) {
+                $.post('/prefers-private-proxy/enable');
+            } else {
+                $.post('/prefers-private-proxy/disable');
             }
         });
 
