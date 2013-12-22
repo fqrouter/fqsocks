@@ -24,6 +24,7 @@ from ..proxies.http_try import HTTPS_ENFORCER
 from ..proxies.http_try import is_blocked_google_host
 from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
+from ..proxies import direct
 from ..proxies.goagent import GoAgentProxy
 from ..proxies.dynamic import DynamicProxy
 from ..proxies.dynamic import proxy_types
@@ -36,6 +37,7 @@ from ..proxies.direct import DIRECT_PROXY
 from ..proxies.direct import HTTPS_TRY_PROXY
 from ..proxies.direct import NONE_PROXY
 from .. import ip_substitution
+from .. import config_file
 import os.path
 
 TLS1_1_VERSION = 0x0302
@@ -275,8 +277,6 @@ def pick_proxy_and_forward(client):
         except ProxyFallBack:
             pass
         return
-    if should_fix():
-        gevent.spawn(fix_by_refreshing_proxies)
     peek_data(client)
     for i in range(3):
         proxy = pick_proxy(client)
@@ -353,6 +353,40 @@ def should_fix():
         return True
     else:
         return False
+
+
+def on_proxy_died(proxy):
+    if isinstance(proxy, DynamicProxy):
+        proxy = proxy.delegated_to
+    if isinstance(proxy, GoAgentProxy):
+        gevent.spawn(load_more_goagent_proxies)
+    else:
+        if should_fix():
+            gevent.spawn(fix_by_refreshing_proxies)
+direct.on_proxy_died = on_proxy_died
+
+
+def load_more_goagent_proxies():
+    global last_refresh_started_at
+    appids = set()
+    for proxy in proxies:
+        if isinstance(proxy, DynamicProxy) and isinstance(proxy.delegated_to, GoAgentProxy):
+            if proxy.died:
+                proxies.remove(proxy)
+            else:
+                appids.add(proxy.delegated_to.appid)
+    LOGGER.critical('current appids count: %s' % len(appids))
+    if len(appids) < 30:
+        if time.time() - last_refresh_started_at < 60:
+            LOGGER.error('skip load more goagent proxies after last attempt %s seconds' % (time.time() - last_refresh_started_at))
+            return
+        last_refresh_started_at = time.time()
+        config = config_file.read_config()
+        load_public_proxies({
+            'source': config['public_servers']['source'],
+            'goagent_enabled': True
+        })
+        refresh_proxies(force=True)
 
 
 def pick_proxy(client):
@@ -477,7 +511,7 @@ def should_pick(proxy, client, picks_public):
     if not china_shortcut_enabled and isinstance(proxy, DynamicProxy):
         return False
     if picks_public is not None:
-        is_public = isinstance(proxy, DynamicProxy) or hasattr(proxy, 'resolved_by_dynamic_proxy')
+        is_public = isinstance(proxy, DynamicProxy)
         return is_public == picks_public
     else:
         return True
@@ -491,15 +525,16 @@ def fix_by_refreshing_proxies():
             auto_fix_enabled = False
 
 
-def refresh_proxies():
+def refresh_proxies(force=False):
     global proxies
     global last_refresh_started_at
-    if last_refresh_started_at == -1: # wait for proxy directories to load
-        LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
-        return False
-    if time.time() - last_refresh_started_at < 60:
-        LOGGER.error('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
-        return False
+    if not force:
+        if last_refresh_started_at == -1: # wait for proxy directories to load
+            LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
+            return False
+        if time.time() - last_refresh_started_at < 60:
+            LOGGER.error('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
+            return False
     last_refresh_started_at = time.time()
     LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
@@ -646,9 +681,11 @@ def load_public_proxies(public_servers):
                 if public_servers.get('%s_enabled' % proxy_type, True) and proxy_type in proxy_types:
                     for i in range(count):
                         dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i + 1))
-                        more_proxies.append(DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority))
+                        dynamic_proxy = DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority)
+                        if dynamic_proxy not in proxies:
+                            more_proxies.append(dynamic_proxy)
+        LOGGER.info('loaded public servers: %s' % more_proxies)
         proxies.extend(more_proxies)
-        LOGGER.info('loaded public servers: %s' % public_servers)
         return True
     except:
         LOGGER.exception('failed to load proxy from directory')

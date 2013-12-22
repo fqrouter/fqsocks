@@ -3,6 +3,7 @@ from .. import networking
 from .. import ip_substitution
 
 LOGGER = logging.getLogger(__name__)
+on_proxy_died = None
 
 def to_bool(s):
     if isinstance(s, bool):
@@ -70,6 +71,8 @@ class Proxy(object):
             if self.died:
                 LOGGER.fatal('[%s] !!! proxy died !!!: %s' % (repr(client), self))
                 client.dump_proxies()
+                if on_proxy_died:
+                    on_proxy_died(self)
 
     def do_forward(self, client):
         raise NotImplementedError()
