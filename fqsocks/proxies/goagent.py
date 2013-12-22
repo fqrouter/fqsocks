@@ -154,7 +154,7 @@ class GoAgentProxy(Proxy):
                 raise Exception('payload is too large')
             if client.method.upper() not in ('GET', 'POST', 'HEAD'):
                 raise Exception('unsupported method: %s' % client.method)
-            if client.host in GoAgentProxy.black_list:
+            if client.host in GoAgentProxy.black_list or '.c.android.clients.google.com' in client.host:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:
             raise
