@@ -124,7 +124,9 @@ class GoAgentProxy(Proxy):
         self.is_obfuscate_enabled = to_bool(is_obfuscate_enabled)
         self.version = 'UNKNOWN'
         self.whitelist_host = whitelist_host
-        self.blacklist_host = blacklist_host
+        self.blacklist_host = list(blacklist_host)
+        self.blacklist_host.append('.c.android.clients.google.com')
+        self.blacklist_host.append('.c.pack.google.com')
         self.group = group
 
     @property
@@ -158,7 +160,7 @@ class GoAgentProxy(Proxy):
                 raise Exception('payload is too large')
             if client.method.upper() not in ('GET', 'POST', 'HEAD'):
                 raise Exception('unsupported method: %s' % client.method)
-            if client.host in global_black_list or '.c.android.clients.google.com' in client.host:
+            if client.host in global_black_list:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:
             raise
