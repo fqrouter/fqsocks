@@ -631,7 +631,7 @@ class RangeFetch(object):
                     start, end, response = range_queue.get(timeout=1)
                     headers['Range'] = 'bytes=%d-%d' % (start, end)
                     if not response:
-                        not_died_proxies = [p for p in GoAgentProxy.proxies if not p.died]
+                        not_died_proxies = [p for p in GoAgentProxy.proxies if not p.died and p.is_protocol_supported('HTTP', self.client)]
                         if not not_died_proxies:
                             self._stopped = True
                             return
@@ -647,8 +647,8 @@ class RangeFetch(object):
                     range_queue.put((start, end, None))
                     continue
                 if response.app_status != 200:
-                    LOGGER.warning('Range Fetch "%s %s" %s return %s', self.command, self.url, headers['Range'],
-                                   response.app_status)
+                    LOGGER.warning('Range Fetch "%s %s" %s return %s via %s', self.command, self.url, headers['Range'],
+                                   response.app_status, proxy.appid)
                     response.close()
                     range_queue.put((start, end, None))
                     if proxy and response.app_status not in (500, 403): # server busy or appid banned the host

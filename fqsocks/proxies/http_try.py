@@ -158,7 +158,7 @@ class HttpTryProxy(Proxy):
 
 class HttpsEnforcer(HttpTryProxy):
     def create_upstream_sock(self, client):
-        if 80 == client.dst_port and is_blocked_google_host(client.host):
+        if 80 == client.dst_port and (is_blocked_google_host(client.host) or 'www.google.' in client.host):
             LOGGER.info('force https: %s' % client.url)
             upstream_sock = client.create_tcp_socket(client.dst_ip, 443, 3)
             old_counter = upstream_sock.counter
