@@ -125,12 +125,12 @@ class HttpTryProxy(Proxy):
     def detect_slow_host(self, client, http_response):
         if self.host_slow_detection_enabled:
             greenlet = gevent.spawn(
-                try_receive_response_body, http_response)
+                try_receive_response_body, http_response, reads_all='youtube.com/watch?' in client.url)
             try:
                 return greenlet.get(timeout=5)
             except gevent.Timeout:
                 self.host_slow_list.add(client.host)
-                LOGGER.error('host %s is too slow to direct access' % client.host)
+                LOGGER.error('[%s] host %s is too slow to direct access' % (repr(client), client.host))
                 client.fall_back('too slow')
             finally:
                 greenlet.kill()
@@ -287,7 +287,7 @@ HTTPS_ENFORCER = HttpsEnforcer()
 def fallback_if_youtube_unplayable(client, http_response):
     if not http_response:
         return
-    if 'youtube.com' not in client.host:
+    if 'youtube.com/watch?' not in client.url:
         return
     if http_response.body and 'gzip' == http_response.msg.dict.get('content-encoding'):
         stream = StringIO.StringIO(http_response.body)
