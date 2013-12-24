@@ -122,8 +122,8 @@ class GoAgentProxy(Proxy):
         self.is_rc4_enabled = to_bool(is_rc4_enabled)
         self.is_obfuscate_enabled = to_bool(is_obfuscate_enabled)
         self.version = 'UNKNOWN'
-        self.whitelist_host = whitelist_host
-        self.blacklist_host = list(blacklist_host)
+        self.whitelist_host = whitelist_host if isinstance(whitelist_host, (list, tuple)) else [whitelist_host]
+        self.blacklist_host = list(blacklist_host) if isinstance(blacklist_host, (list, tuple)) else [blacklist_host]
         self.blacklist_host.append('.c.android.clients.google.com')
         self.blacklist_host.append('.c.pack.google.com')
         self.group = group
@@ -177,10 +177,12 @@ class GoAgentProxy(Proxy):
             for whitelist_host in self.whitelist_host:
                 if whitelist_host in client.host:
                     return True
+            return False
         if self.blacklist_host:
             for blacklist_host in self.blacklist_host:
                 if blacklist_host in client.host:
                     return False
+            return True
         return True
 
     @classmethod
