@@ -374,10 +374,11 @@ def load_more_goagent_proxies():
         if len(appids) < 3:
             goagent_group_exhausted = group
             config = config_file.read_config()
-            load_public_proxies({
-                'source': config['public_servers']['source'],
-                'goagent_enabled': True
-            })
+            if len(proxies) < 50:
+                load_public_proxies({
+                    'source': config['public_servers']['source'],
+                    'goagent_enabled': True
+                })
             refresh_proxies(force=True)
             return
     goagent_group_exhausted = False
