@@ -143,7 +143,7 @@ class GenericTryProxy(DirectProxy):
             if dst in self.dst_black_list:
                 LOGGER.error('removed dst %s:%s from blacklist' % dst)
                 del self.dst_black_list[dst]
-        except:
+        except client.ProxyFallBack:
             if dst not in self.dst_black_list:
                 LOGGER.error('blacklist dst %s:%s' % dst)
             self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1

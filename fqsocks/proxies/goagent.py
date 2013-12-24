@@ -105,7 +105,6 @@ global_gray_list = set()
 global_black_list = set()
 
 class GoAgentProxy(Proxy):
-    last_refresh_started_at = 0
     google_ip_failed_times = {}
     google_ip_latency_records = {}
 
@@ -276,10 +275,6 @@ def forward(client, proxy):
         if response.app_status == 503:
             LOGGER.error('%s died due to 503' % proxy)
             proxy.died = True
-            if time.time() - GoAgentProxy.last_refresh_started_at > 60:
-                GoAgentProxy.last_refresh_started_at = time.time()
-                LOGGER.error('refresh goagent proxies due to over quota')
-                gevent.spawn(GoAgentProxy.refresh, GoAgentProxy.proxies)
             client.fall_back('goagent server over quota')
         if response.app_status == 500:
             # LOGGER.error('%s died due to 500' % proxy)

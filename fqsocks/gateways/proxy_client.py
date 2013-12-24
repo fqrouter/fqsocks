@@ -358,8 +358,15 @@ def load_more_goagent_proxies():
     last_refresh_started_at = time.time()
     goagent_groups = {}
     for proxy in proxies:
-        if isinstance(proxy, DynamicProxy) and isinstance(proxy.delegated_to, GoAgentProxy):
-            goagent_groups.setdefault(proxy.delegated_to.group, set()).add(proxy.delegated_to.appid)
+        if proxy.died:
+            continue
+        if isinstance(proxy, DynamicProxy):
+            proxy = proxy.delegated_to
+        if isinstance(proxy, GoAgentProxy):
+            proxy.query_version()
+            if proxy.died:
+                continue
+            goagent_groups.setdefault(proxy.group, set()).add(proxy.appid)
     if goagent_group_exhausted:
         goagent_groups.setdefault(goagent_group_exhausted, set())
     for group, appids in goagent_groups.items():
