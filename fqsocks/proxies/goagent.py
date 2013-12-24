@@ -101,10 +101,10 @@ SKIP_HEADERS = frozenset(['Vary', 'Via', 'X-Forwarded-For', 'Proxy-Authorization
 
 normcookie = functools.partial(re.compile(', ([^ =]+(?:=|$))').sub, '\\r\\nSet-Cookie: \\1')
 
-global_gray_list = set()
-global_black_list = set()
 
 class GoAgentProxy(Proxy):
+    global_gray_list = set()
+    global_black_list = set()
     google_ip_failed_times = {}
     google_ip_latency_records = {}
 
@@ -159,7 +159,7 @@ class GoAgentProxy(Proxy):
                 raise Exception('payload is too large')
             if client.method.upper() not in ('GET', 'POST', 'HEAD'):
                 raise Exception('unsupported method: %s' % client.method)
-            if client.host in global_black_list:
+            if client.host in GoAgentProxy.global_black_list:
                 raise Exception('%s failed to proxy via goagent before' % client.host)
         except NotHttp:
             raise
@@ -230,7 +230,7 @@ def forward(client, proxy):
     special_range = (any(x(client.host) for x in AUTORANGE_HOSTS_MATCH) or client.url.endswith(
         AUTORANGE_ENDSWITH)) and not client.url.endswith(
         AUTORANGE_NOENDSWITH) and not 'redirector.c.youtube.com' == client.host
-    if client.host in global_gray_list:
+    if client.host in GoAgentProxy.global_gray_list:
         special_range = True
     range_end = 0
     auto_ranged = False
@@ -261,10 +261,10 @@ def forward(client, proxy):
             client.fall_back('can not connect to google ip')
         except ReadResponseFailed:
             if 'youtube.com' not in client.host and 'googlevideo.com' not in client.host:
-                global_gray_list.add(client.host)
+                GoAgentProxy.global_gray_list.add(client.host)
                 if auto_ranged:
                     LOGGER.error('[%s] !!! blacklist goagent for %s !!!' % (repr(client), client.host))
-                    global_black_list.add(client.host)
+                    GoAgentProxy.global_black_list.add(client.host)
                     if client.host in HttpTryProxy.host_slow_list:
                         HttpTryProxy.host_slow_list.remove(client.host)
             for proxy in GoAgentProxy.proxies:
