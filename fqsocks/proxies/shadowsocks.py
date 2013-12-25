@@ -3,9 +3,11 @@ import struct
 import logging
 import time
 import functools
+import gevent
 
 from .direct import Proxy
 from . import encrypt
+from .. import networking
 
 
 LOGGER = logging.getLogger(__name__)
@@ -21,6 +23,24 @@ class ShadowSocksProxy(Proxy):
         self.password = password
         self.encrypt_method = encrypt_method
         self.supported_protocol = supported_protocol
+        gevent.spawn(self.test_latency)
+
+    def test_latency(self):
+        gevent.sleep(5)
+        elapsed_time = 0
+        try:
+            for i in range(3):
+                gevent.sleep(1)
+                begin_at = time.time()
+                sock = networking.create_tcp_socket(self.proxy_ip, self.proxy_port, 5)
+                sock.close()
+                elapsed_time += time.time() - begin_at
+        except:
+            self.record_latency(10) # fixed penalty
+            self.increase_failed_time()
+            return
+        LOGGER.info('%s => %s' % (self.proxy_ip, elapsed_time))
+        self.record_latency(elapsed_time)
 
     def do_forward(self, client):
         encryptor = encrypt.Encryptor(self.password, self.encrypt_method)
@@ -31,6 +51,7 @@ class ShadowSocksProxy(Proxy):
         try:
             upstream_sock = client.create_tcp_socket(self.proxy_ip, self.proxy_port, 5)
         except:
+            self.record_latency(10) # fixed penalty
             client.fall_back(reason='can not connect to proxy', delayed_penalty=self.increase_failed_time)
         encrypted_addr = encryptor.encrypt(addr_to_send)
         upstream_sock.counter.sending(len(encrypted_addr))
