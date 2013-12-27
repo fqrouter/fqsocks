@@ -32,6 +32,7 @@ def home_page(environ, start_response):
         https_enforcer_enabled=proxy_client.https_enforcer_enabled,
         china_shortcut_enabled=proxy_client.china_shortcut_enabled,
         direct_access_enabled=proxy_client.direct_access_enabled,
+        prefers_private_proxy=proxy_client.prefers_private_proxy,
         config=config_file.read_config(),
         is_root=is_root,
         default_interface_ip=networking.get_default_interface_ip(),
