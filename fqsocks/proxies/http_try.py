@@ -445,21 +445,24 @@ def parse_request(request):
 
 
 def detect_if_ttl_being_ignored():
-    try:
-        LOGGER.info('detecting if ttl being ignored')
-        baidu_ip = networking.resolve_ips('www.baidu.com')[0]
-        sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-        if networking.OUTBOUND_IP:
-            sock.bind((networking.OUTBOUND_IP, 0))
-        sock.setblocking(0)
-        sock.settimeout(2)
-        sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 3)
+    gevent.sleep(5)
+    for i in range(2):
         try:
-            sock.connect((baidu_ip, 80))
-        finally:
-            sock.close()
-        LOGGER.info('ttl 3 should not connect baidu, disable fqting')
-        return True
-    except:
-        LOGGER.exception('detected if ttl being ignored')
+            LOGGER.info('detecting if ttl being ignored')
+            baidu_ip = networking.resolve_ips('www.baidu.com')[0]
+            sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+            if networking.OUTBOUND_IP:
+                sock.bind((networking.OUTBOUND_IP, 0))
+            sock.setblocking(0)
+            sock.settimeout(2)
+            sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 3)
+            try:
+                sock.connect((baidu_ip, 80))
+            finally:
+                sock.close()
+            LOGGER.info('ttl 3 should not connect baidu, disable fqting')
+            return True
+        except:
+            LOGGER.exception('detected if ttl being ignored')
+            gevent.sleep(1)
     return False

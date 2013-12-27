@@ -58,6 +58,7 @@ last_refresh_started_at = -1
 refresh_timestamps = []
 goagent_group_exhausted = False
 force_us_ip = False
+on_clear_states = None
 
 
 class ProxyClient(object):
@@ -91,10 +92,9 @@ class ProxyClient(object):
     def add_resource(self, res):
         self.resources.append(res)
 
-    def forward(self, upstream_sock, timeout=7, after_started_timeout=360, bufsize=8192, encrypt=None, decrypt=None,
+    def forward(self, upstream_sock, timeout=7, after_started_timeout=360, encrypt=None, decrypt=None,
                 delayed_penalty=None, on_forward_started=None):
 
-        self.buffer_multiplier = 1
         if self.forward_started:
             if 5228 == self.dst_port: # Google Service
                 upstream_sock.settimeout(None)
@@ -107,9 +107,8 @@ class ProxyClient(object):
         def from_upstream_to_downstream():
             try:
                 while True:
-                    data = upstream_sock.recv(bufsize * self.buffer_multiplier)
+                    data = upstream_sock.recv(262144)
                     upstream_sock.counter.received(len(data))
-                    self.buffer_multiplier = min(16, self.buffer_multiplier + 1)
                     if data:
                         if not self.forward_started:
                             self.forward_started = True
@@ -137,8 +136,7 @@ class ProxyClient(object):
         def from_downstream_to_upstream():
             try:
                 while True:
-                    data = self.downstream_sock.recv(bufsize)
-                    self.buffer_multiplier = 1
+                    data = self.downstream_sock.recv(262144)
                     if data:
                         if encrypt:
                             data = encrypt(data)
@@ -712,3 +710,5 @@ def clear_proxy_states():
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
     stat.counters = []
+    if on_clear_states:
+        on_clear_states()

@@ -27,6 +27,7 @@ def main():
     log_level = getattr(logging, args.log_level)
     logging.basicConfig(stream=sys.stdout, level=log_level, format='%(asctime)s %(levelname)s %(message)s')
     if args.log_file:
+        logging.getLogger('nfqueue-ipset').handlers = []
         handler = logging.handlers.RotatingFileHandler(
             args.log_file, maxBytes=1024 * 16, backupCount=0)
         handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
@@ -41,7 +42,7 @@ def main():
 
 def handle_nfqueue(queue_number):
     from netfilterqueue import NetfilterQueue
-    while True:
+    for i in range(3):
         try:
             nfqueue = NetfilterQueue()
             nfqueue.bind(queue_number, handle_packet)
@@ -53,9 +54,14 @@ def handle_nfqueue(queue_number):
         finally:
             LOGGER.info('stopped handling nfqueue')
 
+counter = 0
 
 def handle_packet(nfqueue_element):
+    global counter
     try:
+        counter = (counter + 1) % 100
+        if counter == 0:
+            LOGGER.info('100 packets')
         ip_packet = dpkt.ip.IP(nfqueue_element.get_payload())
         src = socket.inet_ntoa(ip_packet.src)
         dst = socket.inet_ntoa(ip_packet.dst)
@@ -89,13 +95,13 @@ class Rule(object):
     def match_src(self, src, dst):
         matched = china_ip.is_china_ip(src)
         if matched:
-            LOGGER.info(self.matched_src % src)
+            LOGGER.debug(self.matched_src % src)
         return matched
 
     def match_dst(self, src, dst):
         matched = china_ip.is_china_ip(dst)
         if matched:
-            LOGGER.info(self.matched_dst % dst)
+            LOGGER.debug(self.matched_dst % dst)
         return matched
 
     @classmethod
@@ -103,7 +109,7 @@ class Rule(object):
         for rule in RULES:
             if rule.match(src, dst):
                 return rule.verdict
-        LOGGER.info(Rule.MATCHED_DEFAULT % (src, dst))
+        LOGGER.debug(Rule.MATCHED_DEFAULT % (src, dst))
         return Rule.DEFAULT_VERDICT
 
     @classmethod
