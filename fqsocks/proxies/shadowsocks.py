@@ -70,6 +70,9 @@ class ShadowSocksProxy(Proxy):
         self.record_latency(time.time() - begin_at)
 
     def is_protocol_supported(self, protocol, client=None):
+        if hasattr(self, 'resolved_by_dynamic_proxy'):
+            if 'youtube.com' in client.host or 'googlevideo.com' in client.host:
+                return False
         if not self.supported_protocol:
             return True
         return self.supported_protocol == protocol
