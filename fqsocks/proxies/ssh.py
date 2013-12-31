@@ -48,7 +48,8 @@ class SshProxy(Proxy):
                 self.proxy_ip, self.proxy_port,
                 username=self.username, password=self.password,
                 key_filename=self.key_filename,
-                sock=sock)
+                sock=sock,
+                look_for_keys=True if self.key_filename else False)
             return True
         except:
             LOGGER.exception('failed to connect ssh proxy: %s' % self)

@@ -124,9 +124,8 @@ class ProxyClient(object):
                         self.downstream_sock.sendall(data)
                     else:
                         return
-            except socket.error as e:
-                if e[0] not in (10053, 10054, 10057, errno.EPIPE):
-                    return e
+            except socket.error:
+                return
             except gevent.GreenletExit:
                 return
             except:
@@ -144,9 +143,8 @@ class ProxyClient(object):
                         upstream_sock.sendall(data)
                     else:
                         return
-            except socket.error as e:
-                if e[0] not in (10053, 10054, 10057, errno.EPIPE):
-                    return e
+            except socket.error:
+                return
             except gevent.GreenletExit:
                 return
             except:
