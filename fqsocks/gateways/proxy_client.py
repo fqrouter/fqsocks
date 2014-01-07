@@ -338,6 +338,8 @@ class NoMoreProxy(Exception):
 def on_proxy_died(proxy):
     if isinstance(proxy, DynamicProxy):
         proxy = proxy.delegated_to
+    else:
+        return
     if isinstance(proxy, GoAgentProxy):
         gevent.spawn(load_more_goagent_proxies)
     else:
@@ -358,6 +360,8 @@ def load_more_goagent_proxies():
             continue
         if isinstance(proxy, DynamicProxy):
             proxy = proxy.delegated_to
+        else:
+            continue
         if isinstance(proxy, GoAgentProxy):
             proxy.query_version()
             if proxy.died:
