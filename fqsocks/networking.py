@@ -81,7 +81,7 @@ def resolve_ips(host):
                 sock.settimeout(10)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
-                sock.sendto(str(request), ('8.8.8.8', 53))
+                sock.sendto(str(request), ('208.67.220.220', 443))
                 gevent.sleep(0.1)
                 response = dpkt.dns.DNS(sock.recv(8192))
                 return [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
