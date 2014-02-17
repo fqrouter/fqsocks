@@ -402,3 +402,17 @@ def to_human_readable_size(num):
             return '%06.2f %s' % (num, x)
         num /= 1024.0
 
+@httpd.http_handler('POST', 'dns-bypass/save')
+def handle_dns_bypass_save(environ, start_response):
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    content = environ['REQUEST_ARGUMENTS']['content'].value.strip()
+
+    def apply(config):
+        config_file.set_bypass_dns_hosts(config, content)
+
+    config_file.update_config(apply)
+
+    # FIXME: this is a quick & dirty implementation to reload dns_bypass_hosts.
+    from .. import fqsocks
+    fqsocks.DNS_HANDLER.set_dns_bypass(content)
+    return []

@@ -43,7 +43,11 @@ def DEFAULT_CONFIG():
             'goagent_enabled': True,
             'ss_enabled': True
         },
-        'private_servers': {}
+        'private_servers': {
+        },
+        'dns': {
+            'bypass': '.lan, .localdomain'
+        }
     }
 
 cli_args = None
@@ -201,6 +205,8 @@ def migrate_ssh_config(config, config_dir):
         finally:
             shutil.move(ssh_json_file, os.path.join(config_dir, 'ssh.json.bak'))
 
+def set_bypass_dns_hosts(config, content):
+    config['dns']['bypass'] = content
 
 def update_config(apply=None, **kwargs):
     if not cli_args:

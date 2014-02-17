@@ -510,6 +510,21 @@
         </div>
     </div>
     <hr/>
+    <a name="dns-bypass"></a>
+    <hr/>
+    <div class="row">
+        <div class="col-xs-5">
+            <h3>
+                {{ _('ByPassDnsHosts', 'ByPass DNS Hosts') }}
+            </h3>
+        </div>
+        <div class="col-xs-6">
+            <button class="btn btn-primary pull-right section-action" id="dns-bypass-save">{{ _('Save', '保存') }}</button>
+        </div>
+        <div>
+            <textarea id="dns-bypass-content" rows="8" cols="30">{{ config['dns']['bypass'] }}</textarea>
+        </div>
+    </div>
     <div class="row">
         <div class="col-xs-12">
             <iframe style="width: 100%; height: 300px;" frameBorder="0" scrolling="no"
@@ -1308,6 +1323,21 @@
                     $('#wifi-repeater-dialog .alert').html(error).removeClass('hide');
                 } else {
                     window.location.reload();
+                }
+            });
+        });
+
+        $('#dns-bypass-save').click(function () {
+            var data = {
+                content: $('#dns-bypass-content').val()
+            };
+
+            $.post('/dns-bypass/save', data, function(error) {
+                if (error) {
+                    alert(error);
+                } else {
+                    //
+                    alert("dns done.");
                 }
             });
         });
