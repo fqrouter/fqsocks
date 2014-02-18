@@ -30,6 +30,7 @@ LOGGER = logging.getLogger(__name__)
 dns_pollution_ignored = False
 DNS_HANDLER = fqdns.DnsHandler()
 reset_force_us_ip_greenlet = None
+get_default_dns_server = None
 
 @httpd.http_handler('GET', 'dns-polluted-at')
 def get_dns_polluted_at(environ, start_response):
@@ -71,6 +72,13 @@ def handle_clear_states(environ, start_response):
     lan_device.lan_devices = {}
     if lan_device.forge_greenlet is not None:
         lan_device.forge_greenlet.kill()
+
+    # update original_upstream
+    if get_default_dns_server:
+        default_dns_server = get_default_dns_server()
+        if default_dns_server:
+            DNS_HANDLER.set_original_upstream(default_dns_server)
+
     LOGGER.info('cleared states upon request')
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     yield 'OK'
