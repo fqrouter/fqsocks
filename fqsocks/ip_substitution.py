@@ -29,12 +29,12 @@ def fill_sub_map(host, dst_ip, dst_port, dst_black_list):
         return
     sub_lock.add(host)
     try:
-        sub_host = '%s.sub.fqrouter.com' % '.'.join(reversed(dst_ip.split('.')))
-        substituted_ip = resolve_non_blacklisted_ip(sub_host, dst_ip, dst_port, dst_black_list)
-        if substituted_ip:
-            LOGGER.info('resolved hosted sub: %s => %s' % (dst_ip, substituted_ip))
-            sub_map[dst_ip] = substituted_ip
-            return
+        # sub_host = '%s.sub.fqrouter.com' % '.'.join(reversed(dst_ip.split('.')))
+        # substituted_ip = resolve_non_blacklisted_ip(sub_host, dst_ip, dst_port, dst_black_list)
+        # if substituted_ip:
+        #     LOGGER.info('resolved hosted sub: %s => %s' % (dst_ip, substituted_ip))
+        #     sub_map[dst_ip] = substituted_ip
+        #     return
         if host:
             sub_map[dst_ip] = resolve_non_blacklisted_ip(host, dst_ip, dst_port, dst_black_list)
         else:

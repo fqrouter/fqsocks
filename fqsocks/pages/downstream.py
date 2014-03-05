@@ -155,6 +155,26 @@ def handle_update_wifi_repeater_config(environ, start_response):
     return []
 
 
+@httpd.http_handler('POST', 'wifi-p2p/enable')
+def handle_enable_wifi_p2p(environ, start_response):
+    if spi_wifi_repeater:
+        error = spi_wifi_repeater['enable_wifi_p2p']()
+    else:
+        error = 'unsupported'
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return [error]
+
+
+@httpd.http_handler('POST', 'wifi-p2p/disable')
+def handle_enable_wifi_p2p(environ, start_response):
+    if spi_wifi_repeater:
+        error = spi_wifi_repeater['disable_wifi_p2p']()
+    else:
+        error = 'unsupported'
+    start_response(httplib.OK, [('Content-Type', 'text/plain')])
+    return [error]
+
+
 @httpd.http_handler('GET', 'upnp/status')
 def handle_get_upnp_status(environ, start_response):
     start_response(httplib.OK, [('Content-Type', 'text/json')])
