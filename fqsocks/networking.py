@@ -71,7 +71,7 @@ def _get_original_destination(sock, src_ip, src_port):
 SPI['get_original_destination'] = _get_original_destination
 
 
-def resolve_ips(host):
+def resolve_ips(host, dns_ip='8.8.8.8', dns_port=53):
     if RE_IP.match(host):
         return [host]
     for i in range(3):
@@ -81,7 +81,7 @@ def resolve_ips(host):
                 sock.settimeout(10)
                 request = dpkt.dns.DNS(
                     id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
-                sock.sendto(str(request), ('8.8.8.8', 53))
+                sock.sendto(str(request), (dns_ip, dns_port))
                 gevent.sleep(0.1)
                 response = dpkt.dns.DNS(sock.recv(8192))
                 return [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
