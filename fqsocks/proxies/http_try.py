@@ -48,6 +48,9 @@ def is_no_direct_host(client_host):
 
 class HttpTryProxy(Proxy):
 
+    INITIAL_TIMEOUT = 1
+    timeout = INITIAL_TIMEOUT
+    slow_ip_list = set()
     host_black_list = {} # host => count
     host_slow_list = set()
     host_slow_detection_enabled = True
@@ -138,7 +141,10 @@ class HttpTryProxy(Proxy):
             return try_receive_response_body(http_response)
 
     def create_upstream_sock(self, client):
-        return client.create_tcp_socket(client.dst_ip, client.dst_port, 3)
+        upstream_sock = gevent.spawn(try_connect, client).get(timeout=HttpTryProxy.timeout)
+        if isinstance(upstream_sock, Exception):
+            raise upstream_sock
+        return upstream_sock
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         return ''
@@ -154,6 +160,25 @@ class HttpTryProxy(Proxy):
 
     def __repr__(self):
         return 'HttpTryProxy'
+
+
+def try_connect(client):
+    try:
+        begin_time = time.time()
+        upstream_sock = client.create_tcp_socket(
+            client.dst_ip, client.dst_port,
+            connect_timeout=max(5, HttpTryProxy.timeout * 2))
+        elapsed_seconds = time.time() - begin_time
+        if elapsed_seconds > HttpTryProxy.timeout:
+            HttpTryProxy.slow_ip_list.add(client.dst_ip)
+            HttpTryProxy.host_black_list.clear()
+            if len(HttpTryProxy.slow_ip_list) > 3:
+                LOGGER.critical('!!! increase http timeout %s=>%s' % (HttpTryProxy.timeout, HttpTryProxy.timeout + 1))
+                HttpTryProxy.timeout += 1
+                HttpTryProxy.slow_ip_list.clear()
+        return upstream_sock
+    except Exception as e:
+        return e
 
 
 class HttpsEnforcer(HttpTryProxy):

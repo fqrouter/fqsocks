@@ -1,6 +1,9 @@
 import logging
+import gevent
 from .. import networking
 from .. import ip_substitution
+import time
+import socket
 
 LOGGER = logging.getLogger(__name__)
 on_proxy_died = None
@@ -107,7 +110,7 @@ class DirectProxy(Proxy):
 
     def do_forward(self, client):
         try:
-            upstream_sock = client.create_tcp_socket(client.dst_ip, client.dst_port, self.connect_timeout)
+            upstream_sock = self.create_upstream_sock(client)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] direct connect upstream socket timed out' % (repr(client)), exc_info=1)
@@ -120,6 +123,9 @@ class DirectProxy(Proxy):
         upstream_sock.sendall(client.peeked_data)
         client.forward(upstream_sock, timeout=60, after_started_timeout=60 * 60)
 
+    def create_upstream_sock(self, client):
+        return client.create_tcp_socket(client.dst_ip, client.dst_port, self.connect_timeout)
+
     def is_protocol_supported(self, protocol, client=None):
         return True
 
@@ -128,29 +134,56 @@ class DirectProxy(Proxy):
 
 
 class GenericTryProxy(DirectProxy):
-    def __init__(self):
-        super(GenericTryProxy, self).__init__(2)
-        self.dst_black_list = {}
+
+    INITIAL_TIMEOUT = 1
+    timeout = INITIAL_TIMEOUT
+    slow_ip_list = set()
+    dst_black_list = {}
 
     def do_forward(self, client):
-        ip_substitution.substitute_ip(client, self.dst_black_list)
+        ip_substitution.substitute_ip(client, GenericTryProxy.dst_black_list)
         dst = (client.dst_ip, client.dst_port)
         try:
-            failed_count = self.dst_black_list.get(dst, 0)
+            failed_count = GenericTryProxy.dst_black_list.get(dst, 0)
             if failed_count and (failed_count % 10) != 0:
                 client.fall_back('%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
             super(GenericTryProxy, self).do_forward(client)
-            if dst in self.dst_black_list:
+            if dst in GenericTryProxy.dst_black_list:
                 LOGGER.error('removed dst %s:%s from blacklist' % dst)
-                del self.dst_black_list[dst]
+                del GenericTryProxy.dst_black_list[dst]
         except client.ProxyFallBack:
-            if dst not in self.dst_black_list:
+            if dst not in GenericTryProxy.dst_black_list:
                 LOGGER.error('blacklist dst %s:%s' % dst)
-            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+            GenericTryProxy.dst_black_list[dst] = GenericTryProxy.dst_black_list.get(dst, 0) + 1
             raise
+
+    def create_upstream_sock(self, client):
+        upstream_sock = gevent.spawn(try_connect, client).get(timeout=GenericTryProxy.timeout)
+        if isinstance(upstream_sock, Exception):
+            raise upstream_sock
+        return upstream_sock
 
     def __repr__(self):
         return 'GenericTryProxy'
+
+
+def try_connect(client):
+    try:
+        begin_time = time.time()
+        upstream_sock = client.create_tcp_socket(
+            client.dst_ip, client.dst_port,
+            connect_timeout=max(5, GenericTryProxy.timeout * 2))
+        elapsed_seconds = time.time() - begin_time
+        if elapsed_seconds > GenericTryProxy.timeout:
+            GenericTryProxy.slow_ip_list.add(client.dst_ip)
+            GenericTryProxy.dst_black_list.clear()
+            if len(GenericTryProxy.slow_ip_list) > 3:
+                LOGGER.critical('!!! increase http timeout %s=>%s' % (GenericTryProxy.timeout, GenericTryProxy.timeout + 1))
+                GenericTryProxy.timeout += 1
+                GenericTryProxy.slow_ip_list.clear()
+        return upstream_sock
+    except Exception as e:
+        return e
 
 
 class NoneProxy(Proxy):
