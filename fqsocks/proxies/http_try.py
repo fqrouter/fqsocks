@@ -141,8 +141,8 @@ class HttpTryProxy(Proxy):
             return try_receive_response_body(http_response)
 
     def create_upstream_sock(self, client):
-        upstream_sock = gevent.spawn(try_connect, client).get(timeout=HttpTryProxy.timeout)
-        if isinstance(upstream_sock, Exception):
+        success, upstream_sock = gevent.spawn(try_connect, client).get(timeout=HttpTryProxy.timeout)
+        if not success:
             raise upstream_sock
         return upstream_sock
 
@@ -176,9 +176,9 @@ def try_connect(client):
                 LOGGER.critical('!!! increase http timeout %s=>%s' % (HttpTryProxy.timeout, HttpTryProxy.timeout + 1))
                 HttpTryProxy.timeout += 1
                 HttpTryProxy.slow_ip_list.clear()
-        return upstream_sock
-    except Exception as e:
-        return e
+        return True, upstream_sock
+    except:
+        return False, sys.exc_info()[1]
 
 
 class HttpsEnforcer(HttpTryProxy):
