@@ -446,7 +446,7 @@ def pick_http_try_proxy(client):
     if tcp_scrambler_enabled and not TCP_SCRAMBLER.died:
         if TCP_SCRAMBLER in client.tried_proxies:
             if is_blocked_google_host(client.host):
-                if https_enforcer_enabled and 'youtube.com/watch?' not in client.url:
+                if https_enforcer_enabled:
                     return None if HTTPS_ENFORCER in client.tried_proxies else HTTPS_ENFORCER
                 elif google_scrambler_enabled:
                     return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
@@ -456,19 +456,19 @@ def pick_http_try_proxy(client):
                 return None
         else:
             return TCP_SCRAMBLER # first time try
-    elif google_scrambler_enabled:
-        if GOOGLE_SCRAMBLER in client.tried_proxies:
+    elif https_enforcer_enabled:
+        if HTTPS_ENFORCER in client.tried_proxies:
             if is_blocked_google_host(client.host):
-                if https_enforcer_enabled and 'youtube.com/watch?' not in client.url:
-                    return None if HTTPS_ENFORCER in client.tried_proxies else HTTPS_ENFORCER
+                if google_scrambler_enabled:
+                    return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
                 else:
                     return None
             else:
                 return None
         else:
-            return GOOGLE_SCRAMBLER
-    elif https_enforcer_enabled:
-        return None if HTTPS_ENFORCER in client.tried_proxies else HTTPS_ENFORCER
+            return HTTPS_ENFORCER
+    elif google_scrambler_enabled:
+        return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
     else:
         return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
 

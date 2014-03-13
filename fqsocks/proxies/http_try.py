@@ -55,6 +55,7 @@ class HttpTryProxy(Proxy):
     host_slow_list = set()
     host_slow_detection_enabled = True
     dst_black_list = {} # (ip, port) => count
+    connection_pool = {}
 
     def __init__(self):
         super(HttpTryProxy, self).__init__()
@@ -75,7 +76,7 @@ class HttpTryProxy(Proxy):
                     LOGGER.error('blacklist host %s' % client.host)
             raise
 
-    def try_direct(self, client):
+    def try_direct(self, client, is_retrying=False):
         is_payload_complete = recv_and_parse_request(client)
         # check host
         if client.host in self.host_slow_list:
@@ -92,7 +93,7 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
         # start trying
         try:
-            upstream_sock = self.create_upstream_sock(client)
+            upstream_sock = self.get_or_create_upstream_sock(client)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
@@ -109,9 +110,16 @@ class HttpTryProxy(Proxy):
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
         self.after_send_request(client, upstream_sock)
         if is_payload_complete:
-            http_response = try_receive_response_header(
-                client, upstream_sock, rejects_error=('GET' == client.method))
+            try:
+                http_response = try_receive_response_header(
+                    client, upstream_sock, rejects_error=('GET' == client.method))
+            except httplib.BadStatusLine:
+                # if is_retrying:
+                #     raise
+                LOGGER.debug('[%s] retry with another connection' % repr(client))
+                return self.try_direct(client, is_retrying=True)
             response = self.detect_slow_host(client, http_response)
+            is_keep_alive = 'Connection: keep-alive' in response
             try:
                 response = self.process_response(client, upstream_sock, response, http_response)
             except client.ProxyFallBack:
@@ -120,10 +128,15 @@ class HttpTryProxy(Proxy):
                 LOGGER.exception('process response failed')
             client.forward_started = True
             client.downstream_sock.sendall(response)
-        if not is_payload_complete and client.method and 'GET' != client.method.upper():
-            client.forward(upstream_sock, timeout=360)
+            if is_keep_alive:
+                self.forward_upstream_sock(client, http_response, upstream_sock)
+            else:
+                client.forward(upstream_sock)
         else:
-            client.forward(upstream_sock)
+            if client.method and 'GET' != client.method.upper():
+                client.forward(upstream_sock, timeout=360)
+            else:
+                client.forward(upstream_sock)
 
     def detect_slow_host(self, client, http_response):
         if self.host_slow_detection_enabled:
@@ -140,11 +153,56 @@ class HttpTryProxy(Proxy):
         else:
             return try_receive_response_body(http_response)
 
+    def get_or_create_upstream_sock(self, client):
+        if HttpTryProxy.connection_pool.get(client.dst_ip):
+            upstream_sock = HttpTryProxy.connection_pool[client.dst_ip].pop()
+            if upstream_sock.last_used_at - time.time() > 7:
+                LOGGER.debug('[%s] close old connection %s' % (repr(client), upstream_sock.history))
+                upstream_sock.close()
+                return self.get_or_create_upstream_sock(client)
+            client.add_resource(upstream_sock)
+            LOGGER.debug('[%s] reuse connection %s' % (repr(client), upstream_sock.history))
+            upstream_sock.history.append(client.src_port)
+            if not HttpTryProxy.connection_pool[client.dst_ip]:
+                del HttpTryProxy.connection_pool[client.dst_ip]
+            upstream_sock.last_used_at = time.time()
+            return upstream_sock
+        else:
+            LOGGER.debug('[%s] open new connection' % repr(client))
+            pool_size = len(HttpTryProxy.connection_pool.get(client.dst_ip, []))
+            if pool_size <= 2:
+                gevent.spawn(self.prefetch_to_connection_pool, client)
+            return self.create_upstream_sock(client)
+
     def create_upstream_sock(self, client):
         success, upstream_sock = gevent.spawn(try_connect, client).get(timeout=HttpTryProxy.timeout)
         if not success:
             raise upstream_sock
+        upstream_sock.last_used_at = time.time()
+        upstream_sock.history = [client.src_port]
         return upstream_sock
+
+    def prefetch_to_connection_pool(self, client):
+        try:
+            upstream_sock = self.create_upstream_sock(client)
+            client.resources.remove(upstream_sock)
+            HttpTryProxy.connection_pool.setdefault(client.dst_ip, []).append(upstream_sock)
+            LOGGER.debug('[%s] prefetch success' % repr(client))
+        except:
+            LOGGER.debug('[%s] prefetch failed' % repr(client), exc_info=1)
+
+    def forward_upstream_sock(self, client, http_response, upstream_sock):
+        real_fp = http_response.capturing_sock.rfile.fp
+        http_response.fp = ForwardingFile(real_fp, client.downstream_sock)
+        while not http_response.isclosed() and (http_response.length > 0 or http_response.length is None):
+            try:
+                http_response.read(amt=8192)
+            except:
+                break
+        if upstream_sock in client.resources:
+            client.resources.remove(upstream_sock)
+        HttpTryProxy.connection_pool.setdefault(client.dst_ip, []).append(upstream_sock)
+
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         return ''
@@ -182,16 +240,19 @@ def try_connect(client):
 
 
 class HttpsEnforcer(HttpTryProxy):
-    def create_upstream_sock(self, client):
+    def get_or_create_upstream_sock(self, client):
         if 80 == client.dst_port and (is_blocked_google_host(client.host) or 'www.google.' in client.host):
-            LOGGER.info('force https: %s' % client.url)
+            LOGGER.info('[%s] force https: %s' % (repr(client), client.url))
             upstream_sock = client.create_tcp_socket(client.dst_ip, 443, 3)
             old_counter = upstream_sock.counter
             upstream_sock = ssl.wrap_socket(upstream_sock)
             upstream_sock.counter = old_counter
             return upstream_sock
         else:
-            return super(HttpsEnforcer, self).create_upstream_sock(client)
+            return super(HttpsEnforcer, self).get_or_create_upstream_sock(client)
+
+    def forward_upstream_sock(self, client, http_response, upstream_sock):
+        client.forward(upstream_sock)
 
 
 class GoogleScrambler(HttpTryProxy):
@@ -215,12 +276,17 @@ class GoogleScrambler(HttpTryProxy):
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         client.google_scrambler_hacked = is_payload_complete and is_blocked_google_host(client.host)
         if client.google_scrambler_hacked:
-            client.headers['Connection'] = 'close'
             if 'Referer' in client.headers:
                 del client.headers['Referer']
             LOGGER.info('[%s] scramble google traffic' % repr(client))
             return 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n'
         return ''
+
+    def forward_upstream_sock(self, client, http_response, upstream_sock):
+        if client.google_scrambler_hacked:
+            client.forward(upstream_sock) # google will 400 error if keep-alive and scrambling
+        else:
+            super(GoogleScrambler, self).forward_upstream_sock(client, http_response, upstream_sock)
 
     def after_send_request(self, client, upstream_sock):
         google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
@@ -231,7 +297,6 @@ class GoogleScrambler(HttpTryProxy):
         google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
         if not google_scrambler_hacked:
             return response
-        response = response.replace('Connection: keep-alive', 'Connection: close')
         if len(response) < 10:
             client.fall_back('response is too small: %s' % response)
         if http_response:
@@ -273,7 +338,6 @@ class TcpScrambler(HttpTryProxy):
             raise
 
     def before_send_request(self, client, upstream_sock, is_payload_complete):
-        client.headers['Connection'] = 'close'
         if 'Referer' in client.headers:
             del client.headers['Referer']
         upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0xbabe)
@@ -355,10 +419,12 @@ def try_receive_response_header(client, upstream_sock, rejects_error=False):
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] skip try reading response due to no content length' % repr(client))
             return http_response
-        if rejects_error and not (200 <= http_response.status < 400):
-            raise Exception('http try read response status %s not in [200, 400)' % http_response.status)
+        if rejects_error and http_response.status == 400:
+            raise Exception('http try read response status is 400')
         return http_response
     except NotHttp:
+        raise
+    except httplib.BadStatusLine:
         raise
     except:
         if LOGGER.isEnabledFor(logging.DEBUG):
@@ -400,9 +466,33 @@ class CapturingFile(object):
         self.captured += chunk
         return chunk
 
+    def readlines(self,  *args, **kwargs):
+        raise NotImplementedError()
+
     def close(self):
         self.fp.close()
 
+
+class ForwardingFile(object):
+    def __init__(self, fp, downstream_sock):
+        self.fp = fp
+        self.downstream_sock = downstream_sock
+
+    def read(self, *args, **kwargs):
+        chunk = self.fp.read(*args, **kwargs)
+        self.downstream_sock.sendall(chunk)
+        return chunk
+
+    def readline(self, *args, **kwargs):
+        chunk = self.fp.readline(*args, **kwargs)
+        self.downstream_sock.sendall(chunk)
+        return chunk
+
+    def readlines(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def close(self):
+        self.fp.close()
 
 def recv_and_parse_request(client):
     client.peeked_data, client.payload = recv_till_double_newline(client.peeked_data, client.downstream_sock)

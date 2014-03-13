@@ -29,7 +29,7 @@ def create_tcp_socket(server_ip, server_port, connect_timeout):
     # set reuseaddr option to avoid 10048 socket error
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # resize socket recv buffer 8K->32K to improve browser releated application performance
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 262144)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 32*1024)
     # disable negal algorithm to send http request quickly.
     sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, True)
     return sock
