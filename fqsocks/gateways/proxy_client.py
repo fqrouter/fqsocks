@@ -176,6 +176,8 @@ class ProxyClient(object):
                 pass
 
     def apply_delayed_penalties(self):
+        if self.delayed_penalties:
+            LOGGER.info('[%s] apply delayed penalties' % repr(self))
         for delayed_penalty in self.delayed_penalties:
             try:
                 delayed_penalty()

@@ -62,9 +62,9 @@ class ShadowSocksProxy(Proxy):
         client.forward(
             upstream_sock, timeout=5 + self.failed_times * 2,
             encrypt=encryptor.encrypt, decrypt=encryptor.decrypt,
-            delayed_penalty=self.increase_failed_time,
+            delayed_penalty=self.increase_failed_time if client.peeked_data else None,
             on_forward_started=functools.partial(self.on_forward_started, begin_at=begin_at))
-        self.failed_times = 0
+        self.clear_failed_times()
 
     def on_forward_started(self, begin_at):
         self.record_latency(time.time() - begin_at)
