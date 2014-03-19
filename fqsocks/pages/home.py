@@ -4,6 +4,7 @@ import logging
 import os.path
 import fqdns
 import time
+import urllib2
 
 import jinja2
 
@@ -49,14 +50,22 @@ def home_page(environ, start_response):
 def get_notice_url(environ, start_response):
     try:
         domain = environ['select_text']('en.url.notice.fqrouter.com', 'cn.url.notice.fqrouter.com')
-        results = fqdns.resolve('TXT', [domain], 'udp', [('8.8.8.8', 53), ('208.67.222.222', 443)], 3)
-        url = results[domain][0]
-        if '?' in url:
-            url = '%s&_ct=%s' % time.time()
-        else:
-            url = '%s?_ct=%s' % time.time()
-        start_response(httplib.TEMPORARY_REDIRECT, [('Location', url)])
+        results = networking.resolve_txt(domain)
+        LOGGER.info('%s => %s' % (domain, results))
+        url = results[0].text[0]
+        start_response(httplib.FOUND, [
+            ('Content-Type', 'text/html'),
+            ('Cache-Control', 'no-cache, no-store, must-revalidate'),
+            ('Pragma', 'no-cache'),
+            ('Expires', '0'),
+            ('Location', url)])
         return []
     except:
-        start_response(httplib.TEMPORARY_REDIRECT, [('Location', 'https://s3.amazonaws.com/fqrouter-notice/index.html')])
+        LOGGER.exception('failed to resolve notice url')
+        start_response(httplib.FOUND, [
+            ('Content-Type', 'text/html'),
+            ('Cache-Control', 'no-cache, no-store, must-revalidate'),
+            ('Pragma', 'no-cache'),
+            ('Expires', '0'),
+            ('Location', 'https://s3.amazonaws.com/fqrouter-notice/index.html')])
         return []

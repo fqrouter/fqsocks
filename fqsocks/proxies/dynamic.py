@@ -3,6 +3,7 @@ import random
 import time
 import sys
 import contextlib
+from .. import config_file
 
 import gevent
 import dpkt
@@ -164,31 +165,24 @@ except:
 def resolve_proxy(proxy):
     for i in range(3):
         try:
-            sock = networking.create_udp_socket()
-            with contextlib.closing(sock):
-                sock.settimeout(10)
-                request = dpkt.dns.DNS(
-                    id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=proxy.dns_record, type=dpkt.dns.DNS_TXT)])
-                sock.sendto(str(request), ('8.8.8.8', 53))
-                gevent.sleep(0.1)
-                dyn_props = dpkt.dns.DNS(sock.recv(1024)).an
-                if not dyn_props:
+            dyn_props = networking.resolve_txt(proxy.dns_record)
+            if not dyn_props:
+                LOGGER.info('resolved empty proxy: %s' % repr(proxy))
+                return False
+            if len(dyn_props) == 1:
+                connection_info = dyn_props[0].text[0]
+                if connection_info:
+                    if '=' in connection_info:
+                        update_new_style_proxy(proxy, [connection_info])
+                    else:
+                        update_old_style_proxy(proxy, connection_info)
+                else:
                     LOGGER.info('resolved empty proxy: %s' % repr(proxy))
                     return False
-                if len(dyn_props) == 1:
-                    connection_info = dyn_props[0].text[0]
-                    if connection_info:
-                        if '=' in connection_info:
-                            update_new_style_proxy(proxy, [connection_info])
-                        else:
-                            update_old_style_proxy(proxy, connection_info)
-                    else:
-                        LOGGER.info('resolved empty proxy: %s' % repr(proxy))
-                        return False
-                else:
-                    update_new_style_proxy(proxy, [dyn_prop.text[0] for dyn_prop in dyn_props])
-                LOGGER.info('resolved proxy: %s' % repr(proxy))
-                return True
+            else:
+                update_new_style_proxy(proxy, [dyn_prop.text[0] for dyn_prop in dyn_props])
+            LOGGER.info('resolved proxy: %s' % repr(proxy))
+            return True
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('failed to resolve proxy: %s' % repr(proxy), exc_info=1)

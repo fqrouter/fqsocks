@@ -17,6 +17,7 @@ import io
 import copy
 import threading
 import base64
+from .. import config_file
 
 import ssl
 import gevent.queue
@@ -209,6 +210,7 @@ class GoAgentProxy(Proxy):
                 all_ips.add(host)
             else:
                 ips = networking.resolve_ips(host)
+                LOGGER.info('%s => %s' % (host, ips))
                 if len(ips) > 1:
                     all_ips |= set(ips)
         if not all_ips:

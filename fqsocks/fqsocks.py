@@ -157,9 +157,12 @@ def main(argv=None):
         LOGGER.exception('failed to patch ssl')
     greenlets = []
     if config['dns_server']['enabled']:
+        networking.DNS_SERVER_IP = config['dns_server']['ip']
+        networking.DNS_SERVER_PORT = int(config['dns_server']['port'])
         dns_server_address = (config['dns_server']['ip'], config['dns_server']['port'])
         dns_server = fqdns.HandlerDatagramServer(dns_server_address, DNS_HANDLER)
         greenlets.append(gevent.spawn(dns_server.serve_forever))
+        LOGGER.info('serve dns at %s:%s' % (config['dns_server']['ip'], config['dns_server']['port']))
     if config['http_gateway']['enabled']:
         http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
         greenlets.append(http_gateway.server_greenlet)

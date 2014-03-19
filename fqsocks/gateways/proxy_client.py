@@ -676,7 +676,7 @@ def load_public_proxies(public_servers):
             request = dpkt.dns.DNS(
                 id=random.randint(1, 65535),
                 qd=[dpkt.dns.DNS.Q(name=str(public_servers['source']), type=dpkt.dns.DNS_TXT)])
-            sock.sendto(str(request), ('8.8.8.8', 53))
+            sock.sendto(str(request), (networking.DNS_SERVER_IP, networking.DNS_SERVER_PORT))
             gevent.sleep(0.1)
             for an in dpkt.dns.DNS(sock.recv(1024)).an:
                 priority, proxy_type, count, partial_dns_record = an.text[0].split(':')[:4]
