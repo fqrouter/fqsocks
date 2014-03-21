@@ -14,14 +14,13 @@ from .. import httpd
 from ..gateways import proxy_client
 from ..proxies.http_try import HTTP_TRY_PROXY
 from .. import config_file
+from .. import networking
 
 
 PROXIES_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'proxies.html')
 UPSTREAM_HTML_FILE = os.path.join(os.path.dirname(__file__), '..', 'templates', 'upstream.html')
 LOGGER = logging.getLogger(__name__)
 MAX_TIME_RANGE = 60 * 10
-DNS_HANDLER = None
-
 
 
 @httpd.http_handler('POST', 'refresh-proxies')

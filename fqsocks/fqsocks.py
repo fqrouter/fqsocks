@@ -28,8 +28,7 @@ __import__('fqsocks.pages')
 LOGGER = logging.getLogger(__name__)
 
 dns_pollution_ignored = False
-DNS_HANDLER = fqdns.DnsHandler()
-upstream.DNS_HANDLER = DNS_HANDLER
+networking.DNS_HANDLER = fqdns.DnsHandler()
 reset_force_us_ip_greenlet = None
 
 @httpd.http_handler('GET', 'dns-polluted-at')
@@ -94,6 +93,7 @@ def init_config(argv):
     argument_parser.add_argument('--tcp-gateway-listen')
     argument_parser.add_argument('--http-gateway-listen')
     argument_parser.add_argument('--dns-server-listen')
+    argument_parser.add_argument('--no-dns-server', action='store_true')
     argument_parser.add_argument('--http-manager-listen')
     argument_parser.add_argument('--no-http-manager', action='store_true')
     argument_parser.add_argument('--outbound-ip')
@@ -141,7 +141,7 @@ def init_config(argv):
     proxy_client.goagent_public_servers_enabled = config['public_servers']['goagent_enabled']
     proxy_client.ss_public_servers_enabled = config['public_servers']['ss_enabled']
     proxy_client.prefers_private_proxy = config['prefers_private_proxy']
-    DNS_HANDLER.enable_hosted_domain = config['hosted_domain_enabled']
+    networking.DNS_HANDLER.enable_hosted_domain = config['hosted_domain_enabled']
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
     httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
@@ -157,12 +157,9 @@ def main(argv=None):
         LOGGER.exception('failed to patch ssl')
     greenlets = []
     if config['dns_server']['enabled']:
-        networking.DNS_SERVER_IP = config['dns_server']['ip']
-        networking.DNS_SERVER_PORT = int(config['dns_server']['port'])
         dns_server_address = (config['dns_server']['ip'], config['dns_server']['port'])
-        dns_server = fqdns.HandlerDatagramServer(dns_server_address, DNS_HANDLER)
+        dns_server = fqdns.HandlerDatagramServer(dns_server_address, networking.DNS_HANDLER)
         greenlets.append(gevent.spawn(dns_server.serve_forever))
-        LOGGER.info('serve dns at %s:%s' % (config['dns_server']['ip'], config['dns_server']['port']))
     if config['http_gateway']['enabled']:
         http_gateway.server_greenlet = gevent.spawn(http_gateway.serve_forever)
         greenlets.append(http_gateway.server_greenlet)

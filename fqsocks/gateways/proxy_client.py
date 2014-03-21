@@ -669,25 +669,18 @@ def init_proxies(config):
 
 def load_public_proxies(public_servers):
     try:
-        sock = networking.create_udp_socket()
         more_proxies = []
-        with contextlib.closing(sock):
-            sock.settimeout(10)
-            request = dpkt.dns.DNS(
-                id=random.randint(1, 65535),
-                qd=[dpkt.dns.DNS.Q(name=str(public_servers['source']), type=dpkt.dns.DNS_TXT)])
-            sock.sendto(str(request), (networking.DNS_SERVER_IP, networking.DNS_SERVER_PORT))
-            gevent.sleep(0.1)
-            for an in dpkt.dns.DNS(sock.recv(1024)).an:
-                priority, proxy_type, count, partial_dns_record = an.text[0].split(':')[:4]
-                count = int(count)
-                priority = int(priority)
-                if public_servers.get('%s_enabled' % proxy_type, True) and proxy_type in proxy_types:
-                    for i in range(count):
-                        dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i + 1))
-                        dynamic_proxy = DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority)
-                        if dynamic_proxy not in proxies:
-                            more_proxies.append(dynamic_proxy)
+        results = networking.resolve_txt(public_servers['source'])
+        for an in results:
+            priority, proxy_type, count, partial_dns_record = an.text[0].split(':')[:4]
+            count = int(count)
+            priority = int(priority)
+            if public_servers.get('%s_enabled' % proxy_type, True) and proxy_type in proxy_types:
+                for i in range(count):
+                    dns_record = '%s.fqrouter.com' % partial_dns_record.replace('#', str(i + 1))
+                    dynamic_proxy = DynamicProxy(dns_record=dns_record, type=proxy_type, priority=priority)
+                    if dynamic_proxy not in proxies:
+                        more_proxies.append(dynamic_proxy)
         LOGGER.info('loaded public servers: %s' % more_proxies)
         proxies.extend(more_proxies)
         return True

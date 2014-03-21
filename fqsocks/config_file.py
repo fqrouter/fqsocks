@@ -91,6 +91,8 @@ def read_config():
     if cli_args.http_gateway_listen:
         config['http_gateway']['enabled'] = True
         config['http_gateway']['ip'], config['http_gateway']['port'] = parse_ip_colon_port(cli_args.http_gateway_listen)
+    if cli_args.no_dns_server:
+        config['dns_server']['enabled'] = False
     if cli_args.dns_server_listen:
         config['dns_server']['enabled'] = True
         config['dns_server']['ip'], config['dns_server']['port'] = parse_ip_colon_port(cli_args.dns_server_listen)

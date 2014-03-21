@@ -41,7 +41,7 @@ def home_page(environ, start_response):
         httpd=httpd,
         spi_wifi_repeater=downstream.spi_wifi_repeater if is_root else None,
         now=time.time(),
-        hosted_domain_enabled=upstream.DNS_HANDLER.enable_hosted_domain)
+        hosted_domain_enabled=networking.DNS_HANDLER.enable_hosted_domain)
     html = template.render(**args).encode('utf8')
     return [html]
 

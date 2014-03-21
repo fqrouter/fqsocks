@@ -3,9 +3,6 @@ import struct
 import dpkt
 import logging
 import random
-import contextlib
-import gevent
-import sys
 import re
 import fqlan
 
@@ -14,8 +11,7 @@ SO_ORIGINAL_DST = 80
 OUTBOUND_IP = None
 SPI = {}
 RE_IP = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
-DNS_SERVER_IP = '8.8.8.8'
-DNS_SERVER_PORT = 53
+DNS_HANDLER = None
 
 default_interface_ip_cache = None
 
@@ -55,10 +51,6 @@ def _create_tcp_socket(server_ip, server_port, connect_timeout):
 SPI['create_tcp_socket'] = _create_tcp_socket
 
 
-def create_udp_socket():
-    return socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-
 def get_original_destination(sock, src_ip, src_port):
     return SPI['get_original_destination'](sock, src_ip, src_port)
 
@@ -73,36 +65,17 @@ def _get_original_destination(sock, src_ip, src_port):
 SPI['get_original_destination'] = _get_original_destination
 
 
-def resolve_ips(host, dns_ip=None, dns_port=None):
+def resolve_ips(host):
     if RE_IP.match(host):
         return [host]
-    for i in range(3):
-        try:
-            sock = create_udp_socket()
-            with contextlib.closing(sock):
-                sock.settimeout(10)
-                request = dpkt.dns.DNS(
-                    id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
-                sock.sendto(str(request), (dns_ip or DNS_SERVER_IP, dns_port or DNS_SERVER_PORT))
-                gevent.sleep(0.1)
-                response = dpkt.dns.DNS(sock.recv(8192))
-                ips = [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
-                return ips
-        except:
-            if LOGGER.isEnabledFor(logging.DEBUG):
-                LOGGER.debug('failed to resolve %s' % host, exc_info=1)
-            else:
-                LOGGER.info('failed to resolve %s: %s' % (host, sys.exc_info()[1]), exc_info=1)
-        gevent.sleep(1)
-    return []
+    request = dpkt.dns.DNS(
+        id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(host), type=dpkt.dns.DNS_A)])
+    response = DNS_HANDLER.query(request, str(request))
+    ips = [socket.inet_ntoa(an.ip) for an in response.an if hasattr(an, 'ip')]
+    return ips
 
 
 def resolve_txt(domain):
-    sock = create_udp_socket()
-    with contextlib.closing(sock):
-        sock.settimeout(10)
-        request = dpkt.dns.DNS(
-            id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=domain, type=dpkt.dns.DNS_TXT)])
-        sock.sendto(str(request), (DNS_SERVER_IP, DNS_SERVER_PORT))
-        gevent.sleep(0.1)
-        return dpkt.dns.DNS(sock.recv(1024)).an
+    request = dpkt.dns.DNS(
+        id=random.randint(1, 65535), qd=[dpkt.dns.DNS.Q(name=str(domain), type=dpkt.dns.DNS_TXT)])
+    return DNS_HANDLER.query(request, str(request)).an
