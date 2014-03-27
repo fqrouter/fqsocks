@@ -251,6 +251,14 @@ class HttpsEnforcer(HttpTryProxy):
         else:
             return super(HttpsEnforcer, self).get_or_create_upstream_sock(client)
 
+    def process_response(self, client, upstream_sock, response, http_response):
+        if http_response:
+            if httplib.FORBIDDEN == http_response.status:
+                client.fall_back(reason='403 forbidden')
+            if httplib.NOT_FOUND == http_response.status:
+                client.fall_back(reason='404 not found')
+        return super(HttpsEnforcer, self).process_response(client, upstream_sock, response, http_response)
+
     def forward_upstream_sock(self, client, http_response, upstream_sock):
         client.forward(upstream_sock)
 

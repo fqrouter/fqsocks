@@ -156,9 +156,11 @@ class ProxyClient(object):
         u2d = gevent.spawn(from_upstream_to_downstream)
         d2u = gevent.spawn(from_downstream_to_upstream)
         try:
-            e = u2d.join()
-            if e:
-                raise e
+            for greenlet in gevent.iwait([u2d, d2u]):
+                e = greenlet.get()
+                if e:
+                    raise e
+                break
             try:
                 upstream_sock.close()
             except:
