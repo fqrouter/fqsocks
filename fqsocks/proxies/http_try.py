@@ -11,11 +11,10 @@ import ssl
 
 from .direct import Proxy
 from .. import networking
+from .. import stat
 from .. import ip_substitution
 
 LOGGER = logging.getLogger(__name__)
-
-SO_MARK = 36
 
 NO_DIRECT_PROXY_HOSTS = {
     'hulu.com',
@@ -45,6 +44,7 @@ WHITE_LIST = {
 def is_no_direct_host(client_host):
     return any(fnmatch.fnmatch(client_host, host) for host in NO_DIRECT_PROXY_HOSTS)
 
+REASON_HTTP_TRY_CONNECT_FAILED = 'http try connect failed'
 
 class HttpTryProxy(Proxy):
 
@@ -54,53 +54,48 @@ class HttpTryProxy(Proxy):
     host_black_list = {} # host => count
     host_slow_list = set()
     host_slow_detection_enabled = True
-    dst_black_list = {} # (ip, port) => count
     connection_pool = {}
 
     def __init__(self):
         super(HttpTryProxy, self).__init__()
         self.flags.add('DIRECT')
+        self.dst_black_list = {} # (ip, port) => count
 
     def do_forward(self, client):
+        dst = (client.dst_ip, client.dst_port)
         try:
             self.try_direct(client)
-            if client.host and self.host_black_list.get(client.host, 0) > 3:
-                LOGGER.error('remove host %s from blacklist' % client.host)
-                del self.host_black_list[client.host]
+            if dst in self.dst_black_list:
+                LOGGER.error('%s remove dst %s:%s from blacklist' % (repr(self), dst[0], dst[1]))
+                del self.dst_black_list[dst]
+            if client.host in HttpTryProxy.host_black_list:
+                if HttpTryProxy.host_black_list.get(client.host, 0) > 3:
+                    LOGGER.error('HttpTryProxies remove host %s from blacklist' % client.host)
+                del HttpTryProxy.host_black_list[client.host]
         except NotHttp:
             raise
-        except:
+        except client.ProxyFallBack as e:
+            if REASON_HTTP_TRY_CONNECT_FAILED == e.reason:
+                if dst not in self.dst_black_list:
+                    LOGGER.error('%s blacklist dst %s:%s' % (repr(self), dst[0], dst[1]))
+                self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+                raise
             if client.host and client.host not in WHITE_LIST:
-                self.host_black_list[client.host] = self.host_black_list.get(client.host, 0) + 1
-                if self.host_black_list[client.host] == 4:
-                    LOGGER.error('blacklist host %s' % client.host)
+                HttpTryProxy.host_black_list[client.host] = HttpTryProxy.host_black_list.get(client.host, 0) + 1
+                if HttpTryProxy.host_black_list[client.host] == 4:
+                    LOGGER.error('HttpTryProxies blacklist host %s' % client.host)
             raise
 
-    def try_direct(self, client, is_retrying=False):
-        is_payload_complete = recv_and_parse_request(client)
-        # check host
-        if client.host in self.host_slow_list:
-            client.fall_back(reason='%s was too slow to direct connect' % client.host, silently=True)
-        failed_count = self.host_black_list.get(client.host, 0)
-        if failed_count > 3 and (failed_count % 10) != 0:
-            client.fall_back(reason='%s tried before' % client.host, silently=True)
-        if is_no_direct_host(client.host):
-            client.fall_back(reason='%s blacklisted for direct access' % client.host, silently=True)
-        # check ip
-        ip_substitution.substitute_ip(client, self.dst_black_list)
-        failed_count = self.dst_black_list.get((client.dst_ip, client.dst_port), 0)
-        if failed_count and (failed_count % 10) != 0:
-            client.fall_back(reason='%s:%s tried before' % (client.dst_ip, client.dst_port), silently=True)
-        # start trying
+    def try_direct(self, client, is_retrying=0):
         try:
             upstream_sock = self.get_or_create_upstream_sock(client)
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)
-            client.fall_back(reason='http try connect failed')
+            client.fall_back(reason=REASON_HTTP_TRY_CONNECT_FAILED)
             return
         client.headers['Host'] = client.host
-        request_data = self.before_send_request(client, upstream_sock, is_payload_complete)
+        request_data = self.before_send_request(client, upstream_sock, client.is_payload_complete)
         request_data += '%s %s HTTP/1.1\r\n' % (client.method, client.path)
         request_data += ''.join('%s: %s\r\n' % (k, v) for k, v in client.headers.items())
         request_data += '\r\n'
@@ -109,18 +104,19 @@ class HttpTryProxy(Proxy):
         except:
             client.fall_back(reason='send to upstream failed: %s' % sys.exc_info()[1])
         self.after_send_request(client, upstream_sock)
-        if is_payload_complete:
+        if client.is_payload_complete:
             try:
                 http_response = try_receive_response_header(
                     client, upstream_sock, rejects_error=('GET' == client.method))
             except httplib.BadStatusLine:
-                # if is_retrying:
-                #     raise
-                LOGGER.debug('[%s] retry with another connection' % repr(client))
-                return self.try_direct(client, is_retrying=True)
+                if is_retrying > 3:
+                    client.fall_back(reason='failed to read response: %s' % upstream_sock.history)
+                LOGGER.info('[%s] retry with another connection' % repr(client))
+                return self.try_direct(client, is_retrying=is_retrying + 1)
             response = self.detect_slow_host(client, http_response)
             is_keep_alive = 'Connection: keep-alive' in response
             try:
+                fallback_if_youtube_unplayable(client, http_response)
                 response = self.process_response(client, upstream_sock, response, http_response)
             except client.ProxyFallBack:
                 raise
@@ -139,13 +135,13 @@ class HttpTryProxy(Proxy):
                 client.forward(upstream_sock)
 
     def detect_slow_host(self, client, http_response):
-        if self.host_slow_detection_enabled:
+        if HttpTryProxy.host_slow_detection_enabled:
             greenlet = gevent.spawn(
                 try_receive_response_body, http_response, reads_all='youtube.com/watch?' in client.url)
             try:
                 return greenlet.get(timeout=5)
             except gevent.Timeout:
-                self.host_slow_list.add(client.host)
+                HttpTryProxy.host_slow_list.add(client.host)
                 LOGGER.error('[%s] host %s is too slow to direct access' % (repr(client), client.host))
                 client.fall_back('too slow')
             finally:
@@ -156,15 +152,17 @@ class HttpTryProxy(Proxy):
     def get_or_create_upstream_sock(self, client):
         if HttpTryProxy.connection_pool.get(client.dst_ip):
             upstream_sock = HttpTryProxy.connection_pool[client.dst_ip].pop()
+            if not HttpTryProxy.connection_pool[client.dst_ip]:
+                del HttpTryProxy.connection_pool[client.dst_ip]
             if upstream_sock.last_used_at - time.time() > 7:
                 LOGGER.debug('[%s] close old connection %s' % (repr(client), upstream_sock.history))
                 upstream_sock.close()
                 return self.get_or_create_upstream_sock(client)
             client.add_resource(upstream_sock)
+            if len(upstream_sock.history) > 5:
+                return self.get_or_create_upstream_sock(client)
             LOGGER.debug('[%s] reuse connection %s' % (repr(client), upstream_sock.history))
             upstream_sock.history.append(client.src_port)
-            if not HttpTryProxy.connection_pool[client.dst_ip]:
-                del HttpTryProxy.connection_pool[client.dst_ip]
             upstream_sock.last_used_at = time.time()
             return upstream_sock
         else:
@@ -214,6 +212,20 @@ class HttpTryProxy(Proxy):
         return response
 
     def is_protocol_supported(self, protocol, client=None):
+        if self.died:
+            return False
+        if client and self in client.tried_proxies:
+            return False
+        dst = (client.dst_ip, client.dst_port)
+        if not ip_substitution.substitute_ip(client, self.dst_black_list) and self.dst_black_list.get(dst, 0) % 16:
+            return False
+        if is_no_direct_host(client.host):
+            return False
+        if client.host in HttpTryProxy.host_slow_list:
+            return False
+        host_failed_times = HttpTryProxy.host_black_list.get(client.host, 0)
+        if host_failed_times > 3 and host_failed_times % 16:
+            return False
         return 'HTTP' == protocol
 
     def __repr__(self):
@@ -239,147 +251,7 @@ def try_connect(client):
         return False, sys.exc_info()[1]
 
 
-class HttpsEnforcer(HttpTryProxy):
-    def get_or_create_upstream_sock(self, client):
-        if 80 == client.dst_port and is_blocked_google_host(client.host):
-            LOGGER.info('[%s] force https: %s' % (repr(client), client.url))
-            upstream_sock = client.create_tcp_socket(client.dst_ip, 443, 3)
-            old_counter = upstream_sock.counter
-            upstream_sock = ssl.wrap_socket(upstream_sock)
-            upstream_sock.counter = old_counter
-            return upstream_sock
-        else:
-            return super(HttpsEnforcer, self).get_or_create_upstream_sock(client)
-
-    def process_response(self, client, upstream_sock, response, http_response):
-        if http_response:
-            if httplib.FORBIDDEN == http_response.status:
-                client.fall_back(reason='403 forbidden')
-            if httplib.NOT_FOUND == http_response.status:
-                client.fall_back(reason='404 not found')
-        return super(HttpsEnforcer, self).process_response(client, upstream_sock, response, http_response)
-
-    def forward_upstream_sock(self, client, http_response, upstream_sock):
-        client.forward(upstream_sock)
-
-
-class GoogleScrambler(HttpTryProxy):
-    def do_forward(self, client):
-        dst = (client.dst_ip, client.dst_port)
-        try:
-            super(GoogleScrambler, self).do_forward(client)
-            if dst in self.dst_black_list:
-                LOGGER.error('removed dst %s:%s from blacklist' % dst)
-                del self.dst_black_list[dst]
-        except NotHttp:
-            raise
-        except:
-            google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
-            if google_scrambler_hacked:
-                if dst not in self.dst_black_list:
-                    LOGGER.error('blacklist dst %s:%s' % dst)
-                self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
-            raise
-
-    def before_send_request(self, client, upstream_sock, is_payload_complete):
-        client.google_scrambler_hacked = is_payload_complete and is_blocked_google_host(client.host)
-        if client.google_scrambler_hacked:
-            if 'Referer' in client.headers:
-                del client.headers['Referer']
-            LOGGER.info('[%s] scramble google traffic' % repr(client))
-            return 'GET http://www.google.com/ncr HTTP/1.1\r\n\r\n\r\n'
-        return ''
-
-    def forward_upstream_sock(self, client, http_response, upstream_sock):
-        if client.google_scrambler_hacked:
-            client.forward(upstream_sock) # google will 400 error if keep-alive and scrambling
-        else:
-            super(GoogleScrambler, self).forward_upstream_sock(client, http_response, upstream_sock)
-
-    def after_send_request(self, client, upstream_sock):
-        google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
-        if google_scrambler_hacked:
-            try_receive_response_body(try_receive_response_header(client, upstream_sock), reads_all=True)
-
-    def process_response(self, client, upstream_sock, response, http_response):
-        google_scrambler_hacked = getattr(client, 'google_scrambler_hacked', False)
-        if not google_scrambler_hacked:
-            return response
-        if len(response) < 10:
-            client.fall_back('response is too small: %s' % response)
-        if http_response:
-            if httplib.FORBIDDEN == http_response.status:
-                client.fall_back(reason='403 forbidden')
-            if httplib.NOT_FOUND == http_response.status:
-                client.fall_back(reason='404 not found')
-            if http_response.content_length \
-                and httplib.PARTIAL_CONTENT != http_response.status \
-                and 0 < http_response.content_length < 10:
-                client.fall_back('content length is too small: %s' % http_response.msg.dict)
-            fallback_if_youtube_unplayable(client, http_response)
-        return response
-
-    def __repr__(self):
-        return 'GoogleScrambler'
-
-class TcpScrambler(HttpTryProxy):
-    def __init__(self):
-        super(TcpScrambler, self).__init__()
-        self.bad_requests = {} # host => count
-        self.dst_black_list = {}
-
-    def do_forward(self, client):
-        if is_blocked_google_host(client.host):
-            LOGGER.info('[%s] tcp scramble youtube' % repr(client))
-        dst = (client.dst_ip, client.dst_port)
-        try:
-            super(TcpScrambler, self).do_forward(client)
-            if dst in self.dst_black_list:
-                LOGGER.error('removed dst %s:%s from blacklist' % dst)
-                del self.dst_black_list[dst]
-        except NotHttp:
-            raise
-        except:
-            if dst not in self.dst_black_list:
-                LOGGER.error('blacklist dst %s:%s' % dst)
-            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
-            raise
-
-    def before_send_request(self, client, upstream_sock, is_payload_complete):
-        if 'Referer' in client.headers:
-            del client.headers['Referer']
-        upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0xbabe)
-        return ''
-
-    def after_send_request(self, client, upstream_sock):
-        pass
-
-    def process_response(self, client, upstream_sock, response, http_response):
-        upstream_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, 0)
-        if httplib.BAD_REQUEST == http_response.status:
-            LOGGER.info('[%s] bad request to %s' % (repr(client), client.host))
-            self.bad_requests[client.host] = self.bad_requests.get(client.host, 0) + 1
-            if self.bad_requests[client.host] >= 3:
-                LOGGER.critical('!!! too many bad requests, disable tcp scrambler !!!')
-                self.died = True
-            client.fall_back('tcp scrambler bad request')
-        else:
-            if client.host in self.bad_requests:
-                LOGGER.info('[%s] reset bad request to %s' % (repr(client), client.host))
-                del self.bad_requests[client.host]
-            response = response.replace('Connection: keep-alive', 'Connection: close')
-            fallback_if_youtube_unplayable(client, http_response)
-        return response
-
-    def __repr__(self):
-        return 'TcpScrambler'
-
-
 HTTP_TRY_PROXY = HttpTryProxy()
-GOOGLE_SCRAMBLER = GoogleScrambler()
-TCP_SCRAMBLER = TcpScrambler()
-HTTPS_ENFORCER = HttpsEnforcer()
-
 
 def fallback_if_youtube_unplayable(client, http_response):
     if not http_response:
@@ -394,12 +266,6 @@ def fallback_if_youtube_unplayable(client, http_response):
                 'id="unavailable-message" class="message"' in http_response.body or 'UNPLAYABLE' in http_response.body):
         client.fall_back(reason='youtube player not available in China')
 
-
-def is_blocked_google_host(client_host):
-    if not client_host:
-        return False
-    return 'youtube.com' in client_host or 'ytimg.com' in client_host or 'googlevideo.com' in client_host \
-        or '.c.android.clients.google.com' in client_host # google play apk
 
 
 def try_receive_response_header(client, upstream_sock, rejects_error=False):
@@ -565,27 +431,3 @@ def parse_request(request):
         if keyword and value:
             headers[keyword] = value
     return method, path, headers
-
-
-def detect_if_ttl_being_ignored():
-    gevent.sleep(5)
-    for i in range(2):
-        try:
-            LOGGER.info('detecting if ttl being ignored')
-            baidu_ip = networking.resolve_ips('www.baidu.com')[0]
-            sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-            if networking.OUTBOUND_IP:
-                sock.bind((networking.OUTBOUND_IP, 0))
-            sock.setblocking(0)
-            sock.settimeout(2)
-            sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 3)
-            try:
-                sock.connect((baidu_ip, 80))
-            finally:
-                sock.close()
-            LOGGER.info('ttl 3 should not connect baidu, disable fqting')
-            return True
-        except:
-            LOGGER.exception('detected if ttl being ignored')
-            gevent.sleep(1)
-    return False

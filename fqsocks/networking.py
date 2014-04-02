@@ -8,6 +8,7 @@ import fqlan
 
 LOGGER = logging.getLogger(__name__)
 SO_ORIGINAL_DST = 80
+SO_MARK = 36
 OUTBOUND_IP = None
 SPI = {}
 RE_IP = re.compile(r'^\d+\.\d+\.\d+\.\d+$')

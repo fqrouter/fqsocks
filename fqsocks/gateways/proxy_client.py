@@ -16,12 +16,13 @@ import gevent
 import dpkt
 from .. import networking
 from .. import stat
+from ..proxies.http_try import recv_and_parse_request
 from ..proxies.http_try import NotHttp
 from ..proxies.http_try import HTTP_TRY_PROXY
-from ..proxies.http_try import GOOGLE_SCRAMBLER
-from ..proxies.http_try import TCP_SCRAMBLER
-from ..proxies.http_try import HTTPS_ENFORCER
-from ..proxies.http_try import is_blocked_google_host
+from ..proxies.google_http_try import GOOGLE_SCRAMBLER
+from ..proxies.google_http_try import HTTPS_ENFORCER
+from ..proxies.google_http_try import TCP_SCRAMBLER
+from ..proxies.tcp_smuggler import TCP_SMUGGLER
 from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
 from ..proxies import direct
@@ -34,14 +35,14 @@ from .. import us_ip
 from .. import lan_ip
 from .. import china_ip
 from ..proxies.direct import DIRECT_PROXY
-from ..proxies.direct import HTTPS_TRY_PROXY
 from ..proxies.direct import NONE_PROXY
+from ..proxies.https_try import HTTPS_TRY_PROXY
 from .. import ip_substitution
 from .. import config_file
 import os.path
 
 TLS1_1_VERSION = 0x0302
-RE_HTTP_HOST = re.compile('Host: (.+)')
+RE_HTTP_HOST = re.compile('Host: (.+)\r\n')
 LOGGER = logging.getLogger(__name__)
 
 proxies = []
@@ -282,7 +283,10 @@ def pick_proxy_and_forward(client):
         return
     peek_data(client)
     for i in range(3):
-        proxy = pick_proxy(client)
+        try:
+            proxy = pick_proxy(client)
+        except NotHttp:
+            return # give up
         if not proxy:
             raise NoMoreProxy()
         if 'DIRECT' in proxy.flags:
@@ -297,10 +301,7 @@ def pick_proxy_and_forward(client):
                 LOGGER.error('[%s] fall back to other proxy due to %s: %s' % (repr(client), e.reason, repr(proxy)))
             client.tried_proxies[proxy] = e.reason
         except NotHttp:
-            try:
-                return DIRECT_PROXY.forward(client)
-            except client.ProxyFallBack:
-                return # give up
+            return # give up
     raise NoMoreProxy()
 
 
@@ -395,9 +396,13 @@ def pick_proxy(client):
     if not china_shortcut_enabled:
         picks_public = False
     if client.protocol == 'HTTP':
-        return pick_preferred_private_proxy(client) or pick_http_try_proxy(client) or pick_proxy_supports(client, picks_public)
+        return pick_preferred_private_proxy(client) or \
+               pick_http_try_proxy(client) or \
+               pick_proxy_supports(client, picks_public)
     elif client.protocol == 'HTTPS':
-        return pick_preferred_private_proxy(client) or pick_https_try_proxy(client) or pick_proxy_supports(client, picks_public)
+        return pick_preferred_private_proxy(client) or \
+               pick_https_try_proxy(client) or \
+               pick_proxy_supports(client, picks_public)
     else:
         return pick_preferred_private_proxy(client) or pick_https_try_proxy(client)
 
@@ -441,40 +446,28 @@ def pick_direct_proxy(client):
 
 
 def pick_http_try_proxy(client):
-    if client.us_ip_only:
-        client.tried_proxies[HTTP_TRY_PROXY] = 'us ip only'
+    if getattr(client, 'http_proxy_tried', False):
         return None
-    if not direct_access_enabled:
-        client.tried_proxies[HTTP_TRY_PROXY] = 'direct access disabled'
-        return None
-    if tcp_scrambler_enabled and not TCP_SCRAMBLER.died:
-        if TCP_SCRAMBLER in client.tried_proxies:
-            if is_blocked_google_host(client.host):
-                if https_enforcer_enabled:
-                    return None if HTTPS_ENFORCER in client.tried_proxies else HTTPS_ENFORCER
-                elif google_scrambler_enabled:
-                    return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
-                else:
-                    return None
-            else:
-                return None
-        else:
-            return TCP_SCRAMBLER # first time try
-    elif https_enforcer_enabled:
-        if HTTPS_ENFORCER in client.tried_proxies:
-            if is_blocked_google_host(client.host):
-                if google_scrambler_enabled:
-                    return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
-                else:
-                    return None
-            else:
-                return None
-        else:
+    try:
+        if client.us_ip_only:
+            return None
+        if not direct_access_enabled:
+            return None
+        if not hasattr(client, 'is_payload_complete'): # only parse it once
+            client.is_payload_complete = recv_and_parse_request(client)
+        if tcp_scrambler_enabled:
+            if TCP_SMUGGLER.died and TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
+                return TCP_SCRAMBLER # first time try
+            if TCP_SMUGGLER.is_protocol_supported('HTTP', client):
+                return TCP_SMUGGLER
+        if https_enforcer_enabled and HTTPS_ENFORCER.is_protocol_supported('HTTP', client):
             return HTTPS_ENFORCER
-    elif google_scrambler_enabled:
-        return None if GOOGLE_SCRAMBLER in client.tried_proxies else GOOGLE_SCRAMBLER
-    else:
-        return None if HTTP_TRY_PROXY in client.tried_proxies else HTTP_TRY_PROXY
+        if google_scrambler_enabled and GOOGLE_SCRAMBLER.is_protocol_supported('HTTP', client):
+            return GOOGLE_SCRAMBLER
+        return HTTP_TRY_PROXY if HTTP_TRY_PROXY.is_protocol_supported('HTTP', client) else HTTP_TRY_PROXY
+    finally:
+        # one shot
+        client.http_proxy_tried = True
 
 
 def pick_https_try_proxy(client):
@@ -484,7 +477,7 @@ def pick_https_try_proxy(client):
     if not direct_access_enabled:
         client.tried_proxies[HTTPS_TRY_PROXY] = 'direct access disabled'
         return None
-    return None if HTTPS_TRY_PROXY in client.tried_proxies else HTTPS_TRY_PROXY
+    return HTTPS_TRY_PROXY if HTTPS_TRY_PROXY.is_protocol_supported('HTTPS', client) else None
 
 
 def pick_proxy_supports(client, picks_public=None):
@@ -563,9 +556,7 @@ def get_refresh_interval():
     return len(refresh_timestamps) * 30 + 60
 
 
-def init_proxies(config):
-    global last_refresh_started_at
-    last_refresh_started_at = -1
+def init_private_proxies(config):
     for proxy_id, private_server in config['private_servers'].items():
         try:
             proxy_type = private_server.pop('proxy_type')
@@ -623,6 +614,7 @@ def init_proxies(config):
             elif 'SPDY' == proxy_type:
                 from ..proxies.spdy_relay import SpdyRelayProxy
                 from ..proxies.spdy_connect import SpdyConnectProxy
+
                 for i in range(private_server.get('connections_count') or 4):
                     if 'HTTP' in private_server.get('traffic_type'):
                         proxy = SpdyRelayProxy(
@@ -640,6 +632,14 @@ def init_proxies(config):
                 raise NotImplementedError('proxy type: %s' % proxy_type)
         except:
             LOGGER.exception('failed to init %s' % private_server)
+
+
+def init_proxies(config):
+    global last_refresh_started_at
+    last_refresh_started_at = -1
+    init_private_proxies(config)
+    TCP_SMUGGLER.try_start_if_network_is_ok()
+    TCP_SCRAMBLER.try_start_if_network_is_ok()
     try:
         success = False
         for i in range(8):
@@ -699,8 +699,13 @@ def clear_proxy_states():
     HTTP_TRY_PROXY.host_black_list.clear()
     HTTP_TRY_PROXY.host_slow_list.clear()
     HTTP_TRY_PROXY.host_slow_detection_enabled = True
-    HTTP_TRY_PROXY.dst_black_list.clear()
     TCP_SCRAMBLER.bad_requests.clear()
+    # http proxies black list
+    HTTP_TRY_PROXY.dst_black_list.clear()
+    TCP_SCRAMBLER.dst_black_list.clear()
+    GOOGLE_SCRAMBLER.dst_black_list.clear()
+    HTTPS_ENFORCER.dst_black_list.clear()
+    TCP_SMUGGLER.dst_black_list.clear()
     HTTPS_TRY_PROXY.timeout = HTTPS_TRY_PROXY.INITIAL_TIMEOUT
     HTTPS_TRY_PROXY.slow_ip_list.clear()
     HTTPS_TRY_PROXY.dst_black_list.clear()
@@ -713,5 +718,7 @@ def clear_proxy_states():
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
     stat.counters = []
+    TCP_SMUGGLER.try_start_if_network_is_ok()
+    TCP_SCRAMBLER.try_start_if_network_is_ok()
     if on_clear_states:
         on_clear_states()

@@ -10,50 +10,39 @@ sub_map = {}
 sub_lock = set()
 
 def substitute_ip(client, dst_black_list):
+    if client.dst_ip not in sub_map:
+        gevent.spawn(fill_sub_map, client.host, client.dst_ip)
+        return False
     if client.dst_ip in sub_map and sub_map[client.dst_ip] is None:
         return False
-    substituted_ip = sub_map.get(client.dst_ip)
-    if substituted_ip:
-        if (substituted_ip, client.dst_port) in dst_black_list:
-            del sub_map[client.dst_ip]
-        else:
-            LOGGER.info('[%s] substitute ip: %s %s => %s' % (client, client.host, client.dst_ip, substituted_ip))
-            client.dst_ip = substituted_ip
-            return True
-    gevent.spawn(fill_sub_map, client.host, client.dst_ip, client.dst_port, dst_black_list)
+    candidate_ips = []
+    for ip in sub_map.get(client.dst_ip):
+        if (ip, client.dst_port) not in dst_black_list:
+            candidate_ips.append(ip)
+    if candidate_ips:
+        substituted_ip = random.choice(candidate_ips)
+        LOGGER.info('[%s] substitute ip: %s %s => %s' % (client, client.host, client.dst_ip, substituted_ip))
+        client.dst_ip = substituted_ip
+        return True
     return False
 
 
-def fill_sub_map(host, dst_ip, dst_port, dst_black_list):
+def fill_sub_map(host, dst_ip):
     if host in sub_lock:
         return
     sub_lock.add(host)
     try:
-        # sub_host = '%s.sub.fqrouter.com' % '.'.join(reversed(dst_ip.split('.')))
-        # substituted_ip = resolve_non_blacklisted_ip(sub_host, dst_ip, dst_port, dst_black_list)
-        # if substituted_ip:
-        #     LOGGER.info('resolved hosted sub: %s => %s' % (dst_ip, substituted_ip))
-        #     sub_map[dst_ip] = substituted_ip
-        #     return
+        sub_host = '%s.sub.f-q.co' % '.'.join(reversed(dst_ip.split('.')))
+        ips = networking.resolve_ips(sub_host)
         if host:
-            sub_map[dst_ip] = resolve_non_blacklisted_ip(host, dst_ip, dst_port, dst_black_list)
+            ips += networking.resolve_ips(host)
+        if dst_ip in ips:
+            ips.remove(dst_ip)
+        if ips:
+            sub_map[dst_ip] = ips
         else:
             sub_map[dst_ip] = None
     except:
         LOGGER.error('failed to fill host map due to %s' % sys.exc_info()[1])
     finally:
         sub_lock.remove(host)
-
-
-def resolve_non_blacklisted_ip(host, dst_ip, dst_port, dst_black_list):
-    ips = networking.resolve_ips(host)
-    if not ips:
-        return None
-    ips = [ip for ip in ips if dst_ip != ip and not (ip, dst_port) in dst_black_list]
-    if not ips:
-        return None
-    return random.choice(ips)
-
-
-def is_blacklisted(dst, dst_black_list):
-    return dst in dst_black_list

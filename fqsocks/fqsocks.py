@@ -12,7 +12,6 @@ import fqdns
 import gevent.server
 import gevent.monkey
 
-from .proxies.http_try import detect_if_ttl_being_ignored
 from .proxies.goagent import GoAgentProxy
 import httpd
 import networking
@@ -170,9 +169,6 @@ def main(argv=None):
         httpd.server_greenlet = gevent.spawn(httpd.serve_forever)
         greenlets.append(httpd.server_greenlet)
     greenlets.append(gevent.spawn(proxy_client.init_proxies, config))
-    if proxy_client.tcp_scrambler_enabled:
-        if detect_if_ttl_being_ignored():
-            proxy_client.tcp_scrambler_enabled = False
     for greenlet in greenlets:
         try:
             greenlet.join()

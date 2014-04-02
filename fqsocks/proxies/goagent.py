@@ -150,7 +150,7 @@ class GoAgentProxy(Proxy):
                         self.version = match.group(0)
                         LOGGER.info('queried appid version: %s' % self)
                     else:
-                        LOGGER.info('failed to query appid version: %s' % response)
+                        LOGGER.info('failed to query appid version %s: %s' % (self.appid, response))
         except:
             LOGGER.exception('failed to query goagent %s version' % self.appid)
 
