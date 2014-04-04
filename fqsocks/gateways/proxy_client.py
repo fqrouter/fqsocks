@@ -398,6 +398,7 @@ def pick_proxy(client):
     if client.protocol == 'HTTP':
         return pick_preferred_private_proxy(client) or \
                pick_http_try_proxy(client) or \
+               pick_tcp_smuggler(client) or \
                pick_proxy_supports(client, picks_public)
     elif client.protocol == 'HTTPS':
         return pick_preferred_private_proxy(client) or \
@@ -456,10 +457,8 @@ def pick_http_try_proxy(client):
         if not hasattr(client, 'is_payload_complete'): # only parse it once
             client.is_payload_complete = recv_and_parse_request(client)
         if tcp_scrambler_enabled:
-            if TCP_SMUGGLER.died and TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
+            if TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
                 return TCP_SCRAMBLER # first time try
-            if TCP_SMUGGLER.is_protocol_supported('HTTP', client):
-                return TCP_SMUGGLER
         if https_enforcer_enabled and HTTPS_ENFORCER.is_protocol_supported('HTTP', client):
             return HTTPS_ENFORCER
         if google_scrambler_enabled and GOOGLE_SCRAMBLER.is_protocol_supported('HTTP', client):
@@ -468,6 +467,12 @@ def pick_http_try_proxy(client):
     finally:
         # one shot
         client.http_proxy_tried = True
+
+
+def pick_tcp_smuggler(client):
+    if tcp_scrambler_enabled and TCP_SMUGGLER.is_protocol_supported('HTTP', client):
+        return TCP_SMUGGLER
+    return None
 
 
 def pick_https_try_proxy(client):
@@ -638,8 +643,9 @@ def init_proxies(config):
     global last_refresh_started_at
     last_refresh_started_at = -1
     init_private_proxies(config)
-    TCP_SMUGGLER.try_start_if_network_is_ok()
-    TCP_SCRAMBLER.try_start_if_network_is_ok()
+    if tcp_scrambler_enabled:
+        TCP_SMUGGLER.try_start_if_network_is_ok()
+        TCP_SCRAMBLER.try_start_if_network_is_ok()
     try:
         success = False
         for i in range(8):
@@ -718,7 +724,8 @@ def clear_proxy_states():
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
     stat.counters = []
-    TCP_SMUGGLER.try_start_if_network_is_ok()
-    TCP_SCRAMBLER.try_start_if_network_is_ok()
+    if tcp_scrambler_enabled:
+        TCP_SMUGGLER.try_start_if_network_is_ok()
+        TCP_SCRAMBLER.try_start_if_network_is_ok()
     if on_clear_states:
         on_clear_states()
