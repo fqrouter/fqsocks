@@ -52,7 +52,7 @@ class HttpTryProxy(Proxy):
     timeout = INITIAL_TIMEOUT
     slow_ip_list = set()
     host_black_list = {} # host => count
-    host_slow_list = set()
+    host_slow_list = {}
     host_slow_detection_enabled = True
     connection_pool = {}
 
@@ -72,6 +72,10 @@ class HttpTryProxy(Proxy):
                 if HttpTryProxy.host_black_list.get(client.host, 0) > 3:
                     LOGGER.error('HttpTryProxies remove host %s from blacklist' % client.host)
                 del HttpTryProxy.host_black_list[client.host]
+            if client.host in HTTP_TRY_PROXY.host_slow_list:
+                if HttpTryProxy.host_slow_list.get(client.host, 0) > 3:
+                    LOGGER.error('HttpTryProxies remove host %s from slowlist' % client.host)
+                del HttpTryProxy.host_slow_list[client.host]
         except NotHttp:
             raise
         except client.ProxyFallBack as e:
@@ -79,7 +83,6 @@ class HttpTryProxy(Proxy):
                 if dst not in self.dst_black_list:
                     LOGGER.error('%s blacklist dst %s:%s' % (repr(self), dst[0], dst[1]))
                 self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
-                raise
             if client.host and client.host not in WHITE_LIST:
                 HttpTryProxy.host_black_list[client.host] = HttpTryProxy.host_black_list.get(client.host, 0) + 1
                 if HttpTryProxy.host_black_list[client.host] == 4:
@@ -141,8 +144,9 @@ class HttpTryProxy(Proxy):
             try:
                 return greenlet.get(timeout=5)
             except gevent.Timeout:
-                HttpTryProxy.host_slow_list.add(client.host)
-                LOGGER.error('[%s] host %s is too slow to direct access' % (repr(client), client.host))
+                slow_times = HttpTryProxy.host_slow_list.get(client.host, 0) + 1
+                HttpTryProxy.host_slow_list[client.host] = slow_times
+                LOGGER.error('[%s] host %s is too slow to direct access %s/3' % (repr(client), client.host, slow_times))
                 client.fall_back('too slow')
             finally:
                 greenlet.kill()
@@ -217,19 +221,109 @@ class HttpTryProxy(Proxy):
         if client and self in client.tried_proxies:
             return False
         dst = (client.dst_ip, client.dst_port)
-        if not ip_substitution.substitute_ip(client, self.dst_black_list) and self.dst_black_list.get(dst, 0) % 16:
+        if self.dst_black_list.get(dst, 0) % 16:
+            if ip_substitution.substitute_ip(client, self.dst_black_list):
+                return True
+            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
             return False
         if is_no_direct_host(client.host):
             return False
-        if client.host in HttpTryProxy.host_slow_list:
+        host_slow_times = HttpTryProxy.host_slow_list.get(client.host, 0)
+        if host_slow_times > 3 and host_slow_times % 16:
+            HttpTryProxy.host_slow_list[client.host] = host_slow_times + 1
             return False
         host_failed_times = HttpTryProxy.host_black_list.get(client.host, 0)
         if host_failed_times > 3 and host_failed_times % 16:
+            HttpTryProxy.host_black_list[client.host] = host_failed_times + 1
             return False
         return 'HTTP' == protocol
 
     def __repr__(self):
         return 'HttpTryProxy'
+
+
+class TcpScrambler(HttpTryProxy):
+    def __init__(self):
+        super(TcpScrambler, self).__init__()
+        self.bad_requests = {} # host => count
+        self.died = True
+        self.is_trying = False
+
+    def try_start_if_network_is_ok(self):
+        if self.is_trying:
+            return
+        self.died = True
+        self.is_trying = True
+        gevent.spawn(self._try_start)
+
+    def _try_start(self):
+        try:
+            LOGGER.info('will try start tcp scrambler in 30 seconds')
+            gevent.sleep(5)
+            LOGGER.info('try tcp scrambler')
+            if not detect_if_ttl_being_ignored():
+                self.died = False
+        finally:
+            self.is_trying = False
+
+    def before_send_request(self, client, upstream_sock, is_payload_complete):
+        if 'Referer' in client.headers:
+            del client.headers['Referer']
+        upstream_sock.setsockopt(socket.SOL_SOCKET, networking.SO_MARK, 0xbabe)
+        return ''
+
+    def after_send_request(self, client, upstream_sock):
+        pass
+
+    def process_response(self, client, upstream_sock, response, http_response):
+        upstream_sock.setsockopt(socket.SOL_SOCKET, networking.SO_MARK, 0)
+        if httplib.BAD_REQUEST == http_response.status:
+            LOGGER.info('[%s] bad request to %s' % (repr(client), client.host))
+            self.bad_requests[client.host] = self.bad_requests.get(client.host, 0) + 1
+            if self.bad_requests[client.host] >= 3:
+                LOGGER.critical('!!! too many bad requests, disable tcp scrambler !!!')
+                self.died = True
+            client.fall_back('tcp scrambler bad request')
+        else:
+            if client.host in self.bad_requests:
+                LOGGER.info('[%s] reset bad request to %s' % (repr(client), client.host))
+                del self.bad_requests[client.host]
+            response = response.replace('Connection: keep-alive', 'Connection: close')
+        return response
+
+    def __repr__(self):
+        return 'TcpScrambler'
+
+
+
+HTTP_TRY_PROXY = HttpTryProxy()
+TCP_SCRAMBLER = TcpScrambler()
+
+
+
+def detect_if_ttl_being_ignored():
+    gevent.sleep(5)
+    for i in range(2):
+        try:
+            LOGGER.info('detecting if ttl being ignored')
+            baidu_ip = networking.resolve_ips('www.baidu.com')[0]
+            sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+            if networking.OUTBOUND_IP:
+                sock.bind((networking.OUTBOUND_IP, 0))
+            sock.setblocking(0)
+            sock.settimeout(2)
+            sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 3)
+            try:
+                sock.connect((baidu_ip, 80))
+            finally:
+                sock.close()
+            LOGGER.info('ttl 3 should not connect baidu, disable fqting')
+            return True
+        except:
+            LOGGER.exception('detected if ttl being ignored')
+            gevent.sleep(1)
+    return False
+
 
 
 def try_connect(client):
@@ -249,9 +343,6 @@ def try_connect(client):
         return True, upstream_sock
     except:
         return False, sys.exc_info()[1]
-
-
-HTTP_TRY_PROXY = HttpTryProxy()
 
 def fallback_if_youtube_unplayable(client, http_response):
     if not http_response:
@@ -312,7 +403,7 @@ def try_receive_response_body(http_response, reads_all=False):
     if reads_all:
         http_response.body = http_response.read()
     else:
-        http_response.body = http_response.read(min(http_response.content_length, 128 * 1024))
+        http_response.body = http_response.read(min(http_response.content_length, 64 * 1024))
     return http_response.capturing_sock.rfile.captured
 
 class CapturingSock(object):

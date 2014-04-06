@@ -91,68 +91,6 @@ class GoogleScrambler(HttpTryProxy):
     def __repr__(self):
         return 'GoogleScrambler'
 
-
-class TcpScrambler(HttpTryProxy):
-    def __init__(self):
-        super(TcpScrambler, self).__init__()
-        self.bad_requests = {} # host => count
-        self.is_trying = False
-
-    def try_start_if_network_is_ok(self):
-        if self.is_trying:
-            return
-        self.died = True
-        self.is_trying = True
-        gevent.spawn(self._try_start)
-
-    def _try_start(self):
-        try:
-            LOGGER.info('will try start tcp scrambler in 30 seconds')
-            gevent.sleep(5)
-            LOGGER.info('try tcp scrambler')
-            if not detect_if_ttl_being_ignored():
-                self.died = False
-        finally:
-            self.is_trying = False
-
-    def before_send_request(self, client, upstream_sock, is_payload_complete):
-        if 'Referer' in client.headers:
-            del client.headers['Referer']
-        upstream_sock.setsockopt(socket.SOL_SOCKET, networking.SO_MARK, 0xbabe)
-        return ''
-
-    def after_send_request(self, client, upstream_sock):
-        pass
-
-    def process_response(self, client, upstream_sock, response, http_response):
-        upstream_sock.setsockopt(socket.SOL_SOCKET, networking.SO_MARK, 0)
-        if httplib.BAD_REQUEST == http_response.status:
-            LOGGER.info('[%s] bad request to %s' % (repr(client), client.host))
-            self.bad_requests[client.host] = self.bad_requests.get(client.host, 0) + 1
-            if self.bad_requests[client.host] >= 3:
-                LOGGER.critical('!!! too many bad requests, disable tcp scrambler !!!')
-                self.died = True
-            client.fall_back('tcp scrambler bad request')
-        else:
-            if client.host in self.bad_requests:
-                LOGGER.info('[%s] reset bad request to %s' % (repr(client), client.host))
-                del self.bad_requests[client.host]
-            response = response.replace('Connection: keep-alive', 'Connection: close')
-        return response
-
-    def is_protocol_supported(self, protocol, client=None):
-        if not super(TcpScrambler, self).is_protocol_supported(protocol, client):
-            return False
-        if not is_blocked_google_host(client.host):
-            return False
-        return True
-
-
-    def __repr__(self):
-        return 'TcpScrambler'
-
-
-TCP_SCRAMBLER = TcpScrambler()
 GOOGLE_SCRAMBLER = GoogleScrambler()
 HTTPS_ENFORCER = HttpsEnforcer()
 
@@ -161,27 +99,3 @@ def is_blocked_google_host(client_host):
         return False
     return 'youtube.com' in client_host or 'ytimg.com' in client_host or 'googlevideo.com' in client_host \
         or '.c.android.clients.google.com' in client_host # google play apk
-
-
-def detect_if_ttl_being_ignored():
-    gevent.sleep(5)
-    for i in range(2):
-        try:
-            LOGGER.info('detecting if ttl being ignored')
-            baidu_ip = networking.resolve_ips('www.baidu.com')[0]
-            sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-            if networking.OUTBOUND_IP:
-                sock.bind((networking.OUTBOUND_IP, 0))
-            sock.setblocking(0)
-            sock.settimeout(2)
-            sock.setsockopt(socket.SOL_IP, socket.IP_TTL, 3)
-            try:
-                sock.connect((baidu_ip, 80))
-            finally:
-                sock.close()
-            LOGGER.info('ttl 3 should not connect baidu, disable fqting')
-            return True
-        except:
-            LOGGER.exception('detected if ttl being ignored')
-            gevent.sleep(1)
-    return False

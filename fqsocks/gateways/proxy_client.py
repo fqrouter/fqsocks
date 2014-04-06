@@ -19,9 +19,9 @@ from .. import stat
 from ..proxies.http_try import recv_and_parse_request
 from ..proxies.http_try import NotHttp
 from ..proxies.http_try import HTTP_TRY_PROXY
+from ..proxies.http_try import TCP_SCRAMBLER
 from ..proxies.google_http_try import GOOGLE_SCRAMBLER
 from ..proxies.google_http_try import HTTPS_ENFORCER
-from ..proxies.google_http_try import TCP_SCRAMBLER
 from ..proxies.tcp_smuggler import TCP_SMUGGLER
 from ..proxies.http_relay import HttpRelayProxy
 from ..proxies.http_connect import HttpConnectProxy
@@ -405,7 +405,7 @@ def pick_proxy(client):
                pick_https_try_proxy(client) or \
                pick_proxy_supports(client, picks_public)
     else:
-        return pick_preferred_private_proxy(client) or pick_https_try_proxy(client)
+        return pick_preferred_private_proxy(client) or DIRECT_PROXY
 
 
 def pick_preferred_private_proxy(client):
@@ -456,20 +456,21 @@ def pick_http_try_proxy(client):
             return None
         if not hasattr(client, 'is_payload_complete'): # only parse it once
             client.is_payload_complete = recv_and_parse_request(client)
-        if tcp_scrambler_enabled:
-            if TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
-                return TCP_SCRAMBLER # first time try
         if https_enforcer_enabled and HTTPS_ENFORCER.is_protocol_supported('HTTP', client):
             return HTTPS_ENFORCER
         if google_scrambler_enabled and GOOGLE_SCRAMBLER.is_protocol_supported('HTTP', client):
             return GOOGLE_SCRAMBLER
-        return HTTP_TRY_PROXY if HTTP_TRY_PROXY.is_protocol_supported('HTTP', client) else HTTP_TRY_PROXY
+        if tcp_scrambler_enabled and TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
+            return TCP_SCRAMBLER # first time try
+        return HTTP_TRY_PROXY if HTTP_TRY_PROXY.is_protocol_supported('HTTP', client) else None
     finally:
         # one shot
         client.http_proxy_tried = True
 
 
 def pick_tcp_smuggler(client):
+    if not hasattr(client, 'is_payload_complete'): # only parse it once
+        client.is_payload_complete = recv_and_parse_request(client)
     if tcp_scrambler_enabled and TCP_SMUGGLER.is_protocol_supported('HTTP', client):
         return TCP_SMUGGLER
     return None

@@ -6,8 +6,10 @@ import sys
 import gevent
 
 from .http_try import HttpTryProxy
+from .http_try import is_no_direct_host
 from .. import networking
 from .. import stat
+from .. import ip_substitution
 
 
 LOGGER = logging.getLogger(__name__)
@@ -18,6 +20,7 @@ class TcpSmuggler(HttpTryProxy):
         super(TcpSmuggler, self).__init__()
         self.died = True
         self.is_trying = False
+        self.flags.remove('DIRECT')
 
     def try_start_if_network_is_ok(self):
         if self.is_trying:
@@ -39,6 +42,9 @@ class TcpSmuggler(HttpTryProxy):
         finally:
             self.is_trying = False
 
+    def get_or_create_upstream_sock(self, client):
+        return self.create_upstream_sock(client)
+
     def create_upstream_sock(self, client):
         upstream_sock = create_smuggled_sock(client.dst_ip, client.dst_port)
         upstream_sock.history = [client.src_port]
@@ -54,6 +60,21 @@ class TcpSmuggler(HttpTryProxy):
     def process_response(self, client, upstream_sock, response, http_response):
         upstream_sock.setsockopt(socket.SOL_SOCKET, networking.SO_MARK, 0)
         return super(TcpSmuggler, self).process_response(client, upstream_sock, response, http_response)
+
+    def is_protocol_supported(self, protocol, client=None):
+        if self.died:
+            return False
+        if client and self in client.tried_proxies:
+            return False
+        dst = (client.dst_ip, client.dst_port)
+        if self.dst_black_list.get(dst, 0) % 16:
+            if ip_substitution.substitute_ip(client, self.dst_black_list):
+                return True
+            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+            return False
+        if is_no_direct_host(client.host):
+            return False
+        return 'HTTP' == protocol
 
     def __repr__(self):
         return 'TcpSmuggler'

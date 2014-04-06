@@ -61,7 +61,10 @@ class HttpsTryProxy(DirectProxy):
         if client and self in client.tried_proxies:
             return False
         dst = (client.dst_ip, client.dst_port)
-        if not ip_substitution.substitute_ip(client, self.dst_black_list) and self.dst_black_list.get(dst, 0) % 16:
+        if self.dst_black_list.get(dst, 0) % 16:
+            if ip_substitution.substitute_ip(client, self.dst_black_list):
+                return True
+            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
             return False
         return 'HTTPS' == protocol
 
