@@ -264,7 +264,7 @@ def handle_client(client):
 
 def pick_proxy_and_forward(client):
     global dns_polluted_at
-    if lan_ip.is_lan_traffic(client.src_ip, client.dst_ip):
+    if lan_ip.is_lan_ip(client.dst_ip):
         try:
             DIRECT_PROXY.forward(client)
         except ProxyFallBack:
@@ -456,12 +456,14 @@ def pick_http_try_proxy(client):
             return None
         if not hasattr(client, 'is_payload_complete'): # only parse it once
             client.is_payload_complete = recv_and_parse_request(client)
+        if tcp_scrambler_enabled and \
+                not TCP_SMUGGLER.is_protocol_supported('HTTP', client) and \
+                TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
+            return TCP_SCRAMBLER
         if https_enforcer_enabled and HTTPS_ENFORCER.is_protocol_supported('HTTP', client):
             return HTTPS_ENFORCER
         if google_scrambler_enabled and GOOGLE_SCRAMBLER.is_protocol_supported('HTTP', client):
             return GOOGLE_SCRAMBLER
-        if tcp_scrambler_enabled and TCP_SCRAMBLER.is_protocol_supported('HTTP', client):
-            return TCP_SCRAMBLER # first time try
         return HTTP_TRY_PROXY if HTTP_TRY_PROXY.is_protocol_supported('HTTP', client) else None
     finally:
         # one shot

@@ -174,16 +174,17 @@ class GoAgentProxy(Proxy):
     def is_protocol_supported(self, protocol, client=None):
         if 'HTTP' != protocol:
             return False
-        if self.whitelist_host:
-            for whitelist_host in self.whitelist_host:
-                if whitelist_host in client.host:
-                    return True
-            return False
-        if self.blacklist_host:
-            for blacklist_host in self.blacklist_host:
-                if blacklist_host in client.host:
-                    return False
-            return True
+        if client:
+            if self.whitelist_host:
+                for whitelist_host in self.whitelist_host:
+                    if whitelist_host in client.host:
+                        return True
+                return False
+            if self.blacklist_host:
+                for blacklist_host in self.blacklist_host:
+                    if blacklist_host in client.host:
+                        return False
+                return True
         return True
 
     @classmethod

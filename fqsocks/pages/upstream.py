@@ -186,7 +186,7 @@ def handle_disable_direct_access(environ, start_response):
 
 @httpd.http_handler('POST', 'hosted-domain/enable')
 def handle_enable_hosted_domain(environ, start_response):
-    DNS_HANDLER.enable_hosted_domain = True
+    networking.DNS_HANDLER.enable_hosted_domain = True
     config_file.update_config(hosted_domain_enabled=True)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []
@@ -194,7 +194,7 @@ def handle_enable_hosted_domain(environ, start_response):
 
 @httpd.http_handler('POST', 'hosted-domain/disable')
 def handle_disable_hosted_domain(environ, start_response):
-    DNS_HANDLER.enable_hosted_domain = False
+    networking.DNS_HANDLER.enable_hosted_domain = False
     config_file.update_config(hosted_domain_enabled=False)
     start_response(httplib.OK, [('Content-Type', 'text/plain')])
     return []

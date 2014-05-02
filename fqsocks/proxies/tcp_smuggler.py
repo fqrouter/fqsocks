@@ -64,16 +64,19 @@ class TcpSmuggler(HttpTryProxy):
     def is_protocol_supported(self, protocol, client=None):
         if self.died:
             return False
-        if client and self in client.tried_proxies:
-            return False
-        dst = (client.dst_ip, client.dst_port)
-        if self.dst_black_list.get(dst, 0) % 16:
-            if ip_substitution.substitute_ip(client, self.dst_black_list):
-                return True
-            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
-            return False
-        if is_no_direct_host(client.host):
-            return False
+        if client:
+            if self in client.tried_proxies:
+                return False
+            if getattr(client, 'http_try_connect_timed_out', False):
+                return False
+            dst = (client.dst_ip, client.dst_port)
+            if self.dst_black_list.get(dst, 0) % 16:
+                if ip_substitution.substitute_ip(client, self.dst_black_list):
+                    return True
+                self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+                return False
+            if is_no_direct_host(client.host):
+                return False
         return 'HTTP' == protocol
 
     def __repr__(self):

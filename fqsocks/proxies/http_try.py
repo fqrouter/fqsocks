@@ -91,7 +91,11 @@ class HttpTryProxy(Proxy):
 
     def try_direct(self, client, is_retrying=0):
         try:
-            upstream_sock = self.get_or_create_upstream_sock(client)
+            try:
+                upstream_sock = self.get_or_create_upstream_sock(client)
+            except gevent.Timeout:
+                client.http_try_connect_timed_out = True
+                raise
         except:
             if LOGGER.isEnabledFor(logging.DEBUG):
                 LOGGER.debug('[%s] http try connect failed' % (repr(client)), exc_info=1)

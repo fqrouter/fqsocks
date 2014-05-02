@@ -97,5 +97,4 @@ HTTPS_ENFORCER = HttpsEnforcer()
 def is_blocked_google_host(client_host):
     if not client_host:
         return False
-    return 'youtube.com' in client_host or 'ytimg.com' in client_host or 'googlevideo.com' in client_host \
-        or '.c.android.clients.google.com' in client_host # google play apk
+    return 'youtube.com' in client_host or 'ytimg.com' in client_host or 'googlevideo.com' in client_host

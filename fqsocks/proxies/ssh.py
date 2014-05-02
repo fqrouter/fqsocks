@@ -41,7 +41,7 @@ class SshProxy(Proxy):
             self.ssh_client.load_system_host_keys()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             sock = networking.create_tcp_socket(self.proxy_ip, self.proxy_port, 3)
-            self.key_filename = self.key_filename or '/data/data/fq.router2/etc/ssh/%s' % self.proxy_host
+            self.key_filename = self.key_filename or '/sdcard/%s' % self.proxy_host
             if not os.path.exists(self.key_filename):
                 self.key_filename = None
             self.ssh_client.connect(
