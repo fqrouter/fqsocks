@@ -270,6 +270,14 @@ class TcpScrambler(HttpTryProxy):
         finally:
             self.is_trying = False
 
+    def create_upstream_sock(self, client):
+        upstream_sock = create_scrambled_sock(client.dst_ip, client.dst_port)
+        upstream_sock.history = [client.src_port]
+        upstream_sock.counter = stat.opened(upstream_sock, client.forwarding_by, client.host, client.dst_ip)
+        client.add_resource(upstream_sock)
+        client.add_resource(upstream_sock.counter)
+        return upstream_sock
+
     def before_send_request(self, client, upstream_sock, is_payload_complete):
         if 'Referer' in client.headers:
             del client.headers['Referer']
@@ -298,7 +306,20 @@ class TcpScrambler(HttpTryProxy):
     def __repr__(self):
         return 'TcpScrambler'
 
-
+def create_scrambled_sock(ip, port):
+    upstream_sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    if networking.OUTBOUND_IP:
+        upstream_sock.bind((networking.OUTBOUND_IP, 0))
+    upstream_sock.setsockopt(socket.SOL_SOCKET, networking.SO_MARK, 0xbabe)
+    upstream_sock.settimeout(3)
+    try:
+        upstream_sock.connect((ip, port))
+    except:
+        upstream_sock.close()
+        raise
+    upstream_sock.last_used_at = time.time()
+    upstream_sock.settimeout(None)
+    return upstream_sock
 
 HTTP_TRY_PROXY = HttpTryProxy()
 TCP_SCRAMBLER = TcpScrambler()
