@@ -43,6 +43,7 @@ def handle(downstream_sock, address):
     src_ip, src_port = address
     request, payload = recv_till_double_newline('', downstream_sock)
     if not request:
+        LOGGER.error('http gateway did not receive complete request')
         return
     method, path, headers = parse_request(request)
     if 'GET' == method.upper() and '/' == path and is_http_gateway_host(headers.get('Host')):
@@ -76,8 +77,10 @@ Proxy-Authenticate: Basic realm="fqrouter"
             dst_port = 443
         dst_ip = resolve_ip(dst_host)
         if not dst_ip:
+            LOGGER.error('can not resolve host: %s' % dst_host)
             return
         if lan_ip.is_lan_ip(dst_ip):
+            LOGGER.error('%s is lan ip' % dst_ip)
             return
         downstream_sock.sendall('HTTP/1.1 200 OK\r\n\r\n')
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
@@ -92,8 +95,10 @@ Proxy-Authenticate: Basic realm="fqrouter"
             dst_port = 80
         dst_ip = resolve_ip(dst_host)
         if not dst_ip:
+            LOGGER.error('can not resolve host: %s' % dst_host)
             return
         if lan_ip.is_lan_ip(dst_ip):
+            LOGGER.error('%s is lan ip' % dst_ip)
             return
         client = ProxyClient(downstream_sock, src_ip, src_port, dst_ip, dst_port)
         client.us_ip_only = is_no_direct_host(dst_host)

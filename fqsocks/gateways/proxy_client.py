@@ -347,8 +347,6 @@ def on_proxy_died(proxy):
         return
     if isinstance(proxy, GoAgentProxy):
         gevent.spawn(load_more_goagent_proxies)
-    else:
-        gevent.spawn(refresh_proxies)
 direct.on_proxy_died = on_proxy_died
 
 
@@ -555,13 +553,13 @@ def refresh_proxies(force=False):
 
 def get_refresh_interval():
     if not refresh_timestamps:
-        return 60
+        return 120
     while refresh_timestamps:
-        if refresh_timestamps[0] < (time.time() - 10 * 60):
+        if refresh_timestamps[0] < (time.time() - 30 * 60):
             refresh_timestamps.remove(refresh_timestamps[0])
         else:
             break
-    return len(refresh_timestamps) * 30 + 60
+    return len(refresh_timestamps) * 30 + 120
 
 
 def init_private_proxies(config):

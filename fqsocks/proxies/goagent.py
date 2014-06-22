@@ -125,8 +125,6 @@ class GoAgentProxy(Proxy):
         self.version = 'UNKNOWN'
         self.whitelist_host = whitelist_host if isinstance(whitelist_host, (list, tuple)) else [whitelist_host]
         self.blacklist_host = list(blacklist_host) if isinstance(blacklist_host, (list, tuple)) else [blacklist_host]
-        self.blacklist_host.append('.c.android.clients.google.com')
-        self.blacklist_host.append('.c.pack.google.com')
         self.group = group
 
     @property
@@ -544,7 +542,7 @@ class RangeFetch(object):
         self._stopped = None
 
     def fetch(self):
-        response_status = self.response.status
+        response_status = 200
         response_headers = dict((k.title(), v) for k, v in self.response.getheaders())
         content_range = response_headers['Content-Range']
         LOGGER.info('auto ranged: %s' % self.auto_ranged)
@@ -552,7 +550,6 @@ class RangeFetch(object):
         #content_length = response_headers['Content-Length']
         start, end, length = list(map(int, re.search(r'bytes (\d+)-(\d+)/(\d+)', content_range).group(1, 2, 3)))
         if self.auto_ranged:
-            response_status = 200
             response_headers.pop('Content-Range', None)
             response_headers['Content-Length'] = str(length)
         else:

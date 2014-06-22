@@ -121,7 +121,8 @@ class HttpTryProxy(Proxy):
                 LOGGER.info('[%s] retry with another connection' % repr(client))
                 return self.try_direct(client, is_retrying=is_retrying + 1)
             response = self.detect_slow_host(client, http_response)
-            is_keep_alive = 'Connection: keep-alive' in response
+            # is_keep_alive = 'Connection: keep-alive' in response
+            is_keep_alive = False # disable keep-alive as it is not stable
             try:
                 fallback_if_youtube_unplayable(client, http_response)
                 response = self.process_response(client, upstream_sock, response, http_response)
@@ -158,27 +159,28 @@ class HttpTryProxy(Proxy):
             return try_receive_response_body(http_response)
 
     def get_or_create_upstream_sock(self, client):
-        if HttpTryProxy.connection_pool.get(client.dst_ip):
-            upstream_sock = HttpTryProxy.connection_pool[client.dst_ip].pop()
-            if not HttpTryProxy.connection_pool[client.dst_ip]:
-                del HttpTryProxy.connection_pool[client.dst_ip]
-            if upstream_sock.last_used_at - time.time() > 7:
-                LOGGER.debug('[%s] close old connection %s' % (repr(client), upstream_sock.history))
-                upstream_sock.close()
-                return self.get_or_create_upstream_sock(client)
-            client.add_resource(upstream_sock)
-            if len(upstream_sock.history) > 5:
-                return self.get_or_create_upstream_sock(client)
-            LOGGER.debug('[%s] reuse connection %s' % (repr(client), upstream_sock.history))
-            upstream_sock.history.append(client.src_port)
-            upstream_sock.last_used_at = time.time()
-            return upstream_sock
-        else:
-            LOGGER.debug('[%s] open new connection' % repr(client))
-            pool_size = len(HttpTryProxy.connection_pool.get(client.dst_ip, []))
-            if pool_size <= 2:
-                gevent.spawn(self.prefetch_to_connection_pool, client)
-            return self.create_upstream_sock(client)
+        return self.create_upstream_sock(client) # disable prefetch
+        # if HttpTryProxy.connection_pool.get(client.dst_ip):
+        #     upstream_sock = HttpTryProxy.connection_pool[client.dst_ip].pop()
+        #     if not HttpTryProxy.connection_pool[client.dst_ip]:
+        #         del HttpTryProxy.connection_pool[client.dst_ip]
+        #     if upstream_sock.last_used_at - time.time() > 7:
+        #         LOGGER.debug('[%s] close old connection %s' % (repr(client), upstream_sock.history))
+        #         upstream_sock.close()
+        #         return self.get_or_create_upstream_sock(client)
+        #     client.add_resource(upstream_sock)
+        #     if len(upstream_sock.history) > 5:
+        #         return self.get_or_create_upstream_sock(client)
+        #     LOGGER.debug('[%s] reuse connection %s' % (repr(client), upstream_sock.history))
+        #     upstream_sock.history.append(client.src_port)
+        #     upstream_sock.last_used_at = time.time()
+        #     return upstream_sock
+        # else:
+        #     LOGGER.debug('[%s] open new connection' % repr(client))
+        #     pool_size = len(HttpTryProxy.connection_pool.get(client.dst_ip, []))
+        #     if pool_size <= 2:
+        #         gevent.spawn(self.prefetch_to_connection_pool, client)
+        #     return self.create_upstream_sock(client)
 
     def create_upstream_sock(self, client):
         success, upstream_sock = gevent.spawn(try_connect, client).get(timeout=HttpTryProxy.timeout)
