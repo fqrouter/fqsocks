@@ -60,6 +60,7 @@ refresh_timestamps = []
 goagent_group_exhausted = False
 force_us_ip = False
 on_clear_states = None
+preferred_proxies = {} # (dst_ip, dst_port) => proxy
 
 
 class ProxyClient(object):
@@ -487,6 +488,15 @@ def pick_https_try_proxy(client):
 
 
 def pick_proxy_supports(client, picks_public=None):
+    key = (client.dst_ip, client.dst_port)
+    preferred_proxy = preferred_proxies.get(key)
+    if preferred_proxy and preferred_proxy not in client.tried_proxies:
+        return preferred_proxy
+    preferred_proxy = _pick_proxy_supports(client, picks_public)
+    preferred_proxies[key] = preferred_proxy
+    return preferred_proxy
+
+def _pick_proxy_supports(client, picks_public=None):
     supported_proxies = [proxy for proxy in proxies if should_pick(proxy, client, picks_public)]
     if not supported_proxies:
         if False is not picks_public and (goagent_public_servers_enabled or ss_public_servers_enabled):
@@ -725,6 +735,7 @@ def clear_proxy_states():
     GoAgentProxy.google_ip_failed_times = {}
     GoAgentProxy.google_ip_latency_records = {}
     stat.counters = []
+    preferred_proxies.clear()
     if tcp_scrambler_enabled:
         TCP_SMUGGLER.try_start_if_network_is_ok()
         TCP_SCRAMBLER.try_start_if_network_is_ok()

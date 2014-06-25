@@ -29,8 +29,10 @@ from .direct import Proxy
 from .http_try import recv_and_parse_request, NotHttp
 from .http_try import CapturingSock
 from .http_try import HttpTryProxy
-from Crypto.Cipher.ARC4 import new as _Crypto_Cipher_ARC4_new
-
+try:
+    from Crypto.Cipher.ARC4 import new as _Crypto_Cipher_ARC4_new
+except ImportError:
+    _Crypto_Cipher_ARC4_new = None
 
 try:
     import urllib.request
