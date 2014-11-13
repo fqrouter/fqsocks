@@ -3,5 +3,5 @@ import sys
 from .fqsocks import main
 
 
-main(sys.argv[1:])
+main(sys.argv)
 

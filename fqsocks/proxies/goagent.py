@@ -425,7 +425,7 @@ def http_call(ssl_sock, method, path, headers, payload):
         try:
             response.begin()
         except http.client.BadStatusLine:
-            response = None
+            raise ReadResponseFailed()
         ssl_sock.counter.received(len(counted_sock.rfile.captured))
         counted_sock.rfile.captured = ''
         return response
