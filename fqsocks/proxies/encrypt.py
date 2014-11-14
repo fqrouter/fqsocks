@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2012 clowwindy
+# Copyright (c) 2014 clowwindy
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,45 +20,49 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from __future__ import absolute_import, division, print_function, \
+    with_statement
+
+import os
 import sys
 import hashlib
-import string
-import struct
 import logging
+
+from fqsocks.proxies.crypto import m2, rc4_md5, table
+
+
+method_supported = {}
+method_supported.update(rc4_md5.ciphers)
+method_supported.update(m2.ciphers)
+method_supported.update(table.ciphers)
 
 
 def random_string(length):
-    import M2Crypto.Rand
-    return M2Crypto.Rand.rand_bytes(length)
+    try:
+        import M2Crypto.Rand
+        return M2Crypto.Rand.rand_bytes(length)
+    except ImportError:
+        return os.urandom(length)
 
 
-def get_table(key):
-    m = hashlib.md5()
-    m.update(key)
-    s = m.digest()
-    (a, b) = struct.unpack('<QQ', s)
-    table = [c for c in string.maketrans('', '')]
-    for i in xrange(1, 1024):
-        table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
-    return table
+cached_keys = {}
 
-tables = {}
 
-def init_table(key):
-    if key not in tables:
-        encrypt_table = ''.join(get_table(key))
-        decrypt_table = string.maketrans(encrypt_table, string.maketrans('', ''))
-        tables[key] = (encrypt_table, decrypt_table)
-    return tables[key]
+def try_cipher(key, method=None):
+    Encryptor(key, method)
 
 
 def EVP_BytesToKey(password, key_len, iv_len):
     # equivalent to OpenSSL's EVP_BytesToKey() with count 1
     # so that we make the same key and iv as nodejs version
-    # TODO: cache the results
+    if hasattr(password, 'encode'):
+        password = password.encode('utf-8')
+    r = cached_keys.get(password, None)
+    if r:
+        return r
     m = []
     i = 0
-    while len(''.join(m)) < (key_len + iv_len):
+    while len(b''.join(m)) < (key_len + iv_len):
         md5 = hashlib.md5()
         data = password
         if i > 0:
@@ -66,93 +70,91 @@ def EVP_BytesToKey(password, key_len, iv_len):
         md5.update(data)
         m.append(md5.digest())
         i += 1
-    ms = ''.join(m)
+    ms = b''.join(m)
     key = ms[:key_len]
     iv = ms[key_len:key_len + iv_len]
-    return (key, iv)
-
-
-method_supported = {
-    'aes-128-cfb': (16, 16),
-    'aes-192-cfb': (24, 16),
-    'aes-256-cfb': (32, 16),
-    'bf-cfb': (16, 8),
-    'camellia-128-cfb': (16, 16),
-    'camellia-192-cfb': (24, 16),
-    'camellia-256-cfb': (32, 16),
-    'cast5-cfb': (16, 8),
-    'des-cfb': (8, 8),
-    'idea-cfb': (16, 8),
-    'rc2-cfb': (8, 8),
-    'rc4': (16, 0),
-    'seed-cfb': (16, 16),
-    }
+    cached_keys[password] = (key, iv)
+    return key, iv
 
 
 class Encryptor(object):
-    def __init__(self, key, method=None):
-        if method == 'table':
-            method = None
+    def __init__(self, key, method):
         self.key = key
         self.method = method
         self.iv = None
         self.iv_sent = False
-        self.cipher_iv = ''
+        self.cipher_iv = b''
         self.decipher = None
-        if method:
-            self.cipher = self.get_cipher(key, method, 1, iv=random_string(32))
-            self.encrypt_table, self.decrypt_table = None, None
-        else:
-            self.cipher = None
-            self.encrypt_table, self.decrypt_table = init_table(key)
-
-    def get_cipher_len(self, method):
         method = method.lower()
-        m = method_supported.get(method, None)
+        self._method_info = self.get_method_info(method)
+        if self._method_info:
+            self.cipher = self.get_cipher(key, method, 1,
+                                          random_string(self._method_info[1]))
+        else:
+            logging.error('method %s not supported' % method)
+            sys.exit(1)
+
+    def get_method_info(self, method):
+        method = method.lower()
+        m = method_supported.get(method)
         return m
 
     def iv_len(self):
         return len(self.cipher_iv)
 
-    def get_cipher(self, password, method, op, iv=None):
-        import M2Crypto.EVP
-        password = password.encode('utf-8')
-        method = method.lower()
-        m = self.get_cipher_len(method)
-        if m:
+    def get_cipher(self, password, method, op, iv):
+        if hasattr(password, 'encode'):
+            password = password.encode('utf-8')
+        m = self._method_info
+        if m[0] > 0:
             key, iv_ = EVP_BytesToKey(password, m[0], m[1])
-            if iv is None:
-                iv = iv_[:m[1]]
-            if op == 1:
-                self.cipher_iv = iv[:m[1]]  # this iv is for cipher, not decipher
-            return M2Crypto.EVP.Cipher(method.replace('-', '_'), key, iv, op, key_as_bytes=0, d='md5', salt=None, i=1, padding=1)
+        else:
+            # key_length == 0 indicates we should use the key directly
+            key, iv = password, b''
 
-        logging.error('method %s not supported' % method)
-        sys.exit(1)
+        iv = iv[:m[1]]
+        if op == 1:
+            # this iv is for cipher not decipher
+            self.cipher_iv = iv[:m[1]]
+        return m[2](method, key, iv, op)
 
     def encrypt(self, buf):
         if len(buf) == 0:
             return buf
-        if self.cipher:
-            if self.iv_sent:
-                return self.cipher.update(buf)
-            else:
-                self.iv_sent = True
-                return self.cipher_iv + self.cipher.update(buf)
+        if self.iv_sent:
+            return self.cipher.update(buf)
         else:
-            return string.translate(buf, self.encrypt_table)
+            self.iv_sent = True
+            return self.cipher_iv + self.cipher.update(buf)
 
     def decrypt(self, buf):
         if len(buf) == 0:
             return buf
-        if self.cipher:
-            if self.decipher is None:
-                decipher_iv_len = self.get_cipher_len(self.method)[1]
-                decipher_iv = buf[:decipher_iv_len]
-                self.decipher = self.get_cipher(self.key, self.method, 0, iv=decipher_iv)
-                buf = buf[decipher_iv_len:]
-                if len(buf) == 0:
-                    return buf
-            return self.decipher.update(buf)
-        else:
-            return string.translate(buf, self.decrypt_table)
+        if self.decipher is None:
+            decipher_iv_len = self._method_info[1]
+            decipher_iv = buf[:decipher_iv_len]
+            self.decipher = self.get_cipher(self.key, self.method, 0,
+                                            iv=decipher_iv)
+            buf = buf[decipher_iv_len:]
+            if len(buf) == 0:
+                return buf
+        return self.decipher.update(buf)
+
+
+def encrypt_all(password, method, op, data):
+    result = []
+    method = method.lower()
+    (key_len, iv_len, m) = method_supported[method]
+    if key_len > 0:
+        key, _ = EVP_BytesToKey(password, key_len, iv_len)
+    else:
+        key = password
+    if op:
+        iv = random_string(iv_len)
+        result.append(iv)
+    else:
+        iv = data[:iv_len]
+        data = data[iv_len:]
+    cipher = m(method, key, iv, op)
+    result.append(cipher.update(data))
+    return b''.join(result)
