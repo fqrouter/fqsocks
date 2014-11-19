@@ -258,7 +258,7 @@ def handle_client(client):
         if 'ascii' in err_msg or LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.exception('[%s] done with error' % repr(client))
         else:
-            LOGGER.info('[%s] done with error: %s' % (repr(client), err_msg))
+            LOGGER.exception('[%s] done with error: %s' % (repr(client), err_msg))
     finally:
         client.close()
 

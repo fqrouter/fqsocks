@@ -17,6 +17,7 @@ import io
 import copy
 import threading
 import base64
+import os
 from .. import config_file
 
 import ssl
@@ -125,6 +126,7 @@ class GoAgentProxy(Proxy):
         self.is_rc4_enabled = to_bool(is_rc4_enabled)
         self.is_obfuscate_enabled = to_bool(is_obfuscate_enabled)
         self.version = 'UNKNOWN'
+        self.gae_urlfetch = gae_urlfetch_for_lower_than_3_2_0
         self.whitelist_host = whitelist_host if isinstance(whitelist_host, (list, tuple)) else [whitelist_host]
         self.blacklist_host = list(blacklist_host) if isinstance(blacklist_host, (list, tuple)) else [blacklist_host]
         self.group = group
@@ -148,11 +150,35 @@ class GoAgentProxy(Proxy):
                         return
                     if match:
                         self.version = match.group(0)
+                        self.update_path_and_forward_method()
                         LOGGER.info('queried appid version: %s' % self)
                     else:
                         LOGGER.info('failed to query appid version %s: %s' % (self.appid, response))
         except:
             LOGGER.exception('failed to query goagent %s version' % self.appid)
+
+    def update_path_and_forward_method(self):
+        try:
+            if self.is_3_2_0_or_above():
+                self.path = '/_gh/'
+                self.gae_urlfetch = gae_urlfetch_for_3_2_0_or_above
+            else:
+                self.gae_urlfetch = gae_urlfetch_for_lower_than_3_2_0
+        except:
+            LOGGER.exception('failed to update path and forward method')
+
+    def is_3_2_0_or_above(self):
+        if not self.version:
+            return False
+        versions = self.version.split('.')[:2]
+        if len(versions) != 2:
+            LOGGER.error('[%s] version can not be parsed' % self)
+        if int(versions[0]) < 3:
+            return False
+        if int(versions[0]) == 3 and int(versions[1]) < 2:
+            return False
+        LOGGER.info('[%s] goagent 3.2.0 or above found' % self)
+        return True
 
     def do_forward(self, client):
         try:
@@ -204,6 +230,17 @@ class GoAgentProxy(Proxy):
     def resolve_google_ips(cls):
         if cls.GOOGLE_IPS:
             return True
+        try:
+            if os.path.exists('/sdcard/goagent-google-ip.txt'):
+                with open('/sdcard/goagent-google-ip.txt') as f:
+                    for ip in f.readlines():
+                        if ip.strip():
+                            cls.GOOGLE_IPS.append(ip.strip())
+            if cls.GOOGLE_IPS:
+                LOGGER.info('loaded google ips from /sdcard/goagent-google-ip.txt')
+                return True
+        except:
+            LOGGER.exception('failed to load google ip from sdcard')
         LOGGER.info('resolving google ips from %s' % cls.GOOGLE_HOSTS)
         all_ips = set()
         for host in cls.GOOGLE_HOSTS:
@@ -255,11 +292,8 @@ def forward(client, proxy):
     response = None
     try:
         try:
-            response = gae_urlfetch(
-                client, proxy, client.method, client.url, client.headers, client.payload,
-                password=proxy.password,
-                is_obfuscate_enabled=proxy.is_obfuscate_enabled,
-                is_rc4_enabled=proxy.is_rc4_enabled)
+            response = proxy.gae_urlfetch(
+                client, proxy, client.method, client.url, client.headers, client.payload)
         except ConnectionFailed:
             for proxy in GoAgentProxy.proxies:
                 client.tried_proxies[proxy] = 'skip goagent'
@@ -456,8 +490,93 @@ class ReadResponseFailed(Exception):
     pass
 
 
-def gae_urlfetch(client, proxy, method, url, headers, payload,
-                 password=None, is_obfuscate_enabled=False, is_rc4_enabled=False):
+def gae_urlfetch_for_3_2_0_or_above(client, proxy, method, url, headers, body):
+
+    def inflate(data):
+        return zlib.decompress(data, -zlib.MAX_WBITS)
+
+    def deflate(data):
+        return zlib.compress(data)[2:-4]
+
+    password=proxy.password
+    is_obfuscate_enabled=proxy.is_obfuscate_enabled
+    is_rc4_enabled=proxy.is_rc4_enabled
+
+    if isinstance(body, basestring) and body:
+        if len(body) < 10 * 1024 * 1024 and 'Content-Encoding' not in headers:
+            zbody = deflate(body)
+            if len(zbody) < len(body):
+                body = zbody
+                headers['Content-Encoding'] = 'deflate'
+        headers['Content-Length'] = str(len(body))
+    # GAE donot allow set `Host` header
+    if 'Host' in headers:
+        del headers['Host']
+    kwargs = {}
+    if password:
+        kwargs['password'] = password
+    payload = '%s %s %s\r\n' % (method, url, 'HTTP/1.0')
+    payload += ''.join('%s: %s\r\n' % (k, v) for k, v in headers.items() if k not in SKIP_HEADERS)
+    payload += ''.join('X-URLFETCH-%s: %s\r\n' % (k, v) for k, v in kwargs.items() if v)
+    # prepare GAE request
+    request_method = 'POST'
+    request_headers = {}
+    fetch_server = proxy.fetch_server
+    if is_obfuscate_enabled:
+        request_method = 'GET'
+        fetch_server += 'ps/%d%s.gif' % (int(time.time()*1000), random.random())
+        request_headers['X-URLFETCH-PS1'] = base64.b64encode(deflate(payload)).strip()
+        if body:
+            request_headers['X-URLFETCH-PS2'] = base64.b64encode(deflate(body)).strip()
+            body = ''
+    else:
+        payload = deflate(payload)
+        body = '%s%s%s' % (struct.pack('!h', len(payload)), payload, body)
+        if is_rc4_enabled:
+            request_headers['X-URLFETCH-Options'] = 'rc4'
+            body = rc4crypt(body, password)
+        request_headers['Content-Length'] = str(len(body))
+    # post data
+    ssl_sock = create_ssl_connection()
+    ssl_sock.counter = stat.opened(ssl_sock, proxy, host=client.host, ip=client.dst_ip)
+    LOGGER.info('[%s] urlfetch %s %s via %s %0.2f'
+                % (repr(client), method, url, ssl_sock.google_ip, get_google_ip_latency(ssl_sock.google_ip)))
+    client.add_resource(ssl_sock)
+    client.add_resource(ssl_sock.counter)
+    client.add_resource(ssl_sock.sock)
+    response = http_call(ssl_sock, request_method, fetch_server, request_headers, body)
+    client.add_resource(response.rfile)
+    client.add_resource(response.counted_sock)
+    response.app_status = response.status
+    if response.status != 200:
+        return response
+    if is_rc4_enabled:
+        response.fp = RC4FileObject(response.fp, password)
+    data = response.read(2)
+    if len(data) < 2:
+        response.status = 502
+        response.fp = io.BytesIO(b'connection aborted. too short leadbyte data=' + data)
+        response.read = response.fp.read
+        return response
+    headers_length, = struct.unpack('!h', data)
+    data = response.read(headers_length)
+    if len(data) < headers_length:
+        response.status = 502
+        response.fp = io.BytesIO(b'connection aborted. too short headers data=' + data)
+        response.read = response.fp.read
+        return response
+    raw_response_line, headers_data = inflate(data).split('\r\n', 1)
+    _, response.status, response.reason = raw_response_line.split(None, 2)
+    response.status = int(response.status)
+    response.reason = response.reason.strip()
+    response.msg = httplib.HTTPMessage(io.BytesIO(headers_data))
+    return response
+
+
+def gae_urlfetch_for_lower_than_3_2_0(client, proxy, method, url, headers, payload):
+    password=proxy.password
+    is_obfuscate_enabled=proxy.is_obfuscate_enabled
+    is_rc4_enabled=proxy.is_rc4_enabled
     if payload:
         if len(payload) < 10 * 1024 * 1024 and 'Content-Encoding' not in headers:
             zpayload = zlib.compress(payload)[2:-4]
@@ -635,7 +754,7 @@ class RangeFetch(object):
                             self._stopped = True
                             return
                         proxy = random.choice(not_died_proxies)
-                        response = gae_urlfetch(
+                        response = proxy.gae_urlfetch(
                             self.client, proxy, self.command, self.url, headers, self.payload)
                 except queue.Empty:
                     continue
