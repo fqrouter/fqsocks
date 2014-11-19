@@ -595,7 +595,8 @@ def init_private_proxies(config):
                         appid.strip(), private_server.get('path'),
                         private_server.get('goagent_password'),
                         is_rc4_enabled=is_rc4_enabled,
-                        is_obfuscate_enabled=is_obfuscate_enabled)
+                        is_obfuscate_enabled=is_obfuscate_enabled,
+                        goagent_version=private_server.get('goagent_version') or 'auto')
                     proxy.proxy_id = proxy_id
                     proxies.append(proxy)
             elif 'SSH' == proxy_type:

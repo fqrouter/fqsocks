@@ -116,7 +116,8 @@ class GoAgentProxy(Proxy):
     GOOGLE_IPS = []
     proxies = []
 
-    def __init__(self, appid, path='/2', password='', is_rc4_enabled=False, is_obfuscate_enabled=False,
+    def __init__(self, appid, path='/2', password='',
+                 is_rc4_enabled=False, is_obfuscate_enabled=False, goagent_version='auto',
                  whitelist_host=(), blacklist_host=(), group='default', **ignore):
         super(GoAgentProxy, self).__init__()
         assert appid
@@ -126,7 +127,9 @@ class GoAgentProxy(Proxy):
         self.is_rc4_enabled = to_bool(is_rc4_enabled)
         self.is_obfuscate_enabled = to_bool(is_obfuscate_enabled)
         self.version = 'UNKNOWN'
-        self.gae_urlfetch = gae_urlfetch_for_lower_than_3_2_0
+        self.gae_urlfetch = gae_urlfetch_for_3_2_0_or_above if \
+            'equal_or_above_3_2_0' == goagent_version else \
+            gae_urlfetch_for_lower_than_3_2_0
         self.whitelist_host = whitelist_host if isinstance(whitelist_host, (list, tuple)) else [whitelist_host]
         self.blacklist_host = list(blacklist_host) if isinstance(blacklist_host, (list, tuple)) else [blacklist_host]
         self.group = group

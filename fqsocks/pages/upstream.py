@@ -315,6 +315,7 @@ def to_private_server(environ):
         return {
             'appid': appid,
             'path': args.get('path') or '/2',
+            'goagent_version': args.get('goagent_version') or 'auto',
             'goagent_options': args.get('goagent_options'),
             'goagent_password': args.get('goagent_password')
         }
