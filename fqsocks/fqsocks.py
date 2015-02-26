@@ -144,6 +144,7 @@ def init_config(argv):
     http_gateway.LISTEN_IP, http_gateway.LISTEN_PORT = config['http_gateway']['ip'], config['http_gateway']['port']
     tcp_gateway.LISTEN_IP, tcp_gateway.LISTEN_PORT = config['tcp_gateway']['ip'], config['tcp_gateway']['port']
     httpd.LISTEN_IP, httpd.LISTEN_PORT = config['http_manager']['ip'], config['http_manager']['port']
+    networking.DNS_HANDLER.test_upstreams()
 
 def main(argv=None):
     if argv:

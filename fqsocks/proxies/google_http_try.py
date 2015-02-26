@@ -34,10 +34,8 @@ class HttpsEnforcer(HttpTryProxy):
     def is_protocol_supported(self, protocol, client=None):
         if not super(HttpsEnforcer, self).is_protocol_supported(protocol, client):
             return False
-        if client.host == 'instagram.com' or client.host.endswith('.instagram.com'):
+        if client.host.endswith('.instagram.com'):
             return True
-        if not is_blocked_google_host(client.host):
-            return False
         return True
 
     def __repr__(self):

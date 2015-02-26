@@ -98,7 +98,7 @@ class ProxyClient(object):
                 delayed_penalty=None, on_forward_started=None):
 
         if self.forward_started:
-            if 5228 == self.dst_port: # Google Service
+            if self.dst_port in [5228, 8883]: # Google Service and MQTT
                 upstream_sock.settimeout(None)
             else: # More than 5 minutes
                 upstream_sock.settimeout(after_started_timeout)
@@ -109,12 +109,12 @@ class ProxyClient(object):
         def from_upstream_to_downstream():
             try:
                 while True:
-                    data = upstream_sock.recv(262144)
+                    data = upstream_sock.recv(8192)
                     upstream_sock.counter.received(len(data))
                     if data:
                         if not self.forward_started:
                             self.forward_started = True
-                            if 5228 == self.dst_port: # Google Service
+                            if self.dst_port in [5228, 8883]: # Google Service and MQTT
                                 upstream_sock.settimeout(None)
                             else: # More than 5 minutes
                                 upstream_sock.settimeout(after_started_timeout)
@@ -137,7 +137,7 @@ class ProxyClient(object):
         def from_downstream_to_upstream():
             try:
                 while True:
-                    data = self.downstream_sock.recv(262144)
+                    data = self.downstream_sock.recv(8192)
                     if data:
                         if encrypt:
                             data = encrypt(data)
@@ -533,10 +533,8 @@ def refresh_proxies(force=False):
     global last_refresh_started_at
     if not force:
         if last_refresh_started_at == -1: # wait for proxy directories to load
-            LOGGER.error('skip refreshing proxy because proxy directories not loaded yet')
             return False
         if time.time() - last_refresh_started_at < get_refresh_interval():
-            LOGGER.error('skip refreshing proxy after last attempt %s seconds' % (time.time() - last_refresh_started_at))
             return False
     last_refresh_started_at = time.time()
     refresh_timestamps.append(time.time())
@@ -563,13 +561,13 @@ def refresh_proxies(force=False):
 
 def get_refresh_interval():
     if not refresh_timestamps:
-        return 120
+        return 360
     while refresh_timestamps:
         if refresh_timestamps[0] < (time.time() - 30 * 60):
             refresh_timestamps.remove(refresh_timestamps[0])
         else:
             break
-    return len(refresh_timestamps) * 30 + 120
+    return len(refresh_timestamps) * 30 + 360
 
 
 def init_private_proxies(config):

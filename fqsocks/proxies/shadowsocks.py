@@ -12,6 +12,37 @@ from .. import networking
 
 LOGGER = logging.getLogger(__name__)
 
+ip_74_125 = []
+for i in range(0, 16):
+    ip_74_125.append('74.125.%s.0' % i)
+for i in range(96, 112):
+    ip_74_125.append('74.125.%s.0' % i)
+for i in range(160, 176):
+    if i in [164, 171]:
+        continue
+    ip_74_125.append('74.125.%s.0' % i)
+for i in range(209, 219):
+    if i in [210, 211, 217]:
+        continue
+    ip_74_125.append('74.125.%s.0' % i)
+ip_173_194 = []
+for i in range(0, 32):
+    if i in [29, 30]:
+        continue
+    ip_173_194.append('173.194.%s.0' % i)
+for i in range(48, 64):
+    if i in [57]:
+        continue
+    ip_173_194.append('173.194.%s.0' % i)
+for i in range(128, 153):
+    if i in [143, 145]:
+        continue
+    ip_173_194.append('173.194.%s.0' % i)
+ip_208_117 = [
+    '208.117.236.0', '208.117.238.0', '208.117.240.0', '208.117.242.0', '208.117.250.0', '208.117.251.0',
+    '208.117.252.0', '208.117.254.0']
+ip_209_85 = ['209.85.225.0', '209.85.226.0', '209.85.228.0', '209.85.229.0', '209.85.239.0']
+blocked_ip_ranges = set(['209.116.150.0'] + ip_209_85 + ip_208_117 + ip_173_194 + ip_74_125)
 
 class ShadowSocksProxy(Proxy):
     def __init__(self, proxy_host, proxy_port, password, encrypt_method, supported_protocol=None, **ignore):
@@ -70,8 +101,11 @@ class ShadowSocksProxy(Proxy):
         self.record_latency(time.time() - begin_at)
 
     def is_protocol_supported(self, protocol, client=None):
-        if hasattr(self, 'resolved_by_dynamic_proxy'):
+        if hasattr(self, 'resolved_by_dynamic_proxy') and client:
             if 'youtube.com' in client.host or 'googlevideo.com' in client.host:
+                return False
+            dst_ip_range = '.'.join(client.dst_ip.split('.')[:3] + ['0'])
+            if dst_ip_range in blocked_ip_ranges:
                 return False
         if not self.supported_protocol:
             return True
