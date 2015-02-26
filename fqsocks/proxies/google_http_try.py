@@ -12,6 +12,9 @@ import gevent
 LOGGER = logging.getLogger(__name__)
 
 class HttpsEnforcer(HttpTryProxy):
+
+    bad_domains = []
+
     def get_or_create_upstream_sock(self, client):
         LOGGER.info('[%s] force https: %s' % (repr(client), client.url))
         upstream_sock = client.create_tcp_socket(client.dst_ip, 443, 3)
@@ -34,9 +37,33 @@ class HttpsEnforcer(HttpTryProxy):
     def is_protocol_supported(self, protocol, client=None):
         if not super(HttpsEnforcer, self).is_protocol_supported(protocol, client):
             return False
-        if client.host.endswith('.instagram.com'):
-            return True
+        for bad_domain in self.bad_domains:
+            if client.host.endswith(bad_domain):
+                return True
+        return False
+
+    @classmethod
+    def refresh(cls, proxies):
+        cls.bad_domains = list(cls.resolve_blacklist('https-enforcer.dyn.fqrouter.com'))
+        LOGGER.error('resolved https enforcer domains: %s' % cls.bad_domains)
         return True
+
+    @classmethod
+    def resolve_blacklist(cls, blacklist):
+        try:
+            bad_domains = set()
+            for record in networking.resolve_txt(blacklist):
+                record_type, record_content = record.text[0].split('=')
+                if 'd' == record_type:
+                    bad_domains.add(record_content)
+                elif 'r' == record_type:
+                    bad_domains |= cls.resolve_blacklist(record_content)
+                else:
+                    pass # ignore
+            return bad_domains
+        except:
+            LOGGER.exception('failed to resolve blacklist: %s' % blacklist)
+            return set()
 
     def __repr__(self):
         return 'HttpsEnforcer'

@@ -355,7 +355,6 @@ def load_more_goagent_proxies():
     global goagent_group_exhausted
     global last_refresh_started_at
     if time.time() - last_refresh_started_at < get_refresh_interval():
-        LOGGER.error('skip load more goagent proxies after last attempt %s seconds' % (time.time() - last_refresh_started_at))
         return
     last_refresh_started_at = time.time()
     goagent_groups = {}
@@ -541,6 +540,8 @@ def refresh_proxies(force=False):
     LOGGER.info('refresh proxies: %s' % proxies)
     socks = []
     type_to_proxies = {}
+    if https_enforcer_enabled:
+        type_to_proxies.setdefault(HTTPS_ENFORCER.__class__, []).append(HTTPS_ENFORCER)
     for proxy in proxies:
         type_to_proxies.setdefault(proxy.__class__, []).append(proxy)
     success = True
