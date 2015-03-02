@@ -21,10 +21,11 @@ def substitute_ip(client, dst_black_list):
             candidate_ips.append(ip)
     if candidate_ips:
         substituted_ip = random.choice(candidate_ips)
-        LOGGER.info('[%s] substitute ip: %s %s => %s' % (client, client.host, client.dst_ip, substituted_ip))
         client.dst_ip = substituted_ip
         return True
-    return False
+    else:
+        sub_map[client.dst_ip] = None
+        return False
 
 
 def fill_sub_map(host, dst_ip):
@@ -38,11 +39,20 @@ def fill_sub_map(host, dst_ip):
             ips += networking.resolve_ips(host)
         if dst_ip in ips:
             ips.remove(dst_ip)
-        if ips:
-            sub_map[dst_ip] = ips
-        else:
-            sub_map[dst_ip] = None
+        sub_map[dst_ip] = ips
     except:
         LOGGER.error('failed to fill host map due to %s' % sys.exc_info()[1])
     finally:
         sub_lock.remove(host)
+        if dst_ip not in sub_map:
+            sub_map[dst_ip] = None
+
+
+def add_sub_map_ips(from_ip, to_ips):
+    total_ips = sub_map.get(from_ip, [])
+    if total_ips is None: # even give up before, still give it more chance
+        total_ips = []
+        sub_map[from_ip] = total_ips
+    total_ips.extend(to_ips)
+    if from_ip in total_ips:
+        total_ips.remove(from_ip)

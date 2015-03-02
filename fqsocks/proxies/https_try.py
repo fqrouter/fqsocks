@@ -60,13 +60,13 @@ class HttpsTryProxy(DirectProxy):
             return False
         if client and self in client.tried_proxies:
             return False
-        dst = (client.dst_ip, client.dst_port)
-        if self.dst_black_list.get(dst, 0) % 16:
-            if ip_substitution.substitute_ip(client, self.dst_black_list):
-                return True
-            self.dst_black_list[dst] = self.dst_black_list.get(dst, 0) + 1
+        if 'HTTPS' != protocol:
             return False
-        return 'HTTPS' == protocol
+        dst = (client.dst_ip, client.dst_port)
+        if ip_substitution.substitute_ip(client, self.dst_black_list):
+            return True # there is new ip to try
+        is_ip_blacklisted = self.dst_black_list.get(dst, 0) % 16 # retry every 16 times
+        return not is_ip_blacklisted
 
     def __repr__(self):
         return 'HttpsTryProxy'

@@ -1,13 +1,12 @@
+import logging
+import ssl
+import httplib
+
 from .http_try import HttpTryProxy
-from .http_try import NotHttp
 from .http_try import try_receive_response_body
 from .http_try import try_receive_response_header
 from .. import networking
-import logging
-import ssl
-import socket
-import httplib
-import gevent
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -109,19 +108,10 @@ class GoogleScrambler(HttpTryProxy):
         return response
 
     def is_protocol_supported(self, protocol, client=None):
-        if not super(GoogleScrambler, self).is_protocol_supported(protocol, client):
-            return False
-        if not is_blocked_google_host(client.host):
-            return False
-        return True
+        return False # disable it
 
     def __repr__(self):
         return 'GoogleScrambler'
 
 GOOGLE_SCRAMBLER = GoogleScrambler()
 HTTPS_ENFORCER = HttpsEnforcer()
-
-def is_blocked_google_host(client_host):
-    if not client_host:
-        return False
-    return 'youtube.com' in client_host or 'ytimg.com' in client_host or 'googlevideo.com' in client_host
