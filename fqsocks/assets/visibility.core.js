@@ -205,7 +205,7 @@
         },
 
         // Return document’s property value with name with vendor prefix.
-        // If API is not support, it will retun `unsupported` value.
+        // If API is not support, it will return `unsupported` value.
         _prop: function (name, unsupported) {
             if ( !self.isSupported() ) {
                 return unsupported;
