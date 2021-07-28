@@ -20,7 +20,7 @@ Unique Features
 so, it is effective against GFW full text filtering.
 the page http://zh.wikipedia.org/zh/防火长城‎ is a typical example of full text filtering (the url does not trigger to RST)
 * for https, socket connect and full ssl handshake will be tried, if anything goes wrong (https certificate filtering for example), fallback to another proxy.
-* built-in support goagent as proxy, without starting an seperate goagent process
+* built-in support goagent as proxy, without starting an separate goagent process
 * resolve proxy info from TXT dns record
 
 Basic Usage
